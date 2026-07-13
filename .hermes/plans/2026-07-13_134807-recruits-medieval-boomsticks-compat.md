@@ -28,20 +28,12 @@ The repository has not yet received the first implementation commit. The next ch
 
 ### Current project state
 
-- The repository contains a Forge MDK skeleton and has no commits yet.
-- The current main class is still the generated Forge example:
-  - `src/main/java/org/iwoss/recruits_use_boomsticks/Recruits_use_boomsticks.java`
-- The generated example config is still present:
-  - `src/main/java/org/iwoss/recruits_use_boomsticks/Config.java`
-- The working copy of `build.gradle` is different from the staged version and currently mixes two project identities:
-  - `recruits_use_boomsticks`
-  - `recruits_compat`
-- The resource that exists is:
-  - `src/main/resources/recruits_use_boomsticks.mixins.json`
-- The working `build.gradle` currently references the nonexistent resource:
-  - `recruits_compat.mixins.json`
-- `mods.toml` contains `${...}` placeholders, but the working `build.gradle` no longer configures `processResources` to expand them.
-- The current `./gradlew build` does not reach Java compilation because downloading ForgeSPI from `maven.minecraftforge.net` fails with a TLS handshake error in the current environment.
+- The repository started as a Forge MDK skeleton with no commits. The first implementation checkpoint is now commit `68c9279` (`build: normalize Forge project and add compat bootstrap`) and is pushed to the public repository: https://github.com/iwosw/recruits-use-boomsticks
+- The active entry point is `src/main/java/org/iwoss/recruits_use_boomsticks/RecruitsUseBoomsticks.java`.
+- The focused common configuration is `src/main/java/org/iwoss/recruits_use_boomsticks/config/CompatConfig.java`.
+- The working `build.gradle` is normalized to one project identity and references the existing `recruits_use_boomsticks.mixins.json` resource.
+- `mods.toml` placeholder expansion is restored and verified in `build/resources/main/META-INF/mods.toml`.
+- The current build reaches Java compilation; the exact pinned external artifacts resolve successfully.
 
 ### Critical Recruits dependency mismatch
 
