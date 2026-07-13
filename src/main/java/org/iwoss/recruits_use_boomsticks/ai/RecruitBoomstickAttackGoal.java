@@ -38,6 +38,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     private int cooldownTicksRemaining;
     private int fireAnimationTicks;
     private BoomstickWeaponAdapter.ShotOutcome shotOutcome;
+    private boolean navigationControlled;
 
     public RecruitBoomstickAttackGoal(CrossBowmanEntity crossBowman, double speedModifier) {
         this(crossBowman, speedModifier, MedievalBoomsticksAdapter.INSTANCE);
@@ -51,7 +52,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         this.crossBowman = crossBowman;
         this.speedModifier = speedModifier;
         this.adapter = adapter;
-        setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
+        setFlags(EnumSet.of(Flag.LOOK));
     }
 
     public BoomstickAttackState.Phase phase() {
@@ -60,13 +61,16 @@ public final class RecruitBoomstickAttackGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return isActive() && hasCombatPosition() && hasSupportedWeapon();
+        return isOperational()
+                && hasSupportedWeapon()
+                && ((commandAllowsCombat() && hasCombatPosition()) || mainHandWeaponNeedsReload());
     }
 
     @Override
     public boolean canContinueToUse() {
-        return isActive() && hasCombatPosition()
-                && (adapter.supports(crossBowman.getMainHandItem()) || hasSupportedWeaponInInventory());
+        return isOperational()
+                && (adapter.supports(crossBowman.getMainHandItem()) || hasSupportedWeaponInInventory())
+                && ((commandAllowsCombat() && hasCombatPosition()) || mainHandWeaponNeedsReload());
     }
 
     @Override
@@ -79,6 +83,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         cooldownTicksRemaining = 0;
         fireAnimationTicks = 0;
         shotOutcome = null;
+        navigationControlled = false;
     }
 
     @Override
@@ -92,12 +97,15 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         cooldownTicksRemaining = 0;
         fireAnimationTicks = 0;
         shotOutcome = null;
-        crossBowman.getNavigation().stop();
+        if (navigationControlled) {
+            crossBowman.getNavigation().stop();
+            navigationControlled = false;
+        }
     }
 
     @Override
     public void tick() {
-        if (!isActive()) {
+        if (!isOperational()) {
             stop();
             return;
         }
@@ -117,8 +125,11 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         }
         activeWeapon = weapon;
 
-        AimPoint aimPoint = findAimPoint();
-        moveAndLook(aimPoint);
+        boolean combatAllowed = commandAllowsCombat();
+        AimPoint aimPoint = combatAllowed ? findAimPoint() : null;
+        if (aimPoint != null || (combatAllowed && validTarget(crossBowman.getTarget()))) {
+            moveAndLook(aimPoint);
+        }
 
         BoomstickWeaponProfile profile = adapter.profile(weapon).orElse(null);
         if (profile == null) {
@@ -135,7 +146,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         boolean cooldownComplete = advanceCooldownTimer(previous);
 
         BoomstickAttackState.Signals signals = new BoomstickAttackState.Signals(
-                isActive(),
+                isOperational(),
                 aimPoint != null,
                 true,
                 loaded,
@@ -168,7 +179,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             beginReload(weapon, profile);
         }
         if (previous == BoomstickAttackState.Phase.RELOAD
-                && next == BoomstickAttackState.Phase.AIM) {
+                && (next == BoomstickAttackState.Phase.AIM || next == BoomstickAttackState.Phase.IDLE)) {
             completeReload(weapon, ammoRequired);
         }
         if (next == BoomstickAttackState.Phase.AIM) {
@@ -302,14 +313,13 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         }
     }
 
-    private boolean isActive() {
+    private boolean isOperational() {
         return !crossBowman.level().isClientSide
                 && crossBowman.isAlive()
                 && CompatConfig.ENABLED.get()
                 && crossBowman.getShouldRanged()
                 && !crossBowman.getShouldRest()
-                && !crossBowman.isPassenger()
-                && commandAllowsCombat();
+                && !crossBowman.isPassenger();
     }
 
     private boolean commandAllowsCombat() {
@@ -339,6 +349,13 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         return matching != null && !matching.isEmpty();
     }
 
+    private boolean mainHandWeaponNeedsReload() {
+        ItemStack weapon = crossBowman.getMainHandItem();
+        return adapter.supports(weapon)
+                && !adapter.isLoaded(weapon)
+                && adapter.hasAmmo(crossBowman, weapon, BoomstickAmmoAccess.isAmmoRequired());
+    }
+
     private AimPoint findAimPoint() {
         LivingEntity target = crossBowman.getTarget();
         if (validTarget(target) && crossBowman.hasLineOfSight(target)) {
@@ -365,6 +382,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     }
 
     private void moveAndLook(AimPoint aimPoint) {
+        navigationControlled = true;
         LivingEntity target = aimPoint == null ? crossBowman.getTarget() : aimPoint.entity();
         if (aimPoint != null) {
             Vec3 position = aimPoint.position();

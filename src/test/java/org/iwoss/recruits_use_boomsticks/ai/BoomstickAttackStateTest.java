@@ -7,6 +7,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class BoomstickAttackStateTest {
     @Test
+    void reloadsEquippedWeaponBeforeAnyTargetIsAssigned() {
+        BoomstickAttackState state = new BoomstickAttackState();
+
+        assertEquals(BoomstickAttackState.Phase.RELOAD, state.advance(
+                signals(true, false, true, false, true, false, false, false, null)));
+        assertEquals(BoomstickAttackState.Phase.IDLE, state.advance(
+                signals(true, false, true, false, true, true, false, false, null)));
+    }
+
+    @Test
     void acquiresReloadsAimsAndFiresInOrder() {
         BoomstickAttackState state = new BoomstickAttackState();
 

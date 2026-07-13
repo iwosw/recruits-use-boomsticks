@@ -20,6 +20,7 @@ import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
+import org.iwoss.recruits_use_boomsticks.ai.RecruitBoomstickAttackGoal;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickAmmoAccess;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickWeaponAdapter;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickWeaponProfile;
@@ -33,6 +34,36 @@ import java.lang.reflect.Method;
 @PrefixGameTestTemplate(false)
 public final class BoomstickCompatibilityGameTests {
     private BoomstickCompatibilityGameTests() {
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void equippedBoomstickReloadsBeforeRecruitReceivesATarget(GameTestHelper helper) {
+        boolean previousAmmoRequirement = RecruitsServerConfig.RangedRecruitsNeedArrowsToShoot.get();
+        RecruitsServerConfig.RangedRecruitsNeedArrowsToShoot.set(true);
+        try {
+            CrossBowmanEntity recruit = spawnCrossbowman(helper);
+            ItemStack weapon = stack(SupportedBoomsticks.HANDGONNE_ID);
+            ItemStack ammo = stack(SupportedBoomsticks.ROUND_BALL_ID);
+            recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+            recruit.getInventory().addItem(ammo);
+            recruit.setTarget(null);
+            recruit.setShouldRanged(true);
+
+            RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
+            helper.assertTrue(goal.canUse(), "an unloaded equipped weapon must start reloading without a target");
+            goal.start();
+            for (int tick = 0; tick <= MedievalBoomsticksAdapter.INSTANCE.reloadTicks(weapon); tick++) {
+                goal.tick();
+            }
+
+            helper.assertTrue(MedievalBoomsticksAdapter.INSTANCE.isLoaded(weapon),
+                    "weapon must already be loaded before a combat target is assigned");
+            helper.assertTrue(recruit.getInventory().countItem(ammo.getItem()) == 0,
+                    "pre-combat reload must consume exactly one round ball");
+            helper.succeed();
+        } finally {
+            RecruitsServerConfig.RangedRecruitsNeedArrowsToShoot.set(previousAmmoRequirement);
+        }
     }
 
     @GameTest(template = "empty", timeoutTicks = 40)
@@ -121,6 +152,28 @@ public final class BoomstickCompatibilityGameTests {
                 "recruit-owned Boomsticks projectiles must skip allied recruits");
         helper.assertTrue(canHitEntity(playerProjectile, ally),
                 "the compatibility mod must not change player-owned projectile targeting");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void expiredRecruitProjectilesAreRemovedWithoutChangingPlayerProjectiles(GameTestHelper helper) {
+        CrossBowmanEntity shooter = spawnCrossbowman(helper);
+        Player player = helper.makeMockPlayer();
+        ItemStack weapon = stack(SupportedBoomsticks.HANDGONNE_ID);
+        AbstractArrow recruitProjectile = new RoundBallProjectile(helper.getLevel(), shooter, weapon);
+        AbstractArrow playerProjectile = new RoundBallProjectile(helper.getLevel(), player, weapon);
+        recruitProjectile.setOwner(shooter);
+        playerProjectile.setOwner(player);
+        recruitProjectile.tickCount = 200;
+        playerProjectile.tickCount = 200;
+
+        recruitProjectile.tick();
+        playerProjectile.tick();
+
+        helper.assertTrue(recruitProjectile.isRemoved(),
+                "recruit-owned Boomsticks projectiles must be discarded after ten seconds");
+        helper.assertFalse(playerProjectile.isRemoved(),
+                "the compatibility mod must not discard player-owned projectiles");
         helper.succeed();
     }
 
