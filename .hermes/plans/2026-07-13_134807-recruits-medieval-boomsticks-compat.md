@@ -20,7 +20,7 @@ The following work has been completed before the next checkpoint:
 - **Step 4 — resource catalog groundwork:** item tags for supported weapons, round balls, and heavy bolts were added. The Java catalog/profile layer remains to be implemented.
 - **Verification completed:** `./gradlew processResources`, `./gradlew dependencies --configuration compileClasspath`, `./gradlew compileJava`, and `./gradlew test` completed successfully. The initial config test was corrected to inspect Forge defaults via `getDefault()` rather than reading an unloaded config.
 
-The repository has not yet received the first implementation commit. The next checkpoint must commit the completed changes before continuing with the Java catalog/profile implementation.
+The first implementation checkpoint is commit `68c9279`; generated-file cleanup and the corrected progress record are in commit `f4bc17a` (`refactor: remove generated Forge examples`). Both commits are pushed to the public repository. The next compatibility step must be committed before continuing further.
 
 ---
 
