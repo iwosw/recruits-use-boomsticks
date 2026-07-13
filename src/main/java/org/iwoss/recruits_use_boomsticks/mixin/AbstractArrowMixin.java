@@ -9,10 +9,13 @@ import net.minecraft.world.entity.projectile.AbstractArrow;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(AbstractArrow.class)
 public abstract class AbstractArrowMixin {
+    private static final int RECRUIT_PROJECTILE_MAX_AGE_TICKS = 200;
+
     @Inject(method = "canHitEntity", at = @At("HEAD"), cancellable = true)
     private void recruitsUseBoomsticks$guardFriendlyFire(
             Entity target,
@@ -33,5 +36,22 @@ public abstract class AbstractArrowMixin {
                 || !recruitOwner.canAttack(livingTarget)) {
             callbackInfo.setReturnValue(false);
         }
+    }
+
+    @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
+    private void recruitsUseBoomsticks$discardExpiredProjectile(CallbackInfo callbackInfo) {
+        AbstractArrow projectile = (AbstractArrow) (Object) this;
+        if (!(projectile instanceof RoundBallProjectile)
+                && !(projectile instanceof HeavyBoltProjectile)) {
+            return;
+        }
+        if (projectile.level().isClientSide
+                || !(projectile.getOwner() instanceof AbstractRecruitEntity)
+                || projectile.tickCount < RECRUIT_PROJECTILE_MAX_AGE_TICKS) {
+            return;
+        }
+
+        projectile.discard();
+        callbackInfo.cancel();
     }
 }

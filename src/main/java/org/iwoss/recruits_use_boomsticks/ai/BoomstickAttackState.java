@@ -68,29 +68,29 @@ public final class BoomstickAttackState {
     }
 
     private static Phase fromIdle(Signals signals) {
-        if (!signals.targetAvailable()) {
-            return Phase.IDLE;
-        }
         if (!signals.weaponInMainHand()) {
-            return Phase.ACQUIRE_WEAPON;
+            return signals.targetAvailable() ? Phase.ACQUIRE_WEAPON : Phase.IDLE;
         }
-        if (signals.loaded()) {
-            return Phase.AIM;
+        if (!signals.loaded()) {
+            if (signals.ammoAvailable()) {
+                return Phase.RELOAD;
+            }
+            return signals.targetAvailable() ? Phase.OUT_OF_AMMO : Phase.IDLE;
         }
-        return signals.ammoAvailable() ? Phase.RELOAD : Phase.OUT_OF_AMMO;
+        return signals.targetAvailable() ? Phase.AIM : Phase.IDLE;
     }
 
     private static Phase fromAcquire(Signals signals) {
         if (!signals.weaponInMainHand()) {
             return signals.targetAvailable() ? Phase.ACQUIRE_WEAPON : Phase.IDLE;
         }
-        if (!signals.targetAvailable()) {
-            return Phase.IDLE;
+        if (!signals.loaded()) {
+            if (signals.ammoAvailable()) {
+                return Phase.RELOAD;
+            }
+            return signals.targetAvailable() ? Phase.OUT_OF_AMMO : Phase.IDLE;
         }
-        if (signals.loaded()) {
-            return Phase.AIM;
-        }
-        return signals.ammoAvailable() ? Phase.RELOAD : Phase.OUT_OF_AMMO;
+        return signals.targetAvailable() ? Phase.AIM : Phase.IDLE;
     }
 
     private static Phase fromReload(Signals signals) {
