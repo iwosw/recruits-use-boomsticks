@@ -21,7 +21,12 @@ hs_err_pid*
 run
 
 # Hermes local recovery snapshots
-.hermes/recovery/
+.hermes/
 
 # Generated runtime logs
 logs/
+
+# Local downloads and generated run data
+downloads/
+run-data/
+src/generated/resources/

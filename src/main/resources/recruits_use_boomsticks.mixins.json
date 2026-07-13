@@ -6,7 +6,8 @@
   "refmap": "recruits_use_boomsticks.refmap.json",
   "mixins": [
     "CrossBowmanEntityMixin",
-    "RecruitRangedCrossbowAttackGoalMixin"
+    "RecruitRangedCrossbowAttackGoalMixin",
+    "AbstractArrowMixin"
   ],
   "client": [],
   "injectors": {

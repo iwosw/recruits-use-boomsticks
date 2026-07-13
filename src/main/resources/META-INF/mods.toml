@@ -2,12 +2,15 @@ modLoader = "javafml"
 loaderVersion = "${loader_version_range}"
 license = "${mod_license}"
 displayTest = "MATCH_VERSION"
+issueTrackerURL = "https://github.com/iwosw/recruits-use-boomsticks/issues"
 
 [[mods]]
 modId = "${mod_id}"
 version = "${mod_version}"
 displayName = "${mod_name}"
 authors = "${mod_authors}"
+displayURL = "https://github.com/iwosw/recruits-use-boomsticks"
+logoFile = "icon.png"
 description = '''${mod_description}'''
 
 [[dependencies."${mod_id}"]]
