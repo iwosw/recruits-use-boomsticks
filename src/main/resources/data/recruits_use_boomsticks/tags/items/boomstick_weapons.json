@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "medieval_boomsticks:handgonne",
+    "medieval_boomsticks:spikedhandgonne",
+    "medieval_boomsticks:arquebus",
+    "medieval_boomsticks:arbalest"
+  ]
+}
