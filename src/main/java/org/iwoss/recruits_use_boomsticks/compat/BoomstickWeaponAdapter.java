@@ -6,7 +6,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.Optional;
 
-/** Boundary between recruit AI and Medieval Boomsticks implementation details. */
+/** Boundary between recruit AI and integration-specific ranged-weapon details. */
 public interface BoomstickWeaponAdapter {
     boolean supports(ItemStack weapon);
 
@@ -21,6 +21,12 @@ public interface BoomstickWeaponAdapter {
     boolean isReloading(ItemStack weapon);
 
     void setFiring(ItemStack weapon, boolean firing);
+
+    /** Clears animation-only state without changing a committed loaded payload. */
+    default void clearTransientState(ItemStack weapon) {
+        setReloading(weapon, false);
+        setFiring(weapon, false);
+    }
 
     int reloadTicks(ItemStack weapon);
 
