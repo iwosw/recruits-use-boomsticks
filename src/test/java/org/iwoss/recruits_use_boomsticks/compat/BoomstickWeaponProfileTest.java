@@ -45,14 +45,13 @@ class BoomstickWeaponProfileTest {
                 .profileFor("medieval_boomsticks:arbalest")
                 .orElseThrow();
 
-        assertEquals(25, handgonne.baseReloadTicks());
         assertEquals(8.0D, handgonne.projectileVelocity());
+        assertEquals(1.0F, handgonne.inaccuracy());
         assertEquals(3, spikedHandgonne.projectileCount());
-        assertEquals(120, spikedHandgonne.baseReloadTicks());
-        assertEquals(25, arquebus.baseReloadTicks());
-        assertEquals(50, arbalest.baseReloadTicks());
+        assertEquals(1.0F, spikedHandgonne.inaccuracy());
+        assertEquals(1.0F, arquebus.inaccuracy());
         assertEquals(1.6D, arbalest.projectileVelocity());
-        assertTrue(arbalest.projectilePickupAllowed());
+        assertEquals(1.0F, arbalest.inaccuracy());
     }
 
     @Test

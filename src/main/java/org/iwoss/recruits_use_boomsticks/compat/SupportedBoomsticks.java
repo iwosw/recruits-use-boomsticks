@@ -34,9 +34,6 @@ public final class SupportedBoomsticks {
      * bootstrap the vanilla registries merely by loading this catalog.
      */
     public static final class Tags {
-        public static final TagKey<Item> BOOMSTICK_WEAPONS = itemTag("boomstick_weapons");
-        public static final TagKey<Item> ROUND_BALL_WEAPONS = itemTag("round_ball_weapons");
-        public static final TagKey<Item> HEAVY_BOLT_WEAPONS = itemTag("heavy_bolt_weapons");
         public static final TagKey<Item> ROUND_BALL_AMMO = itemTag("round_ball_ammo");
         public static final TagKey<Item> HEAVY_BOLT_AMMO = itemTag("heavy_bolt_ammo");
 
@@ -113,7 +110,7 @@ public final class SupportedBoomsticks {
     private static TagKey<Item> itemTag(String path) {
         return TagKey.create(
                 Registries.ITEM,
-                new ResourceLocation(RecruitsUseBoomsticks.MOD_ID, path));
+                ResourceLocation.fromNamespaceAndPath(RecruitsUseBoomsticks.MOD_ID, path));
     }
 
     private static Map<String, BoomstickWeaponProfile> createProfiles() {
@@ -121,47 +118,31 @@ public final class SupportedBoomsticks {
         profiles.put(HANDGONNE_ID, new BoomstickWeaponProfile(
                 HANDGONNE_ID,
                 BoomstickAmmoType.ROUND_BALL,
-                25,
                 1,
                 8.0D,
-                0.0F,
-                5,
-                false,
-                BoomstickSound.HANDGONNE_SHOOT,
-                BoomstickParticle.SMOKE));
+                1.0F,
+                BoomstickSound.HANDGONNE_SHOOT));
         profiles.put(SPIKED_HANDGONNE_ID, new BoomstickWeaponProfile(
                 SPIKED_HANDGONNE_ID,
                 BoomstickAmmoType.ROUND_BALL,
-                120,
                 3,
                 8.0D,
-                0.0F,
-                5,
-                false,
-                BoomstickSound.HANDGONNE_SHOOT,
-                BoomstickParticle.SMOKE));
+                1.0F,
+                BoomstickSound.HANDGONNE_SHOOT));
         profiles.put(ARQUEBUS_ID, new BoomstickWeaponProfile(
                 ARQUEBUS_ID,
                 BoomstickAmmoType.ROUND_BALL,
-                25,
                 1,
                 8.0D,
-                0.0F,
-                5,
-                false,
-                BoomstickSound.ARQUEBUS_SHOOT,
-                BoomstickParticle.SMOKE));
+                1.0F,
+                BoomstickSound.ARQUEBUS_SHOOT));
         profiles.put(ARBALEST_ID, new BoomstickWeaponProfile(
                 ARBALEST_ID,
                 BoomstickAmmoType.HEAVY_BOLT,
-                50,
                 1,
                 1.6D,
-                0.0F,
-                5,
-                true,
-                BoomstickSound.CROSSBOW_SHOOT,
-                BoomstickParticle.SMOKE));
+                1.0F,
+                BoomstickSound.CROSSBOW_SHOOT));
         return Collections.unmodifiableMap(profiles);
     }
 }

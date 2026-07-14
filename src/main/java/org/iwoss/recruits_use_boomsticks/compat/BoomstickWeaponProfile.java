@@ -11,14 +11,10 @@ import java.util.Objects;
 public record BoomstickWeaponProfile(
         String registryId,
         BoomstickAmmoType ammoType,
-        int baseReloadTicks,
         int projectileCount,
         double projectileVelocity,
         float inaccuracy,
-        int cooldownTicks,
-        boolean projectilePickupAllowed,
-        BoomstickSound firingSound,
-        BoomstickParticle firingParticle
+        BoomstickSound firingSound
 ) {
     public BoomstickWeaponProfile {
         if (registryId == null || registryId.isBlank()) {
@@ -26,10 +22,6 @@ public record BoomstickWeaponProfile(
         }
         Objects.requireNonNull(ammoType, "ammoType");
         Objects.requireNonNull(firingSound, "firingSound");
-        Objects.requireNonNull(firingParticle, "firingParticle");
-        if (baseReloadTicks <= 0) {
-            throw new IllegalArgumentException("baseReloadTicks must be positive");
-        }
         if (projectileCount <= 0) {
             throw new IllegalArgumentException("projectileCount must be positive");
         }
@@ -38,9 +30,6 @@ public record BoomstickWeaponProfile(
         }
         if (!Float.isFinite(inaccuracy) || inaccuracy < 0.0F) {
             throw new IllegalArgumentException("inaccuracy must be finite and non-negative");
-        }
-        if (cooldownTicks < 0) {
-            throw new IllegalArgumentException("cooldownTicks must be non-negative");
         }
     }
 

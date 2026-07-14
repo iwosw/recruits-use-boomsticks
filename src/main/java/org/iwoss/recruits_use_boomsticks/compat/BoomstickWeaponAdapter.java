@@ -18,9 +18,13 @@ public interface BoomstickWeaponAdapter {
 
     void setReloading(ItemStack weapon, boolean reloading);
 
+    boolean isReloading(ItemStack weapon);
+
     void setFiring(ItemStack weapon, boolean firing);
 
     int reloadTicks(ItemStack weapon);
+
+    int cooldownTicks(ItemStack weapon);
 
     boolean hasAmmo(CrossBowmanEntity recruit, ItemStack weapon, boolean ammoRequired);
 

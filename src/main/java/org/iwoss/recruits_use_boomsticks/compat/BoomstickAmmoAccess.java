@@ -1,6 +1,5 @@
 package org.iwoss.recruits_use_boomsticks.compat;
 
-import com.talhanation.recruits.config.RecruitsServerConfig;
 import com.talhanation.recruits.entities.CrossBowmanEntity;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
@@ -12,9 +11,9 @@ public final class BoomstickAmmoAccess {
     private BoomstickAmmoAccess() {
     }
 
-    /** Reads Recruits' setting instead of introducing a second ammo policy. */
+    /** Boomsticks always require their physical round-ball or heavy-bolt ammunition. */
     public static boolean isAmmoRequired() {
-        return RecruitsServerConfig.RangedRecruitsNeedArrowsToShoot.get();
+        return true;
     }
 
     public static int requiredAmmoUnits(BoomstickWeaponProfile profile, boolean ammoRequired) {

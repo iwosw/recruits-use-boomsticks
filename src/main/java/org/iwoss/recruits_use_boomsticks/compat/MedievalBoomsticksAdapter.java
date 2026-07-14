@@ -8,6 +8,10 @@ import com.TBK.medieval_boomsticks.server.entity.RoundBallProjectile;
 import com.talhanation.recruits.entities.CrossBowmanEntity;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
@@ -18,6 +22,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
+import org.iwoss.recruits_use_boomsticks.ai.BoomstickCombatPolicy;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 
 import java.util.ArrayList;
@@ -43,14 +48,42 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
 
     @Override
     public boolean isLoaded(ItemStack weapon) {
-        return supports(weapon) && RechargeItem.isCharged(weapon);
+        Optional<BoomstickWeaponProfile> profileResult = profile(weapon);
+        if (profileResult.isEmpty() || !RechargeItem.isCharged(weapon)) {
+            return false;
+        }
+        BoomstickWeaponProfile profile = profileResult.orElseThrow();
+        try {
+            if (hasValidChargedProjectiles(weapon, profile)) {
+                return true;
+            }
+            CompoundTag tag = weapon.getTag();
+            if (tag == null || !tag.contains("ChargedProjectiles")) {
+                weapon.getOrCreateTag().put("ChargedProjectiles", createNativeChargedProjectiles(profile));
+                RecruitsUseBoomsticks.LOGGER.info("Normalized legacy loaded state for {}", profile.registryId());
+                return true;
+            }
+            clearInvalidLoadedState(weapon, profile, null);
+            return false;
+        } catch (RuntimeException exception) {
+            clearInvalidLoadedState(weapon, profile, exception);
+            return false;
+        }
     }
 
     @Override
     public void setLoaded(ItemStack weapon, boolean loaded) {
-        if (supports(weapon)) {
-            RechargeItem.setCharged(weapon, loaded);
+        Optional<BoomstickWeaponProfile> profileResult = profile(weapon);
+        if (profileResult.isEmpty()) {
+            return;
         }
+        CompoundTag tag = weapon.getOrCreateTag();
+        if (loaded) {
+            tag.put("ChargedProjectiles", createNativeChargedProjectiles(profileResult.orElseThrow()));
+        } else {
+            tag.remove("ChargedProjectiles");
+        }
+        RechargeItem.setCharged(weapon, loaded);
     }
 
     @Override
@@ -58,6 +91,11 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
         if (supports(weapon)) {
             RechargeItem.setReCharge(weapon, reloading);
         }
+    }
+
+    @Override
+    public boolean isReloading(ItemStack weapon) {
+        return supports(weapon) && RechargeItem.isReCharge(weapon);
     }
 
     @Override
@@ -71,6 +109,13 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
     public int reloadTicks(ItemStack weapon) {
         return profile(weapon)
                 .map(profile -> Math.max(1, RechargeItem.getChargeDuration(weapon)))
+                .orElse(0);
+    }
+
+    @Override
+    public int cooldownTicks(ItemStack weapon) {
+        return profile(weapon)
+                .map(profile -> BoomstickCombatPolicy.cooldownTicks())
                 .orElse(0);
     }
 
@@ -103,33 +148,41 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
             return new ShotResult(ShotOutcome.INVALID_TARGET, 0);
         }
 
+        List<AbstractArrow> projectiles = new ArrayList<>();
+        List<Boolean> misfires = new ArrayList<>();
+        ItemStack originalWeapon = weapon.copy();
         try {
             Optional<BoomstickWeaponProfile> profileResult = profile(weapon);
             if (profileResult.isEmpty()) {
                 return new ShotResult(ShotOutcome.INVALID_WEAPON, 0);
             }
             BoomstickWeaponProfile profile = profileResult.orElseThrow();
-            if (!isLoaded(weapon)) {
-                return new ShotResult(ShotOutcome.NOT_LOADED, 0);
-            }
 
             Vec3 origin = recruit.getEyePosition(1.0F);
-            Vec3 direction = targetPosition.subtract(origin);
+            Vec3 direction = projectileDirection(origin, targetPosition, profile);
             if (direction.lengthSqr() < 1.0E-8D) {
                 return new ShotResult(ShotOutcome.INVALID_TARGET, 0);
             }
             direction = direction.normalize();
+            if (!isLoaded(weapon)) {
+                return new ShotResult(ShotOutcome.NOT_LOADED, 0);
+            }
 
             boolean firearm = RechargeItem.isFireGun(weapon);
-            boolean misfire = firearm
-                    && serverLevel.random.nextFloat() < Config.probabilityFail / 100.0F;
-            List<AbstractArrow> projectiles = new ArrayList<>(profile.projectileCount());
             for (int index = 0; index < profile.projectileCount(); index++) {
+                boolean misfire = BoomstickCombatPolicy.isMisfire(
+                        firearm,
+                        serverLevel.random.nextFloat(),
+                        Config.probabilityFail);
                 AbstractArrow projectile = createProjectile(serverLevel, recruit, weapon, profile);
-                projectile.setPos(origin.x, origin.y, origin.z);
                 if (misfire) {
-                    projectile.setDeltaMovement(Vec3.ZERO);
+                    projectile.setPos(
+                            origin.x + direction.x * 0.1D,
+                            origin.y - 0.2D,
+                            origin.z + direction.z * 0.1D);
+                    projectile.setDeltaMovement(0.0D, -1.0D, 0.0D);
                 } else {
+                    projectile.setPos(origin.x, origin.y, origin.z);
                     Vec3 projectileDirection = directionForProjectile(direction, profile, index);
                     projectile.shoot(
                             projectileDirection.x,
@@ -139,19 +192,25 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
                             profile.inaccuracy()
                     );
                 }
+                projectiles.add(projectile);
                 if (!serverLevel.addFreshEntity(projectile)) {
                     rollback(projectiles);
+                    restoreStack(weapon, originalWeapon);
                     return new ShotResult(ShotOutcome.SPAWN_FAILED, 0);
                 }
-                projectiles.add(projectile);
+                misfires.add(misfire);
             }
 
-            weapon.hurtAndBreak(1, recruit, ignored -> recruit.broadcastBreakEvent(InteractionHand.MAIN_HAND));
+            for (boolean misfire : misfires) {
+                weapon.hurtAndBreak(1, recruit, ignored -> recruit.broadcastBreakEvent(InteractionHand.MAIN_HAND));
+                playShotEffectsSafely(serverLevel, recruit, profile, origin, misfire, firearm);
+            }
             setLoaded(weapon, false);
             setFiring(weapon, true);
-            playShotEffects(serverLevel, recruit, profile, origin, misfire, firearm);
             return new ShotResult(ShotOutcome.FIRED, projectiles.size());
         } catch (RuntimeException exception) {
+            rollback(projectiles);
+            restoreStack(weapon, originalWeapon);
             RecruitsUseBoomsticks.LOGGER.error(
                     "Boomsticks adapter failed for recruit {} (entity {}) with weapon {}",
                     recruit.getStringUUID(),
@@ -179,6 +238,69 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
         return projectile;
     }
 
+    private static ListTag createNativeChargedProjectiles(BoomstickWeaponProfile profile) {
+        ItemStack ammo = expectedAmmo(profile);
+
+        ListTag chargedProjectiles = new ListTag();
+        for (int index = 0; index < profile.projectileCount(); index++) {
+            chargedProjectiles.add(ammo.save(new CompoundTag()));
+        }
+        return chargedProjectiles;
+    }
+
+    private static boolean hasValidChargedProjectiles(ItemStack weapon, BoomstickWeaponProfile profile) {
+        CompoundTag tag = weapon.getTag();
+        if (tag == null || !tag.contains("ChargedProjectiles", Tag.TAG_LIST)) {
+            return false;
+        }
+        ListTag payload = tag.getList("ChargedProjectiles", Tag.TAG_COMPOUND);
+        if (payload.size() != profile.projectileCount()) {
+            return false;
+        }
+        ItemStack expected = expectedAmmo(profile);
+        for (int index = 0; index < payload.size(); index++) {
+            ItemStack projectile = ItemStack.of(payload.getCompound(index));
+            if (projectile.isEmpty()
+                    || projectile.getItem() != expected.getItem()
+                    || projectile.getCount() != 1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static void clearInvalidLoadedState(
+            ItemStack weapon,
+            BoomstickWeaponProfile profile,
+            RuntimeException exception
+    ) {
+        weapon.getOrCreateTag().remove("ChargedProjectiles");
+        RechargeItem.setCharged(weapon, false);
+        if (exception == null) {
+            RecruitsUseBoomsticks.LOGGER.warn("Cleared invalid loaded payload for {}", profile.registryId());
+        } else {
+            RecruitsUseBoomsticks.LOGGER.warn(
+                    "Cleared invalid loaded payload for {} after validation failed",
+                    profile.registryId(),
+                    exception);
+        }
+    }
+
+    private static ItemStack expectedAmmo(BoomstickWeaponProfile profile) {
+        String ammoId = profile.ammoType() == BoomstickAmmoType.HEAVY_BOLT
+                ? SupportedBoomsticks.HEAVY_BOLT_ID
+                : SupportedBoomsticks.ROUND_BALL_ID;
+        ResourceLocation id = ResourceLocation.tryParse(ammoId);
+        if (id == null) {
+            throw new IllegalStateException("invalid supported ammo ID " + ammoId);
+        }
+        ItemStack ammo = new ItemStack(BuiltInRegistries.ITEM.get(id));
+        if (ammo.isEmpty()) {
+            throw new IllegalStateException("missing supported ammo " + ammoId);
+        }
+        return ammo;
+    }
+
     private static Vec3 directionForProjectile(
             Vec3 direction,
             BoomstickWeaponProfile profile,
@@ -192,10 +314,28 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
         return direction.yRot((float) Math.toRadians(degrees)).normalize();
     }
 
+    private static Vec3 projectileDirection(
+            Vec3 origin,
+            Vec3 targetPosition,
+            BoomstickWeaponProfile profile
+    ) {
+        Vec3 direct = targetPosition.subtract(origin);
+        if (!SupportedBoomsticks.ARBALEST_ID.equals(profile.registryId())) {
+            return direct;
+        }
+        double horizontalDistance = Math.sqrt(direct.x * direct.x + direct.z * direct.z);
+        return new Vec3(direct.x, direct.y + horizontalDistance * 0.2D, direct.z);
+    }
+
     private static void rollback(List<AbstractArrow> projectiles) {
         for (AbstractArrow projectile : projectiles) {
             projectile.remove(net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);
         }
+    }
+
+    private static void restoreStack(ItemStack target, ItemStack snapshot) {
+        target.setCount(snapshot.getCount());
+        target.setTag(snapshot.hasTag() ? snapshot.getTag().copy() : null);
     }
 
     private static void playShotEffects(
@@ -229,6 +369,25 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
                     0.08D,
                     0.02D
             );
+        }
+    }
+
+    private static void playShotEffectsSafely(
+            ServerLevel level,
+            CrossBowmanEntity recruit,
+            BoomstickWeaponProfile profile,
+            Vec3 origin,
+            boolean allMisfired,
+            boolean firearm
+    ) {
+        try {
+            playShotEffects(level, recruit, profile, origin, allMisfired, firearm);
+        } catch (RuntimeException exception) {
+            RecruitsUseBoomsticks.LOGGER.warn(
+                    "Boomsticks shot effects failed for recruit {} with weapon {}",
+                    recruit.getStringUUID(),
+                    profile.registryId(),
+                    exception);
         }
     }
 

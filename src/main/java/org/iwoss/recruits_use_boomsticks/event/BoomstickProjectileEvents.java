@@ -12,6 +12,8 @@ import net.minecraftforge.event.entity.ProjectileImpactEvent.ImpactResult;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
+import org.iwoss.recruits_use_boomsticks.compat.BoomstickProjectilePolicy;
+import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 
 /** Prevents recruit-owned Boomsticks projectiles from damaging allies or the owner. */
 @Mod.EventBusSubscriber(
@@ -25,8 +27,12 @@ public final class BoomstickProjectileEvents {
     @SubscribeEvent
     public static void onProjectileImpact(ProjectileImpactEvent event) {
         Projectile projectile = event.getProjectile();
-        if (!(projectile instanceof RoundBallProjectile)
-                && !(projectile instanceof HeavyBoltProjectile)) {
+        boolean supportedProjectile = projectile instanceof RoundBallProjectile
+                || projectile instanceof HeavyBoltProjectile;
+        if (!BoomstickProjectilePolicy.shouldApply(
+                CompatConfig.ENABLED.get(),
+                supportedProjectile,
+                projectile.getOwner() instanceof AbstractRecruitEntity)) {
             return;
         }
 
