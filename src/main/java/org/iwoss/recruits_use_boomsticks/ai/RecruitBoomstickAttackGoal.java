@@ -11,7 +11,7 @@ import net.minecraft.world.phys.Vec3;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickAmmoAccess;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickWeaponAdapter;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickWeaponProfile;
-import org.iwoss.recruits_use_boomsticks.compat.MedievalBoomsticksAdapter;
+import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.compat.SupportedBoomsticks;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import org.slf4j.Logger;
@@ -19,7 +19,7 @@ import org.slf4j.Logger;
 import java.util.EnumSet;
 import java.util.Optional;
 
-/** Ranged goal for supported Medieval Boomsticks weapons on Recruits crossbowmen. */
+/** Shared ranged goal for adapter-backed weapons on Recruits crossbowmen. */
 public final class RecruitBoomstickAttackGoal extends Goal {
     private enum Mode {
         COMBAT,
@@ -36,12 +36,12 @@ public final class RecruitBoomstickAttackGoal extends Goal {
 
     private final CrossBowmanEntity crossBowman;
     private final double speedModifier;
-    private final BoomstickWeaponAdapter adapter;
+    private final RecruitWeaponAdapters adapters;
     private final Mode mode;
     private final BoomstickAttackState state = new BoomstickAttackState();
     private final BoomstickAimProgress aimProgress = new BoomstickAimProgress(AIM_WINDOW_TICKS);
 
-    private ItemStack activeWeapon;
+    private RecruitWeaponAdapters.Selection activeSelection;
     private int switchDelay;
     private int reloadTicksRemaining;
     private int fireAnimationTicks;
@@ -49,14 +49,14 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     private boolean navigationControlled;
 
     public RecruitBoomstickAttackGoal(CrossBowmanEntity crossBowman, double speedModifier) {
-        this(crossBowman, speedModifier, MedievalBoomsticksAdapter.INSTANCE, Mode.COMBAT);
+        this(crossBowman, speedModifier, RecruitWeaponAdapters.production(), Mode.COMBAT);
     }
 
     public static RecruitBoomstickAttackGoal passiveReload(CrossBowmanEntity crossBowman) {
         return new RecruitBoomstickAttackGoal(
                 crossBowman,
                 0.0D,
-                MedievalBoomsticksAdapter.INSTANCE,
+                RecruitWeaponAdapters.production(),
                 Mode.PASSIVE_RELOAD
         );
     }
@@ -64,20 +64,20 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     RecruitBoomstickAttackGoal(
             CrossBowmanEntity crossBowman,
             double speedModifier,
-            BoomstickWeaponAdapter adapter
+            RecruitWeaponAdapters adapters
     ) {
-        this(crossBowman, speedModifier, adapter, Mode.COMBAT);
+        this(crossBowman, speedModifier, adapters, Mode.COMBAT);
     }
 
     private RecruitBoomstickAttackGoal(
             CrossBowmanEntity crossBowman,
             double speedModifier,
-            BoomstickWeaponAdapter adapter,
+            RecruitWeaponAdapters adapters,
             Mode mode
     ) {
         this.crossBowman = crossBowman;
         this.speedModifier = speedModifier;
-        this.adapter = adapter;
+        this.adapters = adapters;
         this.mode = mode;
         setFlags(mode == Mode.COMBAT
                 ? EnumSet.of(Flag.LOOK, Flag.MOVE)
@@ -96,7 +96,10 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                 || isCooldownActive()) {
             return false;
         }
-        if (mode == Mode.COMBAT && adapter.isReloading(crossBowman.getMainHandItem())) {
+        ItemStack mainHandWeapon = crossBowman.getMainHandItem();
+        if (mode == Mode.COMBAT && adapters.find(mainHandWeapon)
+                .map(adapter -> adapter.isReloading(mainHandWeapon))
+                .orElse(false)) {
             return false;
         }
         boolean combatActive = commandAllowsCombat() && hasCombatPosition();
@@ -109,7 +112,8 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     public boolean canContinueToUse() {
         if (!isOperational()
                 || mustYieldToEmergencyMovement()
-                || (!adapter.supports(crossBowman.getMainHandItem()) && !hasSupportedWeaponInInventory())) {
+                || (!adapters.isSupportedWeapon(crossBowman.getMainHandItem())
+                && !hasSupportedWeaponInInventory())) {
             return false;
         }
         if (fireAnimationTicks > 0) {
@@ -128,7 +132,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     @Override
     public void start() {
         state.reset();
-        activeWeapon = null;
+        activeSelection = null;
         switchDelay = 0;
         reloadTicksRemaining = 0;
         aimProgress.reset();
@@ -145,7 +149,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     private void resetAfterStop() {
         clearWeaponAnimationState();
         state.reset();
-        activeWeapon = null;
+        activeSelection = null;
         switchDelay = 0;
         reloadTicksRemaining = 0;
         aimProgress.reset();
@@ -176,14 +180,17 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         }
 
         ItemStack weapon = crossBowman.getMainHandItem();
-        if (activeWeapon != null && activeWeapon != weapon) {
-            abortForWeaponChange(activeWeapon);
+        if (activeSelection != null && activeSelection.weapon() != weapon) {
+            abortForWeaponChange(activeSelection);
         }
-        if (!adapter.supports(weapon)) {
+        Optional<RecruitWeaponAdapters.Selection> selected = adapters.select(weapon, activeSelection);
+        if (selected.isEmpty()) {
+            activeSelection = null;
             switchToSupportedWeapon();
             return;
         }
-        activeWeapon = weapon;
+        activeSelection = selected.orElseThrow();
+        BoomstickWeaponAdapter adapter = activeSelection.adapter();
 
         boolean combatAllowed = mode == Mode.COMBAT && commandAllowsCombat();
         AimPoint aimPoint = combatAllowed ? findAimPoint() : null;
@@ -217,7 +224,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                 shotOutcome
         );
         BoomstickAttackState.Phase next = state.advance(signals);
-        handleTransition(previous, next, weapon, profile, aimPoint, ammoRequired);
+        handleTransition(previous, next, weapon, profile, aimPoint, ammoRequired, adapter);
     }
 
     private void handleTransition(
@@ -226,39 +233,44 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             ItemStack weapon,
             BoomstickWeaponProfile profile,
             AimPoint aimPoint,
-            boolean ammoRequired
+            boolean ammoRequired,
+            BoomstickWeaponAdapter adapter
     ) {
         if (previous == next) {
             if (next == BoomstickAttackState.Phase.FIRE && shotOutcome == null) {
-                fire(weapon, aimPoint, profile);
+                fire(weapon, aimPoint, profile, adapter);
             }
             return;
         }
 
         if (next == BoomstickAttackState.Phase.RELOAD) {
-            beginReload(weapon, profile);
+            beginReload(weapon, profile, adapter);
         }
         if (previous == BoomstickAttackState.Phase.RELOAD
                 && (next == BoomstickAttackState.Phase.AIM || next == BoomstickAttackState.Phase.IDLE)) {
-            completeReload(weapon, ammoRequired);
+            completeReload(weapon, ammoRequired, adapter);
         }
         if (next == BoomstickAttackState.Phase.AIM) {
             aimProgress.reset();
             shotOutcome = null;
         }
         if (next == BoomstickAttackState.Phase.FIRE) {
-            fire(weapon, aimPoint, profile);
+            fire(weapon, aimPoint, profile, adapter);
         }
         if (next == BoomstickAttackState.Phase.COOLDOWN) {
             shotOutcome = null;
         }
         if (next == BoomstickAttackState.Phase.IDLE
                 || next == BoomstickAttackState.Phase.OUT_OF_AMMO) {
-            stopReloadAnimation(weapon);
+            stopReloadAnimation(weapon, adapter);
         }
     }
 
-    private void beginReload(ItemStack weapon, BoomstickWeaponProfile profile) {
+    private void beginReload(
+            ItemStack weapon,
+            BoomstickWeaponProfile profile,
+            BoomstickWeaponAdapter adapter
+    ) {
         reloadTicksRemaining = BoomstickCombatPolicy.reloadTicks(
                 adapter.reloadTicks(weapon),
                 crossBowman.isPassenger(),
@@ -272,14 +284,23 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         }
     }
 
-    private void completeReload(ItemStack weapon, boolean ammoRequired) {
-        stopReloadAnimation(weapon);
+    private void completeReload(
+            ItemStack weapon,
+            boolean ammoRequired,
+            BoomstickWeaponAdapter adapter
+    ) {
+        stopReloadAnimation(weapon, adapter);
         if (adapter.consumeAmmo(crossBowman, weapon, ammoRequired)) {
             adapter.setLoaded(weapon, true);
         }
     }
 
-    private void fire(ItemStack weapon, AimPoint aimPoint, BoomstickWeaponProfile profile) {
+    private void fire(
+            ItemStack weapon,
+            AimPoint aimPoint,
+            BoomstickWeaponProfile profile,
+            BoomstickWeaponAdapter adapter
+    ) {
         if (aimPoint == null) {
             shotOutcome = BoomstickWeaponAdapter.ShotOutcome.INVALID_TARGET;
             return;
@@ -325,15 +346,16 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         if (!hasSupportedWeaponInInventory()) {
             return;
         }
-        crossBowman.switchMainHandItem(SupportedBoomsticks::isSupportedWeapon);
+        crossBowman.switchMainHandItem(adapters::isSupportedWeapon);
         state.reset();
-        activeWeapon = null;
+        activeSelection = null;
         switchDelay = 1;
     }
 
-    private void abortForWeaponChange(ItemStack previousWeapon) {
-        stopReloadAnimation(previousWeapon);
-        adapter.setFiring(previousWeapon, false);
+    private void abortForWeaponChange(RecruitWeaponAdapters.Selection previous) {
+        previous.adapter().clearTransientState(previous.weapon());
+        crossBowman.stopUsingItem();
+        activeSelection = null;
         state.reset();
         shotOutcome = null;
         aimProgress.reset();
@@ -361,20 +383,16 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         return true;
     }
 
-    private void stopReloadAnimation(ItemStack weapon) {
+    private void stopReloadAnimation(ItemStack weapon, BoomstickWeaponAdapter adapter) {
         adapter.setReloading(weapon, false);
         crossBowman.stopUsingItem();
     }
 
     private void clearWeaponAnimationState() {
         ItemStack weapon = crossBowman.getMainHandItem();
-        if (adapter.supports(weapon)) {
-            adapter.setReloading(weapon, false);
-            adapter.setFiring(weapon, false);
-        }
-        if (activeWeapon != null && activeWeapon != weapon && adapter.supports(activeWeapon)) {
-            adapter.setReloading(activeWeapon, false);
-            adapter.setFiring(activeWeapon, false);
+        adapters.find(weapon).ifPresent(adapter -> adapter.clearTransientState(weapon));
+        if (activeSelection != null && activeSelection.weapon() != weapon) {
+            activeSelection.adapter().clearTransientState(activeSelection.weapon());
         }
         crossBowman.stopUsingItem();
     }
@@ -384,11 +402,8 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             return;
         }
         fireAnimationTicks--;
-        if (fireAnimationTicks == 0) {
-            ItemStack weapon = activeWeapon;
-            if (adapter.supports(weapon)) {
-                adapter.setFiring(weapon, false);
-            }
+        if (fireAnimationTicks == 0 && activeSelection != null) {
+            activeSelection.adapter().setFiring(activeSelection.weapon(), false);
         }
     }
 
@@ -427,19 +442,20 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     }
 
     private boolean hasSupportedWeapon() {
-        return adapter.supports(crossBowman.getMainHandItem()) || hasSupportedWeaponInInventory();
+        return adapters.isSupportedWeapon(crossBowman.getMainHandItem()) || hasSupportedWeaponInInventory();
     }
 
     private boolean hasSupportedWeaponInInventory() {
-        ItemStack matching = crossBowman.getMatchingItem(SupportedBoomsticks::isSupportedWeapon);
+        ItemStack matching = crossBowman.getMatchingItem(adapters::isSupportedWeapon);
         return matching != null && !matching.isEmpty();
     }
 
     private boolean mainHandWeaponNeedsReload() {
         ItemStack weapon = crossBowman.getMainHandItem();
-        return adapter.supports(weapon)
-                && !adapter.isLoaded(weapon)
-                && adapter.hasAmmo(crossBowman, weapon, BoomstickAmmoAccess.isAmmoRequired());
+        return adapters.find(weapon)
+                .map(adapter -> !adapter.isLoaded(weapon)
+                        && adapter.hasAmmo(crossBowman, weapon, BoomstickAmmoAccess.isAmmoRequired()))
+                .orElse(false);
     }
 
     private AimPoint findAimPoint() {
