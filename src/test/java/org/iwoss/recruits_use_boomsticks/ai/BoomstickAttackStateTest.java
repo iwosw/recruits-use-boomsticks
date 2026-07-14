@@ -95,6 +95,29 @@ class BoomstickAttackStateTest {
     }
 
     @Test
+    void targetLossDoesNotCancelAnActiveCooldown() {
+        BoomstickAttackState state = new BoomstickAttackState();
+        state.advance(signals(true, true, true, true, true, false, false, false, null));
+        state.advance(signals(true, true, true, true, true, false, true, false, null));
+        state.advance(signals(true, true, true, false, true, false, false, false, ShotOutcome.FIRED));
+
+        assertEquals(BoomstickAttackState.Phase.COOLDOWN, state.advance(
+                signals(true, false, true, false, true, false, false, false, null)));
+        assertEquals(BoomstickAttackState.Phase.IDLE, state.advance(
+                signals(true, false, true, false, true, false, false, true, null)));
+    }
+
+    @Test
+    void targetLossImmediatelyAfterACommittedShotStillStartsCooldown() {
+        BoomstickAttackState state = new BoomstickAttackState();
+        state.advance(signals(true, true, true, true, true, false, false, false, null));
+        state.advance(signals(true, true, true, true, true, false, true, false, null));
+
+        assertEquals(BoomstickAttackState.Phase.COOLDOWN, state.advance(
+                signals(true, false, true, false, true, false, false, false, ShotOutcome.FIRED)));
+    }
+
+    @Test
     void weaponSwapDuringReloadAbortsWithoutEnteringAim() {
         BoomstickAttackState state = new BoomstickAttackState();
         state.advance(signals(true, true, true, false, true, false, false, false, null));

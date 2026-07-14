@@ -18,6 +18,7 @@ public abstract class CrossBowmanEntityMixin {
     private void recruitsUseBoomsticks$addGoal(CallbackInfo callbackInfo) {
         CrossBowmanEntity recruit = (CrossBowmanEntity) (Object) this;
         recruit.goalSelector.addGoal(0, new RecruitBoomstickAttackGoal(recruit, 1.0D));
+        recruit.goalSelector.addGoal(1, RecruitBoomstickAttackGoal.passiveReload(recruit));
     }
 
     @Inject(method = "wantsToPickUp", at = @At("HEAD"), cancellable = true)

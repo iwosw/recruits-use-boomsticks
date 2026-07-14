@@ -117,25 +117,28 @@ public final class BoomstickAttackState {
     }
 
     private static Phase fromFire(Signals signals) {
-        if (!signals.weaponInMainHand() || !signals.targetAvailable()) {
+        if (!signals.weaponInMainHand()) {
             return Phase.IDLE;
         }
-        if (signals.shotOutcome() == null) {
-            return Phase.FIRE;
+        if (signals.shotOutcome() != null) {
+            return switch (signals.shotOutcome()) {
+                case FIRED -> Phase.COOLDOWN;
+                case NO_AMMO -> Phase.OUT_OF_AMMO;
+                case INVALID_WEAPON, INVALID_TARGET, CLIENT_SIDE_REJECTED, NOT_LOADED, SPAWN_FAILED -> Phase.IDLE;
+            };
         }
-        return switch (signals.shotOutcome()) {
-            case FIRED -> Phase.COOLDOWN;
-            case NO_AMMO -> Phase.OUT_OF_AMMO;
-            case INVALID_WEAPON, INVALID_TARGET, CLIENT_SIDE_REJECTED, NOT_LOADED, SPAWN_FAILED -> Phase.IDLE;
-        };
+        return signals.targetAvailable() ? Phase.FIRE : Phase.IDLE;
     }
 
     private static Phase fromCooldown(Signals signals) {
-        if (!signals.weaponInMainHand() || !signals.targetAvailable()) {
+        if (!signals.weaponInMainHand()) {
             return Phase.IDLE;
         }
         if (!signals.cooldownComplete()) {
             return Phase.COOLDOWN;
+        }
+        if (!signals.targetAvailable()) {
+            return Phase.IDLE;
         }
         if (signals.loaded()) {
             return Phase.AIM;
