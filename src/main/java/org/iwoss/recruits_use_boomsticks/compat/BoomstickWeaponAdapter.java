@@ -10,6 +10,12 @@ import java.util.Optional;
 public interface BoomstickWeaponAdapter {
     boolean supports(ItemStack weapon);
 
+    /** Returns whether this integration owns the inventory item as loading ammunition. */
+    boolean supportsAmmo(ItemStack ammo);
+
+    /** Returns whether this integration explicitly owns the projectile class and its subclasses. */
+    boolean supportsProjectile(Class<?> projectileType);
+
     Optional<BoomstickWeaponProfile> profile(ItemStack weapon);
 
     boolean isLoaded(ItemStack weapon);

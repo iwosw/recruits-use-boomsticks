@@ -3,8 +3,7 @@ package org.iwoss.recruits_use_boomsticks.mixin;
 import com.talhanation.recruits.entities.CrossBowmanEntity;
 import net.minecraft.world.item.ItemStack;
 import org.iwoss.recruits_use_boomsticks.ai.RecruitBoomstickAttackGoal;
-import org.iwoss.recruits_use_boomsticks.compat.BoomstickAmmoAccess;
-import org.iwoss.recruits_use_boomsticks.compat.SupportedBoomsticks;
+import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -14,6 +13,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(CrossBowmanEntity.class)
 public abstract class CrossBowmanEntityMixin {
+    private static final RecruitWeaponAdapters RECRUIT_WEAPON_ADAPTERS = RecruitWeaponAdapters.production();
+
     @Inject(method = "registerGoals", at = @At("TAIL"))
     private void recruitsUseBoomsticks$addGoal(CallbackInfo callbackInfo) {
         CrossBowmanEntity recruit = (CrossBowmanEntity) (Object) this;
@@ -29,12 +30,12 @@ public abstract class CrossBowmanEntityMixin {
         if (!CompatConfig.ENABLED.get() || stack == null || stack.isEmpty()) {
             return;
         }
-        if (SupportedBoomsticks.isSupportedWeapon(stack)) {
+        if (RECRUIT_WEAPON_ADAPTERS.isSupportedWeapon(stack)) {
             callbackInfo.setReturnValue(true);
             return;
         }
-        if (SupportedBoomsticks.isSupportedAmmo(stack)) {
-            callbackInfo.setReturnValue(BoomstickAmmoAccess.isAmmoRequired());
+        if (RECRUIT_WEAPON_ADAPTERS.isSupportedAmmo(stack)) {
+            callbackInfo.setReturnValue(true);
         }
     }
 }

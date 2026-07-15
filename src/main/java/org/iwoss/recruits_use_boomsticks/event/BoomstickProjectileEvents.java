@@ -1,8 +1,6 @@
 package org.iwoss.recruits_use_boomsticks.event;
 
 import com.talhanation.recruits.entities.AbstractRecruitEntity;
-import com.TBK.medieval_boomsticks.server.entity.HeavyBoltProjectile;
-import com.TBK.medieval_boomsticks.server.entity.RoundBallProjectile;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
@@ -13,6 +11,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickProjectilePolicy;
+import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 
 /** Prevents recruit-owned Boomsticks projectiles from damaging allies or the owner. */
@@ -21,17 +20,18 @@ import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
         bus = Mod.EventBusSubscriber.Bus.FORGE
 )
 public final class BoomstickProjectileEvents {
+    private static final RecruitWeaponAdapters RECRUIT_WEAPON_ADAPTERS = RecruitWeaponAdapters.production();
+
     private BoomstickProjectileEvents() {
     }
 
     @SubscribeEvent
     public static void onProjectileImpact(ProjectileImpactEvent event) {
         Projectile projectile = event.getProjectile();
-        boolean supportedProjectile = projectile instanceof RoundBallProjectile
-                || projectile instanceof HeavyBoltProjectile;
-        if (!BoomstickProjectilePolicy.shouldApply(
-                CompatConfig.ENABLED.get(),
-                supportedProjectile,
+        if (!CompatConfig.ENABLED.get()
+                || !BoomstickProjectilePolicy.shouldApply(
+                true,
+                RECRUIT_WEAPON_ADAPTERS.isSupportedProjectile(projectile.getClass()),
                 projectile.getOwner() instanceof AbstractRecruitEntity)) {
             return;
         }
