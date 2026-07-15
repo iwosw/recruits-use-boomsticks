@@ -8,14 +8,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BoomstickCombatPolicyTest {
     @Test
-    void disabledCompatibilityNeverSuppressesTheOriginalCrossbowGoal() {
-        assertFalse(BoomstickCombatPolicy.shouldSuppressOriginalGoal(false, true));
+    void disabledCompatibilityYieldsForHeldAndInventoryWeapons() {
+        assertFalse(BoomstickCombatPolicy.shouldSuppressOriginalGoal(false, true, false));
+        assertFalse(BoomstickCombatPolicy.shouldSuppressOriginalGoal(false, false, true));
     }
 
     @Test
     void enabledCompatibilitySuppressesTheOriginalGoalForSupportedWeapons() {
-        assertTrue(BoomstickCombatPolicy.shouldSuppressOriginalGoal(true, true));
-        assertFalse(BoomstickCombatPolicy.shouldSuppressOriginalGoal(true, false));
+        assertTrue(BoomstickCombatPolicy.shouldSuppressOriginalGoal(true, true, false));
+        assertTrue(BoomstickCombatPolicy.shouldSuppressOriginalGoal(true, false, true));
+        assertFalse(BoomstickCombatPolicy.shouldSuppressOriginalGoal(true, false, false));
     }
 
     @Test

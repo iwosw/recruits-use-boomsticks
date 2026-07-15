@@ -41,6 +41,29 @@ class RecruitWeaponAdaptersTest {
     }
 
     @Test
+    void missingAmmoAndUnknownProjectileTypesAreUnsupported() {
+        RecruitWeaponAdapters adapters = new RecruitWeaponAdapters(List.of(new TestAdapter()));
+
+        assertFalse(adapters.isSupportedAmmo(null));
+        assertFalse(adapters.isSupportedProjectile(null));
+        assertFalse(adapters.isSupportedProjectile(String.class));
+    }
+
+    @Test
+    void projectileTypesMustHaveOneUniqueOwningAdapter() {
+        TestAdapter first = new TestAdapter(CharSequence.class);
+        TestAdapter second = new TestAdapter(Number.class);
+        RecruitWeaponAdapters adapters = new RecruitWeaponAdapters(List.of(first, second));
+
+        assertSame(first, adapters.findProjectileType(String.class).orElseThrow());
+        assertSame(second, adapters.findProjectileType(Integer.class).orElseThrow());
+
+        RecruitWeaponAdapters overlapping = new RecruitWeaponAdapters(
+                List.of(new TestAdapter(Object.class), second));
+        assertThrows(IllegalStateException.class, () -> overlapping.findProjectileType(Number.class));
+    }
+
+    @Test
     void weaponSwapChangesAdapterAndClearsThePreviousTransientState() {
         TestAdapter stoneAdapter = new TestAdapter();
         TestAdapter stickAdapter = new TestAdapter();
@@ -63,12 +86,33 @@ class RecruitWeaponAdaptersTest {
     }
 
     private static final class TestAdapter implements BoomstickWeaponAdapter {
+        private final Class<?> projectileBaseType;
         private int clearCalls;
         private ItemStack lastClearedWeapon;
+
+        private TestAdapter() {
+            this(null);
+        }
+
+        private TestAdapter(Class<?> projectileBaseType) {
+            this.projectileBaseType = projectileBaseType;
+        }
 
         @Override
         public boolean supports(ItemStack weapon) {
             return false;
+        }
+
+        @Override
+        public boolean supportsAmmo(ItemStack ammo) {
+            return false;
+        }
+
+        @Override
+        public boolean supportsProjectile(Class<?> projectileType) {
+            return projectileBaseType != null
+                    && projectileType != null
+                    && projectileBaseType.isAssignableFrom(projectileType);
         }
 
         @Override

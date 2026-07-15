@@ -1,12 +1,11 @@
 package org.iwoss.recruits_use_boomsticks.mixin;
 
-import com.TBK.medieval_boomsticks.server.entity.HeavyBoltProjectile;
-import com.TBK.medieval_boomsticks.server.entity.RoundBallProjectile;
 import com.talhanation.recruits.entities.AbstractRecruitEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickProjectilePolicy;
+import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -18,6 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(AbstractArrow.class)
 public abstract class AbstractArrowMixin {
     private static final int RECRUIT_PROJECTILE_MAX_AGE_TICKS = 200;
+    private static final RecruitWeaponAdapters RECRUIT_WEAPON_ADAPTERS = RecruitWeaponAdapters.production();
 
     @Shadow
     private boolean inGround;
@@ -28,11 +28,10 @@ public abstract class AbstractArrowMixin {
             CallbackInfoReturnable<Boolean> callbackInfo
     ) {
         AbstractArrow projectile = (AbstractArrow) (Object) this;
-        boolean supportedProjectile = projectile instanceof RoundBallProjectile
-                || projectile instanceof HeavyBoltProjectile;
-        if (!BoomstickProjectilePolicy.shouldApply(
-                CompatConfig.ENABLED.get(),
-                supportedProjectile,
+        if (!CompatConfig.ENABLED.get()
+                || !BoomstickProjectilePolicy.shouldApply(
+                true,
+                RECRUIT_WEAPON_ADAPTERS.isSupportedProjectile(projectile.getClass()),
                 projectile.getOwner() instanceof AbstractRecruitEntity)) {
             return;
         }
@@ -51,12 +50,11 @@ public abstract class AbstractArrowMixin {
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
     private void recruitsUseBoomsticks$discardExpiredProjectile(CallbackInfo callbackInfo) {
         AbstractArrow projectile = (AbstractArrow) (Object) this;
-        boolean supportedProjectile = projectile instanceof RoundBallProjectile
-                || projectile instanceof HeavyBoltProjectile;
         if (projectile.level().isClientSide
+                || !CompatConfig.ENABLED.get()
                 || !BoomstickProjectilePolicy.shouldApply(
-                        CompatConfig.ENABLED.get(),
-                        supportedProjectile,
+                        true,
+                        RECRUIT_WEAPON_ADAPTERS.isSupportedProjectile(projectile.getClass()),
                         projectile.getOwner() instanceof AbstractRecruitEntity)
                 || !BoomstickProjectilePolicy.shouldDiscard(
                         projectile.pickup == AbstractArrow.Pickup.ALLOWED,

@@ -42,6 +42,18 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
     }
 
     @Override
+    public boolean supportsAmmo(ItemStack ammo) {
+        return SupportedBoomsticks.isSupportedAmmo(ammo);
+    }
+
+    @Override
+    public boolean supportsProjectile(Class<?> projectileType) {
+        return projectileType != null
+                && (RoundBallProjectile.class.isAssignableFrom(projectileType)
+                || HeavyBoltProjectile.class.isAssignableFrom(projectileType));
+    }
+
+    @Override
     public Optional<BoomstickWeaponProfile> profile(ItemStack weapon) {
         return SupportedBoomsticks.profileFor(weapon);
     }

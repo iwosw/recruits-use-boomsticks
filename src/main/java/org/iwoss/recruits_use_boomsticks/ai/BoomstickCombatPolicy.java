@@ -9,6 +9,16 @@ public final class BoomstickCombatPolicy {
         return compatibilityEnabled && supportedWeaponAvailable;
     }
 
+    public static boolean shouldSuppressOriginalGoal(
+            boolean compatibilityEnabled,
+            boolean supportedHeldWeapon,
+            boolean supportedInventoryWeapon
+    ) {
+        return shouldSuppressOriginalGoal(
+                compatibilityEnabled,
+                supportedHeldWeapon || supportedInventoryWeapon);
+    }
+
     public static boolean shouldUseStrategicFire(boolean validCombatTarget, boolean strategicPositionAvailable) {
         return !validCombatTarget && strategicPositionAvailable;
     }

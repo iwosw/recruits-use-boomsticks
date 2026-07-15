@@ -1,6 +1,6 @@
 package org.iwoss.recruits_use_boomsticks.compat;
 
-/** Pure lifetime policy for recruit-owned Medieval Boomsticks projectiles. */
+/** Pure lifetime policy for recruit-owned projectiles claimed by a registered adapter. */
 public final class BoomstickProjectilePolicy {
     private BoomstickProjectilePolicy() {
     }

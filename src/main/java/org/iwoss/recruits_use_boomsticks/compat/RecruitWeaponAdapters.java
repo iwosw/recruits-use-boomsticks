@@ -54,6 +54,28 @@ public final class RecruitWeaponAdapters {
         return find(weapon).isPresent();
     }
 
+    public Optional<BoomstickWeaponAdapter> findAmmo(ItemStack ammo) {
+        if (ammo == null || ammo.isEmpty()) {
+            return Optional.empty();
+        }
+        return findMatching(adapter -> adapter.supportsAmmo(ammo));
+    }
+
+    public boolean isSupportedAmmo(ItemStack ammo) {
+        return findAmmo(ammo).isPresent();
+    }
+
+    public Optional<BoomstickWeaponAdapter> findProjectileType(Class<?> projectileType) {
+        if (projectileType == null) {
+            return Optional.empty();
+        }
+        return findMatching(adapter -> adapter.supportsProjectile(projectileType));
+    }
+
+    public boolean isSupportedProjectile(Class<?> projectileType) {
+        return findProjectileType(projectileType).isPresent();
+    }
+
     /**
      * Resolves an active weapon and cleans animation state through the adapter that owned the
      * previous stack before allowing a different adapter to take over.
