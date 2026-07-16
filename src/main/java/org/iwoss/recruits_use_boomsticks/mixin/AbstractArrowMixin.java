@@ -31,7 +31,7 @@ public abstract class AbstractArrowMixin {
         if (!CompatConfig.ENABLED.get()
                 || !BoomstickProjectilePolicy.shouldApply(
                 true,
-                RECRUIT_WEAPON_ADAPTERS.isSupportedProjectile(projectile.getClass()),
+                RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledProjectile(projectile.getClass()),
                 projectile.getOwner() instanceof AbstractRecruitEntity)) {
             return;
         }
@@ -54,7 +54,7 @@ public abstract class AbstractArrowMixin {
                 || !CompatConfig.ENABLED.get()
                 || !BoomstickProjectilePolicy.shouldApply(
                         true,
-                        RECRUIT_WEAPON_ADAPTERS.isSupportedProjectile(projectile.getClass()),
+                        RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledProjectile(projectile.getClass()),
                         projectile.getOwner() instanceof AbstractRecruitEntity)
                 || !BoomstickProjectilePolicy.shouldDiscard(
                         projectile.pickup == AbstractArrow.Pickup.ALLOWED,

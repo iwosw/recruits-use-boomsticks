@@ -3,6 +3,7 @@ package org.iwoss.recruits_use_boomsticks.compat;
 import com.talhanation.recruits.entities.CrossBowmanEntity;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import java.util.Objects;
 
@@ -92,8 +93,10 @@ public final class BoomstickAmmoAccess {
     }
 
     private static boolean matches(ItemStack stack, BoomstickAmmoType ammoType) {
-        return ammoType == BoomstickAmmoType.ROUND_BALL
-                ? SupportedBoomsticks.isRoundBallAmmo(stack)
-                : SupportedBoomsticks.isHeavyBoltAmmo(stack);
+        return switch (ammoType) {
+            case ROUND_BALL -> SupportedBoomsticks.isRoundBallAmmo(stack);
+            case HEAVY_BOLT -> SupportedBoomsticks.isHeavyBoltAmmo(stack);
+            case ARROW -> stack != null && !stack.isEmpty() && stack.getItem() == Items.ARROW;
+        };
     }
 }

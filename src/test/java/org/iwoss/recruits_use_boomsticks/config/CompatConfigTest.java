@@ -9,6 +9,8 @@ class CompatConfigTest {
     @Test
     void defaultsMatchCompatibilityPlan() {
         assertTrue(CompatConfig.ENABLED.getDefault());
+        assertTrue(CompatConfig.MEDIEVAL_BOOMSTICKS_ENABLED.getDefault());
+        assertTrue(CompatConfig.ARTILLERY_ADDON_ENABLED.getDefault());
         assertTrue(CompatConfig.ALLOW_STRATEGIC_FIRE.getDefault());
         assertTrue(CompatConfig.SMOKE_PARTICLES.getDefault());
         assertFalse(CompatConfig.DEBUG_LOGGING.getDefault());

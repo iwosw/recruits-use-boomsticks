@@ -84,9 +84,8 @@ dependencies {
     implementation fg.deobf('maven.modrinth:villager-recruits:1.15.2')
     implementation fg.deobf('curse.maven:medieval-boomsticks-1123016:5832925')
     implementation fg.deobf('curse.maven:geckolib-388172:7553267')
-
-    // Use the version ID: the Maven version "9.8" collides with an older Fabric artifact.
-    runtimeOnly fg.deobf('maven.modrinth:epic-knights-shields-armor-and-weapons:WHcvqOVl')
+    runtimeOnly fg.deobf('curse.maven:epic-knights-artillery-addon-1307540:7455014')
+    runtimeOnly fg.deobf('maven.modrinth:epic-knights-shields-armor-and-weapons:2kK9qUpx')
     runtimeOnly fg.deobf('maven.modrinth:architectury-api:9.2.14+forge')
     runtimeOnly fg.deobf('maven.modrinth:cloth-config:11.1.118+forge')
 
@@ -109,9 +108,9 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
         }
         def output = gameTestLog.getText('UTF-8')
         if (output.contains('Failed to load datapacks')
-                || !output.contains('16 tests are now running')
-                || !output.contains('All 16 required tests passed')) {
-            throw new GradleException('GameTest harness did not execute and pass all 16 required tests')
+                || !output.contains('24 tests are now running')
+                || !output.contains('All 24 required tests passed')) {
+            throw new GradleException('GameTest harness did not execute and pass all 24 required tests')
         }
     }
 }

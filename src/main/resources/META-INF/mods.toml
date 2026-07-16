@@ -51,7 +51,7 @@ side = "BOTH"
 [[dependencies."${mod_id}"]]
 modId = "magistuarmory"
 mandatory = true
-versionRange = "[9.8,10)"
+versionRange = "[8.2,)"
 ordering = "AFTER"
 side = "BOTH"
 

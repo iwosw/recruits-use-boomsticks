@@ -46,11 +46,11 @@ public abstract class RecruitRangedCrossbowAttackGoalMixin {
     }
 
     private boolean hasSupportedHeldWeapon() {
-        return RECRUIT_WEAPON_ADAPTERS.isSupportedWeapon(crossBowman.getMainHandItem());
+        return RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledWeapon(crossBowman.getMainHandItem());
     }
 
     private boolean hasSupportedInventoryWeapon() {
-        ItemStack inventoryWeapon = crossBowman.getMatchingItem(RECRUIT_WEAPON_ADAPTERS::isSupportedWeapon);
+        ItemStack inventoryWeapon = crossBowman.getMatchingItem(RECRUIT_WEAPON_ADAPTERS::isSupportedEnabledWeapon);
         return inventoryWeapon != null && !inventoryWeapon.isEmpty();
     }
 }

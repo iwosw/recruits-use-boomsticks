@@ -97,7 +97,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             return false;
         }
         ItemStack mainHandWeapon = crossBowman.getMainHandItem();
-        if (mode == Mode.COMBAT && adapters.find(mainHandWeapon)
+        if (mode == Mode.COMBAT && adapters.findEnabled(mainHandWeapon)
                 .map(adapter -> adapter.isReloading(mainHandWeapon))
                 .orElse(false)) {
             return false;
@@ -112,7 +112,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     public boolean canContinueToUse() {
         if (!isOperational()
                 || mustYieldToEmergencyMovement()
-                || (!adapters.isSupportedWeapon(crossBowman.getMainHandItem())
+                || (!adapters.isSupportedEnabledWeapon(crossBowman.getMainHandItem())
                 && !hasSupportedWeaponInInventory())) {
             return false;
         }
@@ -183,7 +183,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         if (activeSelection != null && activeSelection.weapon() != weapon) {
             abortForWeaponChange(activeSelection);
         }
-        Optional<RecruitWeaponAdapters.Selection> selected = adapters.select(weapon, activeSelection);
+        Optional<RecruitWeaponAdapters.Selection> selected = adapters.selectEnabled(weapon, activeSelection);
         if (selected.isEmpty()) {
             activeSelection = null;
             switchToSupportedWeapon();
@@ -346,7 +346,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         if (!hasSupportedWeaponInInventory()) {
             return;
         }
-        crossBowman.switchMainHandItem(adapters::isSupportedWeapon);
+        crossBowman.switchMainHandItem(adapters::isSupportedEnabledWeapon);
         state.reset();
         activeSelection = null;
         switchDelay = 1;
@@ -390,9 +390,10 @@ public final class RecruitBoomstickAttackGoal extends Goal {
 
     private void clearWeaponAnimationState() {
         ItemStack weapon = crossBowman.getMainHandItem();
-        adapters.find(weapon).ifPresent(adapter -> adapter.clearTransientState(weapon));
-        if (activeSelection != null && activeSelection.weapon() != weapon) {
+        if (activeSelection != null) {
             activeSelection.adapter().clearTransientState(activeSelection.weapon());
+        } else if (CompatConfig.ENABLED.get()) {
+            adapters.findEnabled(weapon).ifPresent(adapter -> adapter.clearTransientState(weapon));
         }
         crossBowman.stopUsingItem();
     }
@@ -411,6 +412,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         return !crossBowman.level().isClientSide
                 && crossBowman.isAlive()
                 && CompatConfig.ENABLED.get()
+                && adapters.hasEnabledAdapter()
                 && crossBowman.getShouldRanged()
                 && !crossBowman.getShouldRest();
     }
@@ -442,17 +444,17 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     }
 
     private boolean hasSupportedWeapon() {
-        return adapters.isSupportedWeapon(crossBowman.getMainHandItem()) || hasSupportedWeaponInInventory();
+        return adapters.isSupportedEnabledWeapon(crossBowman.getMainHandItem()) || hasSupportedWeaponInInventory();
     }
 
     private boolean hasSupportedWeaponInInventory() {
-        ItemStack matching = crossBowman.getMatchingItem(adapters::isSupportedWeapon);
+        ItemStack matching = crossBowman.getMatchingItem(adapters::isSupportedEnabledWeapon);
         return matching != null && !matching.isEmpty();
     }
 
     private boolean mainHandWeaponNeedsReload() {
         ItemStack weapon = crossBowman.getMainHandItem();
-        return adapters.find(weapon)
+        return adapters.findEnabled(weapon)
                 .map(adapter -> !adapter.isLoaded(weapon)
                         && adapter.hasAmmo(crossBowman, weapon, BoomstickAmmoAccess.isAmmoRequired()))
                 .orElse(false);

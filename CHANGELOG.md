@@ -2,6 +2,18 @@
 
 All notable changes to Recruits Use Boomsticks are documented here.
 
+## 1.0.3 — 2026-07-14
+
+### Fixed
+
+- Removed the unnecessary upper version limit for Epic Knights. All available Forge releases for Minecraft 1.20.1, from 8.2 through 10.11, are supported.
+
+## 1.0.2 — 2026-07-14
+
+### Fixed
+
+- Updated the required Epic Knights version to 10.x so the addon can be installed with current Medieval Boomsticks dependencies.
+
 ## 1.0.1 — 2026-07-14
 
 ### Fixed

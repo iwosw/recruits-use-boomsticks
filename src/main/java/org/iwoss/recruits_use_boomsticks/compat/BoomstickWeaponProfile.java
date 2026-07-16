@@ -37,4 +37,9 @@ public record BoomstickWeaponProfile(
     public int ammoPerVolley() {
         return projectileCount;
     }
+
+    /** Alias used by compatibility profiles that describe the native firing sound. */
+    public BoomstickSound sound() {
+        return firingSound;
+    }
 }

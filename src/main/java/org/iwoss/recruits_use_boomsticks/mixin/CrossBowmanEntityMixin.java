@@ -30,11 +30,11 @@ public abstract class CrossBowmanEntityMixin {
         if (!CompatConfig.ENABLED.get() || stack == null || stack.isEmpty()) {
             return;
         }
-        if (RECRUIT_WEAPON_ADAPTERS.isSupportedWeapon(stack)) {
+        if (RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledWeapon(stack)) {
             callbackInfo.setReturnValue(true);
             return;
         }
-        if (RECRUIT_WEAPON_ADAPTERS.isSupportedAmmo(stack)) {
+        if (RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledAmmo(stack)) {
             callbackInfo.setReturnValue(true);
         }
     }

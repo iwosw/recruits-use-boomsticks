@@ -10,6 +10,11 @@ import java.util.Optional;
 public interface BoomstickWeaponAdapter {
     boolean supports(ItemStack weapon);
 
+    /** Identifies the config switch that owns this adapter. */
+    default RecruitWeaponIntegration integration() {
+        return RecruitWeaponIntegration.MEDIEVAL_BOOMSTICKS;
+    }
+
     /** Returns whether this integration owns the inventory item as loading ammunition. */
     boolean supportsAmmo(ItemStack ammo);
 
@@ -66,6 +71,30 @@ public interface BoomstickWeaponAdapter {
 
         public boolean fired() {
             return outcome == ShotOutcome.FIRED;
+        }
+    }
+
+    /** Result shape for adapters that need to expose a committed reload transaction. */
+    record ReloadResult(boolean reloaded, boolean committed, boolean needsAmmo, int ammoConsumed) {
+        public ReloadResult {
+            if (ammoConsumed < 0) {
+                throw new IllegalArgumentException("ammoConsumed must be non-negative");
+            }
+            if (needsAmmo && reloaded) {
+                throw new IllegalArgumentException("a completed reload cannot still need ammo");
+            }
+        }
+
+        public static ReloadResult reloaded(int ammoConsumed) {
+            return new ReloadResult(true, true, false, ammoConsumed);
+        }
+
+        public static ReloadResult awaitingAmmo() {
+            return new ReloadResult(false, false, true, 0);
+        }
+
+        public static ReloadResult rejected() {
+            return new ReloadResult(false, false, false, 0);
         }
     }
 }

@@ -10,9 +10,7 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import org.slf4j.Logger;
 
-/**
- * Independent compatibility layer between Recruits and Medieval Boomsticks.
- */
+/** Independent adapter-backed compatibility layer between Recruits and ranged-weapon mods. */
 @Mod(RecruitsUseBoomsticks.MOD_ID)
 public final class RecruitsUseBoomsticks {
     public static final String MOD_ID = "recruits_use_boomsticks";
@@ -24,14 +22,19 @@ public final class RecruitsUseBoomsticks {
     }
 
     private void onCommonSetup(final FMLCommonSetupEvent event) {
-        LOGGER.info("{} {} loaded; Recruits={}, Medieval Boomsticks={}, GeckoLib={}",
+        LOGGER.info("{} {} loaded; Recruits={}, Medieval Boomsticks={}, GeckoLib={}, Artillery Addon={}; "
+                        + "compatibility switches: global={}, medievalBoomsticks={}, artilleryAddon={}",
                 MOD_ID,
                 ModList.get().getModContainerById(MOD_ID)
                         .map(container -> container.getModInfo().getVersion().toString())
                         .orElse("unknown"),
                 dependencyVersion("recruits"),
                 dependencyVersion("medieval_boomsticks"),
-                dependencyVersion("geckolib"));
+                dependencyVersion("geckolib"),
+                dependencyVersion("artillery_addon"),
+                CompatConfig.ENABLED.get(),
+                CompatConfig.MEDIEVAL_BOOMSTICKS_ENABLED.get(),
+                CompatConfig.ARTILLERY_ADDON_ENABLED.get());
     }
 
     private static String dependencyVersion(final String modId) {

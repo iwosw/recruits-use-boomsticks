@@ -4,5 +4,6 @@ package org.iwoss.recruits_use_boomsticks.compat;
 public enum BoomstickSound {
     HANDGONNE_SHOOT,
     ARQUEBUS_SHOOT,
-    CROSSBOW_SHOOT
+    CROSSBOW_SHOOT,
+    ARTILLERY_FIRE
 }

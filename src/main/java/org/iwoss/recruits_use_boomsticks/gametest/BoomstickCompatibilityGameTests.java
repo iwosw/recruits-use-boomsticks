@@ -16,14 +16,17 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
 import org.iwoss.recruits_use_boomsticks.ai.BoomstickAttackState;
@@ -31,8 +34,13 @@ import org.iwoss.recruits_use_boomsticks.ai.RecruitBoomstickAttackGoal;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickAmmoAccess;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickWeaponAdapter;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickWeaponProfile;
+import org.iwoss.recruits_use_boomsticks.compat.ArtilleryAddonAdapter;
+import org.iwoss.recruits_use_boomsticks.compat.ArtilleryNativeState;
+import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
+import org.iwoss.recruits_use_boomsticks.compat.SupportedArtillery;
 import org.iwoss.recruits_use_boomsticks.compat.MedievalBoomsticksAdapter;
 import org.iwoss.recruits_use_boomsticks.compat.SupportedBoomsticks;
+import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -277,6 +285,35 @@ public final class BoomstickCompatibilityGameTests {
                 "recruit-owned Boomsticks projectiles must skip allied recruits");
         helper.assertTrue(canHitEntity(playerProjectile, ally),
                 "the compatibility mod must not change player-owned projectile targeting");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void artilleryRecruitProjectilesUseTheSameFriendlyFireBoundary(GameTestHelper helper) {
+        if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()) {
+            helper.succeed();
+            return;
+        }
+
+        CrossBowmanEntity shooter = spawnCrossbowman(helper, 1);
+        CrossBowmanEntity ally = spawnCrossbowman(helper, 2);
+        Player player = helper.makeMockPlayer();
+        shooter.setOwnerUUID(Optional.of(player.getUUID()));
+        ally.setOwnerUUID(Optional.of(player.getUUID()));
+        shooter.setIsOwned(true);
+        ally.setIsOwned(true);
+
+        EntityType<?> projectileType = ForgeRegistries.ENTITY_TYPES.getValue(
+                id(SupportedArtillery.IRONBALL_PROJECTILE_ID));
+        helper.assertTrue(projectileType != null, "Artillery must register the Ironball projectile type");
+        Entity created = projectileType.create(helper.getLevel());
+        helper.assertTrue(created instanceof AbstractArrow,
+                "Artillery Ironball must remain an AbstractArrow projectile");
+        AbstractArrow projectile = (AbstractArrow) created;
+        projectile.setOwner(shooter);
+
+        helper.assertFalse(canHitEntity(projectile, ally),
+                "recruit-owned Artillery projectiles must skip allied recruits");
         helper.succeed();
     }
 
@@ -538,6 +575,262 @@ public final class BoomstickCompatibilityGameTests {
                 "recruit-loaded state must survive item/world serialization");
         helper.assertTrue(restored.getOrCreateTag().getList("ChargedProjectiles", Tag.TAG_COMPOUND).size() == 1,
                 "serialized recruit-loaded weapon must retain native payload for player firing");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 20)
+    public static void artilleryArquebusNativeLoadProtocolIsNpcSafe(GameTestHelper helper) {
+        ItemStack weapon = new ItemStack(Items.FLINT);
+        ArtilleryNativeState.markLoaded(
+                weapon,
+                SupportedArtillery.profileFor(SupportedArtillery.ARQUEBUS_ID).orElseThrow());
+        helper.assertTrue(
+                ArtilleryNativeState.isLoaded(
+                        weapon,
+                        SupportedArtillery.profileFor(SupportedArtillery.ARQUEBUS_ID).orElseThrow()),
+                "Artillery loading must be represented by native item state without a Player");
+        helper.assertTrue(
+                weapon.getOrCreateTag().getTagType(ArtilleryNativeState.STAGE_KEY) == Tag.TAG_DOUBLE,
+                "Artillery stage must retain the native double NBT type");
+        helper.assertFalse(
+                weapon.getOrCreateTag().contains(ArtilleryNativeState.LOADED_KEY),
+                "Arquebus loading must not invent the addon's optional loaded flag");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 20)
+    public static void artilleryAvailabilityTracksOptionalModBoundary(GameTestHelper helper) {
+        helper.assertTrue(
+                ArtilleryAddonAdapter.INSTANCE.isAvailable()
+                        == ModList.get().isLoaded(SupportedArtillery.MOD_ID),
+                "Artillery adapter must not claim availability when the optional mod is absent");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 20)
+    public static void artilleryKillSwitchDisablesOnlyTheEnabledCompatibilityPath(GameTestHelper helper) {
+        if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()) {
+            helper.succeed();
+            return;
+        }
+
+        boolean previousGlobal = CompatConfig.ENABLED.get();
+        boolean previousArtillery = CompatConfig.ARTILLERY_ADDON_ENABLED.get();
+        try {
+            ItemStack weapon = stack(SupportedArtillery.ARQUEBUS_ID);
+            ItemStack ammo = stack(SupportedArtillery.IRON_BALL_ID);
+            CompatConfig.ENABLED.set(true);
+            CompatConfig.ARTILLERY_ADDON_ENABLED.set(false);
+            helper.assertTrue(
+                    RecruitWeaponAdapters.production().isSupportedWeapon(weapon),
+                    "the adapter must still recognize its item while its integration is disabled");
+            helper.assertFalse(
+                    RecruitWeaponAdapters.production().isSupportedEnabledWeapon(weapon),
+                    "the disabled Artillery integration must not suppress the vanilla Recruits goal");
+            helper.assertFalse(
+                    RecruitWeaponAdapters.production().isSupportedEnabledAmmo(ammo),
+                    "the disabled Artillery integration must not claim iron balls for pickup");
+
+            CompatConfig.ARTILLERY_ADDON_ENABLED.set(true);
+            CompatConfig.ENABLED.set(false);
+            helper.assertFalse(
+                    RecruitWeaponAdapters.production().isSupportedEnabledWeapon(weapon),
+                    "the global compatibility switch must disable the Artillery path");
+            helper.assertFalse(
+                    RecruitWeaponAdapters.production().isSupportedEnabledAmmo(ammo),
+                    "the global compatibility switch must disable Artillery ammo pickup");
+            helper.succeed();
+        } finally {
+            CompatConfig.ENABLED.set(previousGlobal);
+            CompatConfig.ARTILLERY_ADDON_ENABLED.set(previousArtillery);
+        }
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 20)
+    public static void artilleryArquebusAndIronBallAreAcceptedByRecruitPickup(GameTestHelper helper) {
+        if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()) {
+            helper.succeed();
+            return;
+        }
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        helper.assertTrue(
+                recruit.wantsToPickUp(stack(SupportedArtillery.ARQUEBUS_ID)),
+                "the crossbowman pickup hook must accept the first-slice Arquebus");
+        helper.assertTrue(
+                recruit.wantsToPickUp(stack(SupportedArtillery.IRON_BALL_ID)),
+                "the crossbowman pickup hook must accept the Arquebus iron ball");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void artilleryArquebusCompletesNpcReloadAndServerShot(GameTestHelper helper) {
+        if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()) {
+            helper.succeed();
+            return;
+        }
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        ItemStack weapon = stack(SupportedArtillery.ARQUEBUS_ID);
+        ItemStack ammo = stack(SupportedArtillery.IRON_BALL_ID);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        recruit.getInventory().addItem(ammo);
+        recruit.setTarget(null);
+        recruit.setShouldRanged(true);
+
+        RecruitBoomstickAttackGoal reloadGoal = RecruitBoomstickAttackGoal.passiveReload(recruit);
+        helper.assertTrue(reloadGoal.canUse(), "an Arquebus with an iron ball must start NPC reload");
+        reloadGoal.start();
+        for (int tick = 0; tick <= ArtilleryAddonAdapter.INSTANCE.reloadTicks(weapon); tick++) {
+            reloadGoal.tick();
+        }
+
+        helper.assertTrue(
+                ArtilleryAddonAdapter.INSTANCE.isLoaded(weapon),
+                "Arquebus reload must commit the native staged loaded state");
+        helper.assertTrue(
+                recruit.getInventory().countItem(ammo.getItem()) == 0,
+                "Arquebus reload must consume exactly one iron ball");
+
+        BoomstickWeaponAdapter.ShotResult result = ArtilleryAddonAdapter.INSTANCE.fire(
+                recruit,
+                weapon,
+                recruit.position().add(10.0D, 0.0D, 0.0D));
+        helper.assertTrue(
+                result.outcome() == BoomstickWeaponAdapter.ShotOutcome.FIRED,
+                "a loaded Arquebus must fire from the logical server without Player procedures");
+        helper.assertTrue(result.projectilesSpawned() == 1, "Arquebus must spawn one native projectile");
+        helper.assertFalse(
+                ArtilleryAddonAdapter.INSTANCE.isLoaded(weapon),
+                "firing must clear the native loaded state");
+        helper.assertTrue(
+                weapon.getOrCreateTag().getInt(ArtilleryNativeState.STAGE_KEY)
+                        == SupportedArtillery.profileFor(SupportedArtillery.ARQUEBUS_ID)
+                        .orElseThrow()
+                        .firedStage(),
+                "firing must leave the confirmed native fired stage");
+
+        AbstractArrow artilleryProjectile = helper.getLevel()
+                .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
+                .stream()
+                .filter(projectile -> projectile.getOwner() == recruit
+                        && projectile.getClass().getName()
+                        .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("the native Ironball projectile was not spawned"));
+        helper.assertTrue(
+                artilleryProjectile.isSilent(),
+                "the native Arquebus projectile must preserve its silent flag");
+        helper.assertTrue(
+                artilleryProjectile.getKnockback() == 1,
+                "the native Arquebus projectile must preserve its knockback strength");
+        helper.assertTrue(
+                Math.abs(artilleryProjectile.getBaseDamage() - 3.75D) < 1.0E-6D,
+                "the native Arquebus projectile must preserve its base damage");
+        helper.assertTrue(
+                artilleryProjectile.getPierceLevel() == 0,
+                "the native Arquebus projectile must not pierce targets");
+        helper.assertTrue(
+                artilleryProjectile.pickup == AbstractArrow.Pickup.DISALLOWED,
+                "the native Arquebus projectile must not be collectible");
+        helper.assertFalse(
+                artilleryProjectile.isCritArrow(),
+                "the native Arquebus projectile must not be critical");
+        helper.assertTrue(
+                artilleryProjectile.getRemainingFireTicks() == 0,
+                "the native Arquebus projectile must not set targets on fire");
+        helper.assertTrue(
+                Math.abs(artilleryProjectile.getX() - recruit.getX()) < 1.0E-6D
+                        && Math.abs(artilleryProjectile.getZ() - recruit.getZ()) < 1.0E-6D,
+                "the native Arquebus projectile must preserve the shooter X/Z launch origin");
+        helper.assertTrue(
+                Math.abs(artilleryProjectile.getY() - (recruit.getEyeY() - 0.1D)) < 1.0E-6D,
+                "the native Arquebus projectile must preserve the eyeY-minus-0.1 launch origin");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void artilleryArquebusAlwaysRequiresItsIronBall(GameTestHelper helper) {
+        if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()) {
+            helper.succeed();
+            return;
+        }
+
+        boolean previousAmmoRequirement = RecruitsServerConfig.RangedRecruitsNeedArrowsToShoot.get();
+        RecruitsServerConfig.RangedRecruitsNeedArrowsToShoot.set(false);
+        try {
+            CrossBowmanEntity recruit = spawnCrossbowman(helper);
+            ItemStack weapon = stack(SupportedArtillery.ARQUEBUS_ID);
+            recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+            recruit.setTarget(null);
+            recruit.setShouldRanged(true);
+
+            RecruitBoomstickAttackGoal reloadGoal = RecruitBoomstickAttackGoal.passiveReload(recruit);
+            helper.assertFalse(
+                    ArtilleryAddonAdapter.INSTANCE.hasAmmo(recruit, weapon, false),
+                    "the Artillery adapter must require an iron ball even when the host reports optional ammo");
+            helper.assertFalse(
+                    reloadGoal.canUse(),
+                    "Arquebus must not reload without an iron ball even when Recruits arrow requirements are disabled");
+
+            ItemStack ammo = stack(SupportedArtillery.IRON_BALL_ID);
+            recruit.getInventory().addItem(ammo);
+            helper.assertTrue(
+                    ArtilleryAddonAdapter.INSTANCE.hasAmmo(recruit, weapon, false),
+                    "one iron ball must satisfy the Artillery adapter independently of host ammo settings");
+            helper.assertTrue(reloadGoal.canUse(), "one iron ball must make the Arquebus reloadable");
+            reloadGoal.start();
+            for (int tick = 0; tick <= ArtilleryAddonAdapter.INSTANCE.reloadTicks(weapon); tick++) {
+                reloadGoal.tick();
+            }
+
+            helper.assertTrue(
+                    ArtilleryAddonAdapter.INSTANCE.isLoaded(weapon),
+                    "Arquebus reload must commit after the exact required component is present");
+            helper.assertTrue(
+                    recruit.getInventory().countItem(ammo.getItem()) == 0,
+                    "Arquebus reload must consume its iron ball independently of Recruits arrow settings");
+            helper.succeed();
+        } finally {
+            RecruitsServerConfig.RangedRecruitsNeedArrowsToShoot.set(previousAmmoRequirement);
+        }
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void artilleryArquebusRunsThroughTheCombatGoal(GameTestHelper helper) {
+        if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()) {
+            helper.succeed();
+            return;
+        }
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        LivingEntity target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 4, 2, 1);
+        ItemStack weapon = stack(SupportedArtillery.ARQUEBUS_ID);
+        ItemStack ammo = stack(SupportedArtillery.IRON_BALL_ID);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        recruit.getInventory().addItem(ammo);
+        recruit.setTarget(target);
+        recruit.setShouldRanged(true);
+
+        RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
+        helper.assertTrue(goal.canUse(), "the combat goal must claim an equipped Arquebus");
+        goal.start();
+        for (int tick = 0; tick < 70; tick++) {
+            goal.tick();
+        }
+
+        helper.assertTrue(recruit.getInventory().countItem(ammo.getItem()) == 0,
+                "the combat goal must consume the iron ball during reload");
+        helper.assertFalse(ArtilleryAddonAdapter.INSTANCE.isLoaded(weapon),
+                "the combat goal must fire after committing the loaded state");
+        helper.assertTrue(
+                helper.getLevel()
+                        .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
+                        .stream()
+                        .anyMatch(projectile -> projectile.getOwner() == recruit
+                                && projectile.getClass().getName()
+                                .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity")),
+                "the combat goal must spawn the native Ironball projectile");
         helper.succeed();
     }
 

@@ -19,6 +19,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
@@ -34,6 +35,11 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
     public static final MedievalBoomsticksAdapter INSTANCE = new MedievalBoomsticksAdapter();
 
     private MedievalBoomsticksAdapter() {
+    }
+
+    @Override
+    public RecruitWeaponIntegration integration() {
+        return RecruitWeaponIntegration.MEDIEVAL_BOOMSTICKS;
     }
 
     @Override
@@ -299,9 +305,11 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
     }
 
     private static ItemStack expectedAmmo(BoomstickWeaponProfile profile) {
-        String ammoId = profile.ammoType() == BoomstickAmmoType.HEAVY_BOLT
-                ? SupportedBoomsticks.HEAVY_BOLT_ID
-                : SupportedBoomsticks.ROUND_BALL_ID;
+        String ammoId = switch (profile.ammoType()) {
+            case HEAVY_BOLT -> SupportedBoomsticks.HEAVY_BOLT_ID;
+            case ROUND_BALL -> SupportedBoomsticks.ROUND_BALL_ID;
+            case ARROW -> "minecraft:arrow";
+        };
         ResourceLocation id = ResourceLocation.tryParse(ammoId);
         if (id == null) {
             throw new IllegalStateException("invalid supported ammo ID " + ammoId);
@@ -408,6 +416,7 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
             case HANDGONNE_SHOOT -> MBSounds.HANDGONNE_SHOOT.get();
             case ARQUEBUS_SHOOT -> MBSounds.ARQUEBUS_SHOOT.get();
             case CROSSBOW_SHOOT -> SoundEvents.CROSSBOW_SHOOT;
+            case ARTILLERY_FIRE -> SoundEvents.CROSSBOW_SHOOT;
         };
     }
 
