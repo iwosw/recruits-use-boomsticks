@@ -28,16 +28,16 @@ public abstract class AbstractArrowMixin {
             CallbackInfoReturnable<Boolean> callbackInfo
     ) {
         AbstractArrow projectile = (AbstractArrow) (Object) this;
-        if (!CompatConfig.ENABLED.get()
-                || !BoomstickProjectilePolicy.shouldApply(
-                true,
-                RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledProjectile(projectile.getClass()),
-                projectile.getOwner() instanceof AbstractRecruitEntity)) {
-            return;
-        }
         Entity owner = projectile.getOwner();
         if (!(owner instanceof AbstractRecruitEntity recruitOwner)
                 || !(target instanceof LivingEntity livingTarget)) {
+            return;
+        }
+        if (!CompatConfig.ENABLED.get()
+                || !BoomstickProjectilePolicy.shouldApply(
+                true,
+                RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledProjectile(projectile),
+                true)) {
             return;
         }
         if (owner == target
@@ -50,12 +50,15 @@ public abstract class AbstractArrowMixin {
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
     private void recruitsUseBoomsticks$discardExpiredProjectile(CallbackInfo callbackInfo) {
         AbstractArrow projectile = (AbstractArrow) (Object) this;
+        // The owner test comes first on purpose: it is the cheapest filter and it keeps the adapter
+        // lookup — which reads an entity's persistent data — off every unrelated arrow in the world.
         if (projectile.level().isClientSide
+                || !(projectile.getOwner() instanceof AbstractRecruitEntity)
                 || !CompatConfig.ENABLED.get()
                 || !BoomstickProjectilePolicy.shouldApply(
                         true,
-                        RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledProjectile(projectile.getClass()),
-                        projectile.getOwner() instanceof AbstractRecruitEntity)
+                        RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledProjectile(projectile),
+                        true)
                 || !BoomstickProjectilePolicy.shouldDiscard(
                         projectile.pickup == AbstractArrow.Pickup.ALLOWED,
                         inGround,

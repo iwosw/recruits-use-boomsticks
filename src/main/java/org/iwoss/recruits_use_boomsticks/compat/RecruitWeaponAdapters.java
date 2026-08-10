@@ -1,11 +1,13 @@
 package org.iwoss.recruits_use_boomsticks.compat;
 
+import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 /** Ordered lookup for every ranged-weapon integration available to recruit AI. */
@@ -104,6 +106,26 @@ public final class RecruitWeaponAdapters {
         }
         return findMatching(adapter -> CompatConfig.isIntegrationEnabled(adapter.integration())
                 && adapter.supportsProjectile(projectileType)).isPresent();
+    }
+
+    public boolean isSupportedEnabledProjectile(AbstractArrow projectile) {
+        if (projectile == null || !CompatConfig.ENABLED.get()) {
+            return false;
+        }
+        return findMatching(adapter -> CompatConfig.isIntegrationEnabled(adapter.integration())
+                && adapter.supportsProjectile(projectile)).isPresent();
+    }
+
+    /**
+     * Applies an action to every registered adapter, enabled or not.
+     *
+     * <p>Recovery work has to reach state an adapter wrote while its integration was still switched
+     * on, so it deliberately ignores the config switches. Every adapter guards its own writes with
+     * {@code supports}, so an unrelated stack is left untouched.</p>
+     */
+    public void forEachAdapter(Consumer<BoomstickWeaponAdapter> action) {
+        Objects.requireNonNull(action, "action");
+        adapters.forEach(action);
     }
 
     public boolean hasEnabledAdapter() {

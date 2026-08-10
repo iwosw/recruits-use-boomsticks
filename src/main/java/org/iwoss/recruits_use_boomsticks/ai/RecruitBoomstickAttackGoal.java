@@ -29,6 +29,15 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final int AIM_WINDOW_TICKS = 12;
     private static final int FIRE_ANIMATION_TICKS = 3;
+    /**
+     * Backoff after a shot the current setup can never complete.
+     *
+     * <p>Some weapons reject the shot itself rather than the target — a Matchlock Carbine whose
+     * native branch gate needs an empty or fork-rest off hand is the standing example. Without a
+     * backoff the goal would re-enter the aim window and retry the same doomed shot forever, so the
+     * recruit spins on a full aim cycle every few ticks and never reports why.</p>
+     */
+    private static final int REJECTED_SHOT_BACKOFF_TICKS = 40;
     private static final double MAX_COMBAT_RANGE = 45.0D;
     private static final double HOLD_POSITION_RADIUS = 4.0D;
     private static final double EMERGENCY_TNT_RADIUS = 10.0D;
@@ -44,6 +53,10 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     private RecruitWeaponAdapters.Selection activeSelection;
     private int switchDelay;
     private int reloadTicksRemaining;
+    private int reloadTicksTotal;
+    private int reloadStepCount;
+    private int reloadStepsDone;
+    private boolean reloadStepsAborted;
     private int fireAnimationTicks;
     private BoomstickWeaponAdapter.ShotOutcome shotOutcome;
     private boolean navigationControlled;
@@ -135,6 +148,10 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         activeSelection = null;
         switchDelay = 0;
         reloadTicksRemaining = 0;
+        reloadTicksTotal = 0;
+        reloadStepCount = 0;
+        reloadStepsDone = 0;
+        reloadStepsAborted = false;
         aimProgress.reset();
         fireAnimationTicks = 0;
         shotOutcome = null;
@@ -147,11 +164,16 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     }
 
     private void resetAfterStop() {
+        endSteppedReloadIfActive();
         clearWeaponAnimationState();
         state.reset();
         activeSelection = null;
         switchDelay = 0;
         reloadTicksRemaining = 0;
+        reloadTicksTotal = 0;
+        reloadStepCount = 0;
+        reloadStepsDone = 0;
+        reloadStepsAborted = false;
         aimProgress.reset();
         fireAnimationTicks = 0;
         shotOutcome = null;
@@ -206,7 +228,10 @@ public final class RecruitBoomstickAttackGoal extends Goal {
 
         BoomstickAttackState.Phase previous = state.phase();
         boolean ammoRequired = BoomstickAmmoAccess.isAmmoRequired();
-        boolean ammoAvailable = adapter.hasAmmo(crossBowman, weapon, ammoRequired);
+        // A native chain that already spent components must be allowed to finish. Its ball is gone
+        // by the middle step, so a plain inventory check would abandon a half-loaded weapon.
+        boolean ammoAvailable = adapter.hasAmmo(crossBowman, weapon, ammoRequired)
+                || steppedReloadInProgress();
         boolean loaded = adapter.isLoaded(weapon);
         boolean reloadComplete = advanceReloadTimer(previous);
         boolean aimComplete = advanceAimTimer(previous, aimPoint);
@@ -275,6 +300,10 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                 adapter.reloadTicks(weapon),
                 crossBowman.isPassenger(),
                 SupportedBoomsticks.ARBALEST_ID.equals(profile.registryId()));
+        reloadTicksTotal = reloadTicksRemaining;
+        reloadStepCount = adapter.reloadStepCount(weapon);
+        reloadStepsDone = 0;
+        reloadStepsAborted = false;
         adapter.setReloading(weapon, true);
         adapter.setFiring(weapon, false);
         crossBowman.startUsingItem(net.minecraft.world.InteractionHand.MAIN_HAND);
@@ -290,6 +319,14 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             BoomstickWeaponAdapter adapter
     ) {
         stopReloadAnimation(weapon, adapter);
+        if (reloadStepCount > 0) {
+            // The native chain already spent its components and wrote the loaded state step by step.
+            adapter.endSteppedReload(crossBowman, weapon);
+            reloadStepCount = 0;
+            reloadStepsDone = 0;
+            reloadStepsAborted = false;
+            return;
+        }
         if (adapter.consumeAmmo(crossBowman, weapon, ammoRequired)) {
             adapter.setLoaded(weapon, true);
         }
@@ -308,9 +345,21 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         try {
             int cooldownTicks = Math.max(0, adapter.cooldownTicks(weapon));
             shotOutcome = adapter.fire(crossBowman, weapon, aimPoint.shotPosition()).outcome();
-            if (shotOutcome == BoomstickWeaponAdapter.ShotOutcome.FIRED) {
+            if (shotOutcome == BoomstickWeaponAdapter.ShotOutcome.FIRED
+                    || shotOutcome == BoomstickWeaponAdapter.ShotOutcome.MISFIRED) {
                 beginCooldown(cooldownTicks);
-                fireAnimationTicks = FIRE_ANIMATION_TICKS;
+                if (shotOutcome == BoomstickWeaponAdapter.ShotOutcome.FIRED) {
+                    fireAnimationTicks = FIRE_ANIMATION_TICKS;
+                }
+            } else if (isRejectedShot(shotOutcome)) {
+                beginCooldown(REJECTED_SHOT_BACKOFF_TICKS);
+                if (CompatConfig.DEBUG_LOGGING.get()) {
+                    LOGGER.debug(
+                            "Boomstick recruit {} backing off after a rejected {} shot for {}",
+                            crossBowman.getId(),
+                            shotOutcome,
+                            profile.registryId());
+                }
             }
         } catch (RuntimeException exception) {
             shotOutcome = BoomstickWeaponAdapter.ShotOutcome.SPAWN_FAILED;
@@ -323,6 +372,18 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         }
     }
 
+    /**
+     * Whether the adapter refused the shot itself rather than the target.
+     *
+     * <p>A refused target is normal and resolves on its own as the recruit or its enemy moves; a
+     * refused weapon, load state, or spawn repeats identically until something else changes.</p>
+     */
+    private static boolean isRejectedShot(BoomstickWeaponAdapter.ShotOutcome outcome) {
+        return outcome == BoomstickWeaponAdapter.ShotOutcome.INVALID_WEAPON
+                || outcome == BoomstickWeaponAdapter.ShotOutcome.NOT_LOADED
+                || outcome == BoomstickWeaponAdapter.ShotOutcome.SPAWN_FAILED;
+    }
+
     private boolean advanceReloadTimer(BoomstickAttackState.Phase phase) {
         if (phase != BoomstickAttackState.Phase.RELOAD) {
             return false;
@@ -330,7 +391,44 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         if (reloadTicksRemaining > 0) {
             reloadTicksRemaining--;
         }
+        advanceReloadSteps();
+        if (reloadStepsAborted) {
+            // A missing or broken component ends the transaction instead of silently finishing it.
+            return true;
+        }
         return reloadTicksRemaining <= 0;
+    }
+
+    /**
+     * Spreads the confirmed native loading steps evenly across the reload window.
+     *
+     * <p>Every step is committed before the window closes, so the weapon reaches its loaded stage
+     * exactly when the timer runs out.</p>
+     */
+    private void advanceReloadSteps() {
+        if (reloadStepCount <= 0 || reloadStepsAborted || activeSelection == null) {
+            return;
+        }
+        int elapsed = reloadTicksTotal - reloadTicksRemaining;
+        int due = reloadTicksTotal <= 0
+                ? reloadStepCount
+                : Math.min(reloadStepCount, (elapsed * reloadStepCount) / reloadTicksTotal + 1);
+        BoomstickWeaponAdapter adapter = activeSelection.adapter();
+        ItemStack weapon = activeSelection.weapon();
+        while (reloadStepsDone < due) {
+            if (!adapter.applyReloadStep(crossBowman, weapon, reloadStepsDone)) {
+                reloadStepsAborted = true;
+                adapter.endSteppedReload(crossBowman, weapon);
+                if (CompatConfig.DEBUG_LOGGING.get()) {
+                    LOGGER.debug(
+                            "Boomstick recruit {} aborted reload at step {}",
+                            crossBowman.getId(),
+                            reloadStepsDone);
+                }
+                return;
+            }
+            reloadStepsDone++;
+        }
     }
 
     private boolean advanceAimTimer(BoomstickAttackState.Phase phase, AimPoint aimPoint) {
@@ -353,6 +451,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     }
 
     private void abortForWeaponChange(RecruitWeaponAdapters.Selection previous) {
+        previous.adapter().endSteppedReload(crossBowman, previous.weapon());
         previous.adapter().clearTransientState(previous.weapon());
         crossBowman.stopUsingItem();
         activeSelection = null;
@@ -360,7 +459,24 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         shotOutcome = null;
         aimProgress.reset();
         reloadTicksRemaining = 0;
+        reloadTicksTotal = 0;
+        reloadStepCount = 0;
+        reloadStepsDone = 0;
+        reloadStepsAborted = false;
         fireAnimationTicks = 0;
+    }
+
+    /** Whether a native loading chain has already committed at least one step. */
+    private boolean steppedReloadInProgress() {
+        return reloadStepCount > 0 && reloadStepsDone > 0 && !reloadStepsAborted;
+    }
+
+    /** Restores a borrowed off hand when the goal ends mid-transaction. */
+    private void endSteppedReloadIfActive() {
+        if (reloadStepCount <= 0 || activeSelection == null) {
+            return;
+        }
+        activeSelection.adapter().endSteppedReload(crossBowman, activeSelection.weapon());
     }
 
     private void beginCooldown(int cooldownTicks) {

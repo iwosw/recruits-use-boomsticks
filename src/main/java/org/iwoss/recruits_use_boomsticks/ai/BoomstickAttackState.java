@@ -123,6 +123,7 @@ public final class BoomstickAttackState {
         if (signals.shotOutcome() != null) {
             return switch (signals.shotOutcome()) {
                 case FIRED -> Phase.COOLDOWN;
+                case MISFIRED -> Phase.COOLDOWN;
                 case NO_AMMO -> Phase.OUT_OF_AMMO;
                 case INVALID_WEAPON, INVALID_TARGET, CLIENT_SIDE_REJECTED, NOT_LOADED, SPAWN_FAILED -> Phase.IDLE;
             };

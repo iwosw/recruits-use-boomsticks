@@ -1,6 +1,7 @@
 package org.iwoss.recruits_use_boomsticks.compat;
 
 import com.talhanation.recruits.entities.CrossBowmanEntity;
+import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
@@ -21,6 +22,11 @@ public interface BoomstickWeaponAdapter {
     /** Returns whether this integration explicitly owns the projectile class and its subclasses. */
     boolean supportsProjectile(Class<?> projectileType);
 
+    /** Returns whether this integration owns this concrete projectile instance. */
+    default boolean supportsProjectile(AbstractArrow projectile) {
+        return projectile != null && supportsProjectile(projectile.getClass());
+    }
+
     Optional<BoomstickWeaponProfile> profile(ItemStack weapon);
 
     boolean isLoaded(ItemStack weapon);
@@ -39,6 +45,34 @@ public interface BoomstickWeaponAdapter {
         setFiring(weapon, false);
     }
 
+    /**
+     * Number of native loading steps this weapon needs, or 0 when it uses the single-step reload.
+     *
+     * <p>Adapters without a captured multi-step chain keep returning 0, so the shared goal drives
+     * them exactly as before.</p>
+     */
+    default int reloadStepCount(ItemStack weapon) {
+        return 0;
+    }
+
+    /** Returns whether the recruit currently carries every component the native chain requires. */
+    default boolean hasReloadComponents(CrossBowmanEntity recruit, ItemStack weapon) {
+        return true;
+    }
+
+    /**
+     * Commits one native loading step, paying its component cost and showing the tool in the off hand.
+     *
+     * @return whether the step was committed; a missing component aborts the transaction
+     */
+    default boolean applyReloadStep(CrossBowmanEntity recruit, ItemStack weapon, int stepIndex) {
+        return false;
+    }
+
+    /** Restores the off hand and clears transient loading display after a chain ends or aborts. */
+    default void endSteppedReload(CrossBowmanEntity recruit, ItemStack weapon) {
+    }
+
     int reloadTicks(ItemStack weapon);
 
     int cooldownTicks(ItemStack weapon);
@@ -51,6 +85,7 @@ public interface BoomstickWeaponAdapter {
 
     enum ShotOutcome {
         FIRED,
+        MISFIRED,
         NO_AMMO,
         INVALID_WEAPON,
         INVALID_TARGET,

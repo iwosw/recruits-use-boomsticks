@@ -416,7 +416,18 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
             case HANDGONNE_SHOOT -> MBSounds.HANDGONNE_SHOOT.get();
             case ARQUEBUS_SHOOT -> MBSounds.ARQUEBUS_SHOOT.get();
             case CROSSBOW_SHOOT -> SoundEvents.CROSSBOW_SHOOT;
-            case ARTILLERY_FIRE -> SoundEvents.CROSSBOW_SHOOT;
+            // Artillery firing and loading-step sounds belong to the Artillery adapter; this
+            // integration never selects them and must not borrow an unrelated vanilla sound.
+            case ARTILLERY_FIRE, ARTILLERY_HAND_CANNON_FIRE -> SoundEvents.CROSSBOW_SHOOT;
+            case NONE,
+                 ARTILLERY_LOADING_POWDER,
+                 ARTILLERY_LOAD_BALL,
+                 ARTILLERY_RAMMING,
+                 ARTILLERY_HAND_CANNON_LOAD_BALL,
+                 ARTILLERY_HAND_CANNON_RAMMING,
+                 CROSSBOW_LOADING_START,
+                 CROSSBOW_LOADING_MIDDLE,
+                 CROSSBOW_LOADING_END -> SoundEvents.CROSSBOW_SHOOT;
         };
     }
 

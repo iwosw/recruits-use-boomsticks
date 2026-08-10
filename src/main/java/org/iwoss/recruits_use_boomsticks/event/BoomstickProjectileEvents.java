@@ -4,6 +4,7 @@ import com.talhanation.recruits.entities.AbstractRecruitEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraftforge.event.entity.ProjectileImpactEvent;
 import net.minecraftforge.event.entity.ProjectileImpactEvent.ImpactResult;
@@ -28,18 +29,21 @@ public final class BoomstickProjectileEvents {
     @SubscribeEvent
     public static void onProjectileImpact(ProjectileImpactEvent event) {
         Projectile projectile = event.getProjectile();
-        if (!CompatConfig.ENABLED.get()
-                || !BoomstickProjectilePolicy.shouldApply(
-                true,
-                RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledProjectile(projectile.getClass()),
-                projectile.getOwner() instanceof AbstractRecruitEntity)) {
-            return;
-        }
-
+        // The owner and hit-shape tests come first: they are cheap and they keep the adapter lookup,
+        // which reads an entity's persistent data, off every unrelated projectile impact.
         if (!(projectile.getOwner() instanceof AbstractRecruitEntity recruit)) {
             return;
         }
         if (!(event.getRayTraceResult() instanceof EntityHitResult entityHit)) {
+            return;
+        }
+        if (!CompatConfig.ENABLED.get()
+                || !BoomstickProjectilePolicy.shouldApply(
+                true,
+                projectile instanceof AbstractArrow arrow
+                        ? RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledProjectile(arrow)
+                        : RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledProjectile(projectile.getClass()),
+                true)) {
             return;
         }
 
