@@ -1,0 +1,11 @@
+{
+  "gui.recruits_use_boomsticks.command.text.weapons_out": "Оружие к бою!",
+  "gui.recruits_use_boomsticks.command.text.weapons_away": "Оружие убрать!",
+  "gui.recruits_use_boomsticks.command.tooltip.weapons_out": "Рекруты достают поддерживаемое огнестрельное оружие в правую руку и несут его.",
+  "gui.recruits_use_boomsticks.command.tooltip.weapons_away": "Рекруты убирают оружие и берут другое своё оружие.",
+  "chat.recruits_use_boomsticks.weapons_out": "Оружие к бою: достали %s из %s рекрутов со стволами.",
+  "chat.recruits_use_boomsticks.weapons_away": "Оружие убрать: убрали %s из %s рекрутов со стволами.",
+  "chat.recruits_use_boomsticks.carry.nobody": "Приказ никого не застал: рядом нет твоих рекрутов из выбранных отрядов.",
+  "chat.recruits_use_boomsticks.carry.unarmed": "Приказ дошёл до %s рекрутов, но поддерживаемых стволов у них нет.",
+  "chat.recruits_use_boomsticks.carry.no_replacement": "Оружие убрать: у %s рекрутов нет другого оружия, ствол остаётся в руке."
+}

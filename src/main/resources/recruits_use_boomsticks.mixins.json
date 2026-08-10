@@ -9,7 +9,11 @@
     "RecruitRangedCrossbowAttackGoalMixin",
     "AbstractArrowMixin"
   ],
-  "client": [],
+  "client": [
+    "client.CombatCategoryMixin",
+    "client.RecruitArmPoseMixin",
+    "client.RecruitHumanArmPoseMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

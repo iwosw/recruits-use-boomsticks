@@ -1,0 +1,78 @@
+package org.iwoss.recruits_use_boomsticks.client;
+
+import com.talhanation.recruits.client.gui.CommandScreen;
+import com.talhanation.recruits.client.gui.group.RecruitsCommandButton;
+import com.talhanation.recruits.world.RecruitsGroup;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.network.chat.Component;
+import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
+import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
+import org.iwoss.recruits_use_boomsticks.network.BoomstickNetwork;
+import org.iwoss.recruits_use_boomsticks.network.CarryFirearmCommandMessage;
+
+import java.util.List;
+
+/**
+ * The firearm carry orders in Recruits' combat command tab.
+ *
+ * <p>Two explicit buttons rather than one toggle, the way Recruits' own shield orders work. A toggle
+ * would have to remember on the client what a whole company is holding, and the moment that guess is
+ * wrong the player presses "take them out" and the recruits put their weapons away instead.</p>
+ */
+public final class BoomstickCarryButton {
+    /** Free rows of Recruits' own centre column, which is spaced 25px apart. */
+    private static final int DRAW_ROW_OFFSET = -10;
+    private static final int STOW_ROW_OFFSET = 15;
+
+    private static final Component TEXT_DRAW =
+            Component.translatable("gui.recruits_use_boomsticks.command.text.weapons_out");
+    private static final Component TEXT_STOW =
+            Component.translatable("gui.recruits_use_boomsticks.command.text.weapons_away");
+    private static final Component TOOLTIP_DRAW =
+            Component.translatable("gui.recruits_use_boomsticks.command.tooltip.weapons_out");
+    private static final Component TOOLTIP_STOW =
+            Component.translatable("gui.recruits_use_boomsticks.command.tooltip.weapons_away");
+
+    private BoomstickCarryButton() {
+    }
+
+    public static void add(CommandScreen screen, int x, int y, List<RecruitsGroup> groups) {
+        addOrder(screen, x, y + DRAW_ROW_OFFSET, groups, true, TEXT_DRAW, TOOLTIP_DRAW);
+        addOrder(screen, x, y + STOW_ROW_OFFSET, groups, false, TEXT_STOW, TOOLTIP_STOW);
+    }
+
+    private static void addOrder(
+            CommandScreen screen,
+            int x,
+            int y,
+            List<RecruitsGroup> groups,
+            boolean draw,
+            Component text,
+            Component tooltip
+    ) {
+        RecruitsCommandButton button = new RecruitsCommandButton(x, y, text, pressed -> send(groups, draw));
+        button.setTooltip(Tooltip.create(tooltip));
+        screen.addRenderableWidget(button);
+        RecruitsUseBoomsticks.LOGGER.debug("Added carry order button draw={} at {},{}", draw, x, y);
+    }
+
+    private static void send(List<RecruitsGroup> groups, boolean draw) {
+        int sent = 0;
+        for (RecruitsGroup group : groups) {
+            if (!group.isDisabled()) {
+                BoomstickNetwork.CHANNEL.sendToServer(new CarryFirearmCommandMessage(group.getUUID(), draw));
+                sent++;
+            }
+        }
+        if (sent == 0) {
+            // No group selected is Recruits' "everyone" case: the order still has to reach the
+            // player's own recruits instead of quietly doing nothing.
+            BoomstickNetwork.CHANNEL.sendToServer(
+                    new CarryFirearmCommandMessage(CarryFirearmCommandMessage.EVERYONE, draw));
+            sent = 1;
+        }
+        if (CompatConfig.DEBUG_LOGGING.get()) {
+            RecruitsUseBoomsticks.LOGGER.info("Sent {} carry order packets, draw={}", sent, draw);
+        }
+    }
+}

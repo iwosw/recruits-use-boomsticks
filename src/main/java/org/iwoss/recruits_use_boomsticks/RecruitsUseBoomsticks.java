@@ -8,6 +8,7 @@ import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
+import org.iwoss.recruits_use_boomsticks.network.BoomstickNetwork;
 import org.slf4j.Logger;
 
 /** Independent adapter-backed compatibility layer between Recruits and ranged-weapon mods. */
@@ -22,6 +23,7 @@ public final class RecruitsUseBoomsticks {
     }
 
     private void onCommonSetup(final FMLCommonSetupEvent event) {
+        BoomstickNetwork.register();
         LOGGER.info("{} {} loaded; Recruits={}, Medieval Boomsticks={}, GeckoLib={}, Artillery Addon={}; "
                         + "compatibility switches: global={}, medievalBoomsticks={}, artilleryAddon={}",
                 MOD_ID,
