@@ -32,4 +32,20 @@ class ArtilleryAmmoAccessTest {
                 3
         ).isPresent());
     }
+
+    @Test
+    void keepsMiniPistolaSmallBallsSeparateFromStandardIronBalls() {
+        List<ArtilleryAmmoAccess.AmmoSlot> inventory = List.of(
+                new ArtilleryAmmoAccess.AmmoSlot("artillery_addon:small_iron_ball", 2),
+                new ArtilleryAmmoAccess.AmmoSlot(SupportedArtillery.IRON_BALL_ID, 1)
+        );
+
+        assertEquals(2, ArtilleryAmmoAccess.countSlots(inventory, "artillery_addon:small_iron_ball"));
+        assertEquals(1, ArtilleryAmmoAccess.countSlots(inventory, SupportedArtillery.IRON_BALL_ID));
+        assertFalse(ArtilleryAmmoAccess.planConsumption(
+                inventory,
+                "artillery_addon:small_iron_ball",
+                3
+        ).isPresent());
+    }
 }
