@@ -2,6 +2,19 @@
 
 This report records the compatibility boundary inspected for Recruits Use Boomsticks. It is based on the exact resolved binary artifact and `javap`; it does not contain decompiled upstream source.
 
+## Compatibility status
+
+- [x] The Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branches, Matchlock Pistol, Toradar Rifle, Mini Pistola, Handgonne, Taccola Handgonne iron-ball branch, Markmengonne Arrow-branch, Harquebus standing and `fork_rest` branches, Windlass Crossbow Arrow-branch, Chu Ko Nu eight-round repeater, and Double Barrel Gonne first-barrel iron-ball executable slices are implemented with their documented ammunition and confirmed native/vanilla projectile paths through Recruits crossbowman AI.
+- [x] The Chu Ko Nu repeater branch is implemented and runtime-verified against the pinned server-safe artifact: one physical `minecraft:arrow` per magazine round up to the native eight, the counter walked back down with one marked vanilla `Arrow` per round, and no reload between rounds of the same magazine.
+- [x] The Tiller Gun profile/state/AI slice is implemented and binary-confirmed against this 1.14.0 artifact; dedicated-server runtime proof remains pending because the pinned server-safe 1.11 artifact predates Tiller and this 1.14.0 artifact has an upstream client-only server-load failure.
+- [x] The Handgonne profile/state/AI slice is implemented against the pinned artifact: physical `iron_ball`, native `IronballProjectileEntity`, stage-two `loaded=true` state, and the confirmed normal/shift launch branches.
+- [x] The Markmengonne Arrow-branch slice is implemented and runtime-verified against the pinned server-safe artifact: physical `minecraft:arrow`, native double `ammo=2.0`, stage-two load without inventing a `loaded` flag, marked vanilla `Arrow` projectile, and the confirmed normal/shift launch branches.
+- [x] The Noble Handgonne Arrow-branch slice is implemented and binary-confirmed against this 1.14.0 artifact: physical `minecraft:arrow`, native stage-two state with `ammo=2.0` and no `loaded` flag, because the native Arrow branch skips the ramming step that writes one, marked vanilla `Arrow` projectile, and the confirmed normal/shift launch branches. Runtime proof remains gated because the pinned server-safe 1.11 artifact does not register Noble Handgonne.
+- [x] The Harquebus standing and `fork_rest` branches are implemented and runtime-verified against the pinned server-safe artifact: physical `iron_ball`, the native stage-three load its own chain reaches (`stage=1.0`, `2.0`, `3.0`) without inventing a `loaded` flag, one native `IronballProjectileEntity`, normal inaccuracy `6.0`, rest inaccuracy `3.5`, and native stage-zero fired cleanup. Other Harquebus branches remain disabled.
+- [x] The Hackbut ordinary/no-`fork_rest` branch is implemented and binary-confirmed against this 1.14.0 artifact: physical `large_iron_ball`, native stage-two load without inventing a `loaded` flag, and one native `IronballProjectileEntity`. Runtime proof remains gated because the pinned server-safe 1.11 artifact does not register Hackbut.
+- [x] The Taccola Handgonne iron-ball branch is implemented and runtime-verified against the pinned server-safe 1.11 artifact: physical `iron_ball`, native double `ammo=0.0`, stage-two `loaded=true` load, stage-three fired cleanup, and one native `IronballProjectileEntity`. Its Shatter Shot, Iron Bit, and Arrow branches remain disabled.
+- [ ] The full Artillery catalog is not claimed as complete; the other profiles and transaction families remain catalog/reference data only. Double Barrel Gonne's second barrel, multi-shot operation, other ammunition branches, and player reload parity remain outside the enabled policy slice. Chu Ko Nu's player reload parity and native firing cadence also remain outside the enabled policy slice.
+
 ## Artifact identity
 
 | Property | Verified value |
@@ -39,7 +52,7 @@ The upstream `META-INF/mods.toml` declares only Minecraft 1.20.1 and does not de
 
 Recruits Use Boomsticks already declares Epic Knights (`magistuarmory`) as mandatory, which covers the hard recipe reference. Better Combat is not made mandatory because the reference is compatibility metadata rather than a recipe result. Architectury and Cloth Config remain runtime dependencies of the pinned Epic Knights installation, not direct Artillery metadata requirements.
 
-The project does not link Artillery classes at compile time. The isolated adapter is exercised in the Forge runtime with the pinned 1.11 file (`7455014`), whose common registry/NBT contract matches this report; the 1.14 file remains a reconnaissance target. The 1.14 artifact fails dedicated-server loading because its automatic subscriber attempts to load the client-only `ClientLevel` class, so 1.14 must not be advertised as a supported server dependency until that upstream boundary is corrected. The current gameplay slice is deliberately limited to the Arquebus, iron ball, and native Ironball projectile.
+The project does not link Artillery classes at compile time. The isolated adapter is exercised in the Forge runtime with the pinned 1.11 file (`7455014`), whose common registry/NBT contract matches this report; the registered gameplay profiles are runtime-verified there. The Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne profiles are binary-confirmed against the 1.14 file (`8325660`) but their items are absent from `7455014`, so their GameTests fail closed on the registry prerequisite. The 1.14 artifact fails dedicated-server loading because its automatic subscriber attempts to load the client-only `ClientLevel` class, so 1.14 must not be advertised as a supported server dependency until that upstream boundary is corrected. The current runtime-verified gameplay slice remains deliberately limited to the registered profiles in the pinned artifact; the four dependency-gated profiles are implemented for registering artifacts but are not yet runtime-verified here.
 
 ## Gun tags
 
@@ -65,25 +78,35 @@ The project does not link Artillery classes at compile time. The isolated adapte
 
 The tag mixes single-shot, repeating, multi-projectile, and mounted/rest-dependent transaction families. It is evidence for discovery, not a safe support allowlist.
 
-## First-tranche class map
+## Executable profile class map
 
 | Registry ID | Item class | Native right-click procedure | Projectile observed in procedure |
 |---|---|---|---|
-| `artillery_addon:handgonne` | `item.HandgonneItem` | `procedures.TestgunRightclickedProcedure` | vanilla `Arrow` |
+| `artillery_addon:handgonne` | `item.HandgonneItem` | `procedures.TestgunRightclickedProcedure` | native `IronballProjectileEntity` for the ball branch; vanilla `Arrow` for other branches |
+| `artillery_addon:taccola_handgonne` | `item.TaccolaHandgonneItem` | `procedures.ToccolaRightclickedProcedure` | native `IronballProjectileEntity` for the iron-ball branch; other ammunition branches remain outside this slice |
+| `artillery_addon:noble_handgonne` | `item.NobleHandgonneItem` | `procedures.NobleGonneRightclickedProcedure` | vanilla `Arrow` for the `ammo=2.0` branch; other native branches remain outside this slice |
 | `artillery_addon:arquebus` | `item.ArquebusItem` | `procedures.ArquebusRightclickProcedure` | `IronballProjectileEntity` |
+| `artillery_addon:harquebus` | `item.HarquebusItem` | `procedures.HarquebusRightclick2Procedure` | `IronballProjectileEntity` |
+| `artillery_addon:hackbut` | `item.HackbutItem` | `procedures.HackbutMatchlockRightclickProcedure` | `IronballProjectileEntity` |
 | `artillery_addon:matchlock_musket` | `item.MatchlockMusketItem` | `procedures.MatchlockRifleRightclickProcedure` | `IronballProjectileEntity` |
+| `artillery_addon:matchlock_carbine` | `item.MatchlockCarbineItem` | `procedures.CarbineRightclickProcedure` | `IronballProjectileEntity` |
 | `artillery_addon:matchlock_pistol` | `item.MatchlockPistolItem` | `procedures.MatchlockPistolRightclickProcedure` | `IronballProjectileEntity` |
 | `artillery_addon:toradar_rifle` | `item.ToradarRifleItem` | `procedures.ToradarRightclickProcedure` | `IronballProjectileEntity` |
+| `artillery_addon:mini_pistola` | `item.MiniPistolaItem` | `procedures.MinipistolaRightclickedProcedure` | `IronballProjectileEntity` |
+| `artillery_addon:tiller_gun` | `item.TillerGunItem` | `procedures.TillergunRightclickedProcedure` | `IronballProjectileEntity` |
 | `artillery_addon:markmengonne` | `item.MarkmengonneItem` | `procedures.MarkmenRightclickProcedure` | vanilla `Arrow` |
+| `artillery_addon:windlass_crossbow` | `item.WindlassCrossbowItem` | `procedures.Windlass3RightclickedProcedure` | vanilla `Arrow` |
+| `artillery_addon:chu_ko_nu` | `item.ChuKoNuItem` | `procedures.ChuKoNuShootProcedure` | vanilla `Arrow` |
+| `artillery_addon:double_barrel_gonne` | `item.DoubleBarrelGonneItem` | `procedures.DoubleBarrelGonneRightclickedProcedure` / `procedures.DbIronballProcedure` | native `IronballProjectileEntity` for the first-barrel iron-ball branch |
 
 All class names above are under `net.mcreator.artilleryaddon`. Registration access is exposed through:
 
-- `init.ArtilleryAddonModItems`: `HANDGONNE`, `ARQUEBUS`, `MATCHLOCK_MUSKET`, `MATCHLOCK_PISTOL`, `TORADAR_RIFLE`, `MARKMENGONNE`, `IRON_BALL`, and `FORK_REST`;
+- `init.ArtilleryAddonModItems`: `HANDGONNE`, `TACCOLA_HANDGONNE`, `ARQUEBUS`, `HARQUEBUS`, `HACKBUT`, `MATCHLOCK_MUSKET`, `MATCHLOCK_PISTOL`, `TORADAR_RIFLE`, `MINI_PISTOLA`, `TILLER_GUN`, `MARKMENGONNE`, `WINDLASS_CROSSBOW`, `IRON_BALL`, `SMALL_IRON_BALL`, `LARGE_IRON_BALL`, and `FORK_REST`;
 - `init.ArtilleryAddonModEntities`: `IRONBALL_PROJECTILE` and `IRON_BIT_PROJECTILE`;
 - `init.ArtilleryAddonModSounds`: loading/firing/impact sound registry objects including `HAND_CANNON_LOAD_BALL`, `HAND_CANNON_LOADING_POWDER`, `HAND_CANNON_FIREING`, `ARQUEBUS_BALL`, `ARQUEBUS_RAMMING`, `ARQUEBUS_FIRING`, `BALL_IMPACT`, and `BALL_HITS`;
 - `init.ArtilleryAddonModParticleTypes`: `GUNSMOKE`.
 
-`IronBitProjectileEntity` is registered and relevant to other ammunition families but was not observed in the six native first-tranche right-click procedures.
+`IronBitProjectileEntity` is registered and relevant to other ammunition families. Noble Handgonne's other Iron Bit/ball branches remain outside the enabled Arrow slice.
 
 ## Relevant signatures
 
@@ -99,7 +122,7 @@ The native procedures expose a broader-looking but unsafe entry point:
 execute(LevelAccessor, double, double, double, Entity, ItemStack) -> void
 ```
 
-Both native projectile classes extend `AbstractArrow` and expose constructors for `(EntityType, Level)`, `(EntityType, x, y, z, Level)`, and `(EntityType, LivingEntity, Level)`. They also expose static `shoot` overloads. The position constructor is the one used by the inspected first-tranche procedures; owner and launch properties are then assigned explicitly.
+Both native projectile classes extend `AbstractArrow` and expose constructors for `(EntityType, Level)`, `(EntityType, x, y, z, Level)`, and `(EntityType, LivingEntity, Level)`. They also expose static `shoot` overloads. The position constructor is the one used by the inspected executable procedures; owner and launch properties are then assigned explicitly.
 
 `IronballProjectileEntity` owns hit/tick behavior through:
 
@@ -112,17 +135,111 @@ The upstream procedure creates the native entity with `ArtilleryAddonModEntities
 
 ## NBT and loading protocol evidence
 
-The six procedures use the legacy staged loading protocol rather than presenting a stable firearm API:
+The listed procedures use the legacy staged loading protocol rather than presenting a stable firearm API:
 
 - powder flask tag: `minecraft:powder_flask`;
 - powder amount key: `powder`;
 - weapon/loading key: `stage`;
-- `powder` and `stage` are stored as NBT doubles by the inspected procedures; the Arquebus loaded/fired boundary is `powder=1.0, stage=2.0` / `powder=0.0, stage=3.0`;
-- additional strings seen in some procedures: `ammo` and `loaded`;
-- inventory loading component: `ArtilleryAddonModItems.IRON_BALL`;
+- `powder` and `stage` are stored as NBT doubles by the inspected firearm procedures; the Arquebus loaded/fired boundary is `powder=1.0, stage=2.0` / `powder=0.0, stage=3.0`, Harquebus uses `powder=1.0, stage=2.0` / `powder=0.0, stage=0.0`, and Mini Pistola uses `powder=1.0, stage=1.0` / `powder=0.0, stage=3.0`; Windlass Crossbow uses the native `stage=4.0` loaded and `stage=0.0` fired boundaries without a powder marker, and Chu Ko Nu uses no staged marker at all, tracking its magazine solely in the native `ammo` counter;
+- additional strings seen in some procedures: `ammo` and `loaded`; the Markmengonne Arrow branch uses `ammo=2.0` as an NBT double at stage `2.0` without a native `loaded` flag, Noble Handgonne's enabled branch uses `ammo=2.0` at stage `2.0` without a `loaded` flag, Taccola's iron-ball branch uses native double `ammo=0.0` with `loaded=true` at stage `2.0` and `loaded=false` at stage `3.0`, Chu Ko Nu's native procedure walks `ammo` from `1.0` to `8.0` as doubles while loading and spends one round per shot back down to `ammo=0.0`, and Double Barrel Gonne's first-barrel branch uses native double `barrel_one=2.0`, `rammed_one=1.0`, `barrel_two=0.0`, `rammed_two=0.0`, and `loaded=1.0` at the NPC loaded boundary, then clears those values to zero after firing;
+- inventory loading components: `ArtilleryAddonModItems.IRON_BALL` for the full-size ball profiles including Taccola, `ArtilleryAddonModItems.SMALL_IRON_BALL` for Mini Pistola/Tiller Gun, `ArtilleryAddonModItems.LARGE_IRON_BALL` for Hackbut, and vanilla `Items.ARROW` for the Markmengonne, Noble Handgonne, Windlass Crossbow, and explicitly documented Chu Ko Nu NPC policy slices, the last of which counts three arrows for one magazine;
 - transient display lore is rewritten to text equivalent to “Needs powder”, “Needs shot”, “Empty”, or a loaded state.
 
 The procedures mutate flask and weapon NBT, inventory, durability, lore, sounds, particles, projectile insertion, and cooldown in one large transaction. There is no rollback API and no public immutable weapon profile. Exact stage values, component ownership, launch constants, durability, misfire probability, and recovery timing must be captured per weapon before implementation; these are deliberately deferred to the catalog/transaction checkpoints rather than inferred from translated lore.
+
+### Handgonne executable profile
+
+`TestgunRightclickedProcedure` accepts an `IRON_BALL`, advances the weapon through stage `1.0`, then accepts an `ARROW` and reaches stage `2.0`/`ammo=2.0`; a ramrod/match path then sets `loaded=true`. Its native ironball firing branch uses the `IronballProjectileEntity` with base damage `1.85`, knockback `1`, silent `true`, pickup disallowed, velocity `4.5`, and inaccuracy `9.0` normally or `6.5` while shifting. The recruit adapter intentionally consumes one physical `iron_ball` and commits the confirmed stage-two loaded boundary without invoking the player-only arrow, ramrod, match, or powder-flask transaction. This is a policy boundary, not full player transaction parity.
+
+### Taccola Handgonne executable iron-ball branch
+
+`ToccolaRightclickedProcedure` has multiple ammunition branches. This compatibility slice enables only the confirmed `IRON_BALL` branch: one physical `iron_ball` is consumed and the recruit weapon is committed at `powder=1.0`, `stage=2.0`, native double `ammo=0.0`, and `loaded=true`. Firing creates one `IronballProjectileEntity` with base damage `1.85`, knockback `1`, silent `true`, pickup disallowed, velocity `4.5`, and inaccuracy `9.0` normally or `6.5` while shifting; it finishes at `powder=0.0`, `stage=3.0`, `ammo=0.0`, and `loaded=false`. The recruit adapter collapses the player-only multi-step loading transaction into one NPC reload transaction. Taccola's Shatter Shot, Iron Bit, and Arrow branches remain disabled.
+
+### Double Barrel Gonne executable first-barrel iron-ball branch
+
+`DoubleBarrelGonneRightclickedProcedure` dispatches the confirmed iron-ball path through `DbIronballProcedure`. This compatibility slice enables only the first barrel: one physical `IRON_BALL` is consumed and the NPC weapon is committed at native double `barrel_one=2.0`, `rammed_one=1.0`, `barrel_two=0.0`, `rammed_two=0.0`, and `loaded=1.0`. Firing creates one native `IronballProjectileEntity` and clears those first-barrel markers to zero. The projectile preserves velocity `4.5`, inaccuracy `9.0` normally or `4.5` while shifting, base damage `2.7`, knockback `1`, critical `true`, pierce level `1`, audible (`silent=false`) state, and pickup disallowed. The native misfire boundary uses a random range of `1.0` to `105.0` against item damage; the NPC adapter preserves that rejection boundary without invoking player-only powder, match, or ramrod procedures. The second barrel, two-shot operation, Shatter Shot, Arrow, and other ammunition branches remain disabled.
+
+### Noble Handgonne executable Arrow branch
+
+`NobleGonneRightclickedProcedure` has multiple native ammunition branches. This compatibility slice enables only the confirmed physical-Arrow branch: one `minecraft:arrow` is consumed and the recruit weapon is committed at `powder=1.0`, `stage=2.0`, `ammo=2.0` (all native numeric fields are doubles). The branch jumps straight to the firing stage and never runs the ramming step, so it writes no `loaded` flag. Firing creates one vanilla `Arrow`, finishes at `powder=0.0`, `stage=3.0`, and `ammo=2.0`, with base damage `2.55`, knockback `1`, silent `false`, pickup disallowed, no critical/fire flag, velocity `4.5`, and inaccuracy `8.5` normally or `4.0` while shifting. The adapter marks this concrete Arrow instance so friendly-fire and lifetime hooks do not claim ordinary vanilla arrows. Noble Handgonne's other ball/Iron Bit branches are not enabled.
+
+### Markmengonne executable Arrow branch
+
+`MarkmenRightclickProcedure` has multiple ammunition/transaction branches. This compatibility slice enables only the confirmed physical-Arrow branch: one `minecraft:arrow` is consumed and the recruit weapon is committed at native `stage=2.0` with native double `ammo=2.0`; the adapter does not invent a `loaded` Boolean for this branch. Firing creates one marked vanilla `Arrow`, finishes at `stage=3.0` while preserving `ammo=2.0`, and uses base damage `1.5`, knockback `1`, silent `false`, pickup disallowed, no critical/fire flag, velocity `4.5`, and inaccuracy `6.5` normally or `4.0` while shifting. Markmengonne's other ammunition branches remain disabled.
+
+### Windlass Crossbow executable Arrow branch
+
+The inspected Windlass procedures use staged item variants for the player-only cocking transaction. `Windlass3RightclickedProcedure` is the confirmed firing boundary: it consumes one vanilla `Items.ARROW`, creates one vanilla `Arrow`, and writes native `stage=0.0` after firing. The loaded boundary is native `stage=4.0`; no `powder`, `ammo`, or `loaded` marker is part of this branch. The recruit adapter intentionally collapses the player-only multi-step cocking/use sequence into one server-safe reload transaction while preserving the confirmed boundaries. Its marked Arrow uses base damage `2.6`, knockback `1`, silent `false`, pickup allowed, critical `true`, no fire, pierce level `0`, velocity `3.5`, and inaccuracy `1.0`.
+
+### Chu Ko Nu bounded NPC policy branch
+
+`ChuKoNuShootProcedure` is the only inspected Chu Ko Nu class that reads or writes the `ammo` key. Its firing branch requires `ammo > 0.0`, creates one vanilla `Arrow`, and walks the counter down one round at a time; its loading branch accepts one `minecraft:arrow` per round and walks the same counter up from `1.0` to the native capacity `8.0`, writing the lore `§7Ammo N/8`. The recruit chain reproduces that loading branch step by step and never invokes the player-only `use`/`finishUsingItem` path.
+
+Each shot creates one marked vanilla `Arrow` and spends exactly one native round, so the weapon stays loaded at `ammo=2.0` and `ammo=1.0` and only unloads at `ammo=0.0`. Every round preserves base damage `1.6`, knockback `1`, pierce level `0`, audible (`silent=false`) state, critical `true`, pickup allowed, velocity `2.4`, and inaccuracy `0.5`.
+
+A recruit only starts the chain with the full eight arrows in its inventory, then commits them one round at a time. The interval between rounds of one magazine is this project's NPC cooldown policy, not a bytecode-confirmed native cadence — the inspected procedure exposes no NPC-usable timing. Native counter values outside `1.0`-`8.0`, fractional values, and non-double NBT types are rejected as unloaded.
+
+### Mini Pistola executable profile
+
+`MinipistolaRightclickedProcedure` recognizes `SMALL_IRON_BALL` when the weapon is at stage `0.0` and writes stage `1.0`. Its native firing branch accepts `MATCH` with stage `1.0`, creates one `IronballProjectileEntity`, and finishes at powder `0.0`, stage `3.0`, with `loaded=false`. The recruit adapter intentionally bypasses the player-only powder-flask and match transaction while preserving the confirmed staged boundary and consuming exactly one physical `small_iron_ball`.
+
+The inspected projectile branches use velocity `3.3`; the ground branch uses inaccuracy `10.0`, the passenger branch `11.0`, base damage `1.0`, silent `true`, knockback `1`, no fire, no critical flag, and `AbstractArrow.Pickup.DISALLOWED`. The native firing sound is the registry ID `artillery_addon:hand_cannon_fireing`.
+
+### Matchlock Carbine executable standing and `fork_rest` branches
+
+`CarbineRightclickProcedure` accepts the native staged load boundary with one `IRON_BALL`: its chain runs `stage=1.0`, `2.0`, `3.0`, so the recruit adapter commits `powder=1.0`, `stage=3.0` and consumes one physical ball, then firing clears `powder=0.0` without inventing a native `loaded` flag. The native procedure has two confirmed single-projectile launch branches. An empty offhand uses velocity `6.5` and inaccuracy `6.0`; an offhand `artillery_addon:fork_rest` uses velocity `6.5` and inaccuracy `3.5`. Both create one `IronballProjectileEntity` with base damage `2.7`, knockback `1`, silent `true`, critical `false`, and pickup disallowed. A different non-empty offhand exits before projectile creation; the recruit adapter preserves that gate instead of silently selecting the standing branch.
+
+### Harquebus executable standing and `fork_rest` branches
+
+`HarquebusRightclick2Procedure` has separate ordinary and `fork_rest` launch branches, each creating exactly one `IronballProjectileEntity`. Its loading chain runs `stage=1.0`, `2.0`, `3.0`, so the compatibility path consumes one physical `IRON_BALL` and commits `powder=1.0`, `stage=3.0` without inventing a native `loaded` flag. Firing finishes at the bytecode-confirmed `powder=0.0`, `stage=0.0` boundary and uses base damage `2.2`, knockback `1`, silent `true`, pickup disallowed, no fire, no critical flag, velocity `5.5`, and inaccuracy `6.0` standing or `3.5` with the exact `artillery_addon:fork_rest` offhand item. Other Harquebus branches remain outside the enabled boundary.
+
+### Hackbut executable ordinary branch
+
+`HackbutMatchlockRightclickProcedure` uses `LARGE_IRON_BALL` as its physical ammunition and advances the weapon to `powder=1.0`, `stage=2.0`; firing finishes at `powder=0.0`, `stage=3.0` without a native `loaded` flag. The no-`fork_rest` player branch is guarded by the player aim/shift condition, so the recruit adapter intentionally bypasses that player-only gate while preserving the confirmed no-`fork_rest` launch profile: one `IronballProjectileEntity`, velocity `6.5`, inaccuracy `5.5`, base damage `5.25`, knockback `1`, critical `true`, pierce level `1`, silent `false`, no fire, and pickup disallowed. The native `fork_rest` launch branches and their separate inaccuracy values remain outside this slice.
+
+### Native multi-step loading chains
+
+Every enabled gameplay weapon's loading branches were read from its own right-click procedure with
+`javap -p -c`. The same branches were re-read from the pinned server-safe 1.11 artifact: they are
+identical there, only jump offsets differ. `ArtilleryReloadProtocol` reproduces this table.
+
+| Weapon | Step 1 | Step 2 | Step 3 | Native ready state |
+|---|---|---|---|---|
+| `arquebus` | flask → `stage=0.0`, `powder=1.0`, `hand_cannon_loading_powder` | `iron_ball` → `stage=1.0`, `arquebus_ball` | `#artillery:ramrod` → `stage=2.0`, `arquebus_ramming` | `stage=2.0` |
+| `matchlock_musket` | flask → `stage=0.0`, `powder=1.0` | `iron_ball` → `stage=1.0`, `hand_cannon_load_ball` | ramrod → `stage=2.0` | `stage=2.0` |
+| `toradar_rifle` | flask → `stage=0.0`, `powder=1.0` | `iron_ball` → `stage=1.0`, `arquebus_ball` | ramrod → `stage=2.0` | `stage=2.0` |
+| `hackbut` | flask → `stage=0.0`, `powder=1.0` | `large_iron_ball` → `stage=1.0`, `arquebus_ball` | ramrod → `stage=2.0` | `stage=2.0` |
+| `matchlock_pistol` | flask → `stage=0.0`, `powder=1.0`, `arquebus_ball` | `iron_ball` → `stage=1.0`, `hand_cannon_load_ball` | bare hand **or** ramrod → `stage=2.0` | `stage=2.0` |
+| `matchlock_carbine` | flask → `stage=1.0`, `powder=1.0` | `iron_ball` → `stage=2.0`, `arquebus_ball` | bare hand only → `stage=3.0` | `stage=3.0` |
+| `harquebus` | flask → `stage=1.0`, `powder=1.0` | `iron_ball` → `stage=2.0`, `arquebus_ball` | bare hand only → `stage=3.0` | `stage=3.0` |
+| `handgonne` | flask → `stage=0.0`, `powder=1.0` | `iron_ball` → `stage=1.0`, `ammo=0.0`, `hand_cannon_load_ball` | bare hand or ramrod → `stage=2.0`, `loaded=true`, `hand_cannon_ramming` | `stage=2.0`, `loaded=true` |
+| `taccola_handgonne` | flask → `stage=0.0`, `powder=1.0` | `iron_ball` → `stage=1.0`, `ammo=0.0` | bare hand or ramrod → `stage=2.0`, `loaded=true` | `stage=2.0`, `loaded=true` |
+| `hand_cannon` | flask → `stage=0.0`, `powder=1.0` | `iron_ball` → `stage=1.0`, `hand_cannon_load_ball` | bare hand or ramrod → `stage=2.0`, `hand_cannon_ramming` | `stage=2.0` |
+| `tiller_gun` | flask → `stage=0.0`, `powder=1.0` | `small_iron_ball` → `stage=1.0`, `ammo=0.0` | bare hand **or** flask → `stage=2.0`, `loaded=true` | `stage=2.0`, `loaded=true` |
+| `mini_pistola` | flask → `stage=0.0`, `powder=1.0` | `small_iron_ball` → `stage=1.0`, `hand_cannon_load_ball` | — (no ramming branch) | `stage=1.0` |
+| `noble_handgonne` | flask → `stage=0.0`, `powder=1.0` | `minecraft:arrow` → `stage=2.0`, `ammo=2.0` | — (the Arrow branch skips ramming) | `stage=2.0` |
+| `markmengonne` | flask → `stage=0.0`, `powder=1.0` | `minecraft:arrow` → `stage=2.0`, `ammo=2.0` | — (the Arrow branch skips ramming) | `stage=2.0` |
+| `double_barrel_gonne` | flask → `barrel_one=1.0`, `rammed_one=0.0` | `iron_ball` → `barrel_one=2.0` | bare hand or ramrod → `rammed_one=1.0`, `loaded=1.0` | `barrel_one=2.0`, `rammed_one=1.0`, `loaded=1.0` |
+| `windlass_crossbow` | bare hand → `stage=1.0`, `crossbow.loading_start` | bare hand → `stage=2.0`, `crossbow.loading_middle` | bare hand → `stage=3.0`, then `minecraft:arrow` → `stage=4.0`, `crossbow.loading_end` | `stage=4.0` |
+| `chu_ko_nu` | `minecraft:arrow` → `ammo=1.0` | … one arrow per round … | `minecraft:arrow` → `ammo=8.0` | `ammo>=1.0`, capacity `8.0` |
+
+Notes taken from the same disassembly:
+
+- the flask and the ramrod are damaged (`ItemStack.hurt(1, …)`), never consumed; only ammunition is
+  shrunk;
+- several ramming branches test the bare hand before the ramrod (`mainHand.getItem() ==
+  ItemStack.EMPTY.getItem()`), and Carbine/Harquebus accept **only** the bare hand, so a recruit
+  rams them without spending a ramrod;
+- Carbine and Harquebus shift the whole staged protocol by one, so their firing branches check
+  `stage=3.0`, not `stage=2.0`;
+- `ToccolaRightclickedProcedure` has no powder-flask guard on its first step at all; the recruit path
+  still requires a flask so the transaction stays recognisable;
+- `HandcannonRightclickProcedure` shrinks exactly one `IRON_BALL` and then spawns its whole
+  multi-projectile volley, so one native volley costs one ball;
+- `ChuKoNuShootProcedure` both fires and reloads: it accepts one `minecraft:arrow` per round and
+  walks the native counter `1.0` through `8.0` with the lore `§7Ammo N/8`;
+- the native Windlass cocking steps need the arrow only in the inventory and spend it on the shot;
+  the recruit path spends it at the last cocking step instead, which is a documented NPC policy.
 
 A separate utility exists at `gun_maker.GunMaker.GunUtils`. It reads/writes the following generic keys:
 
@@ -142,11 +259,11 @@ A separate utility exists at `gun_maker.GunMaker.GunUtils`. It reads/writes the 
 | `MOUSE_RIGHT` | `gun_maker_11` |
 | `HAS_SHOOTED` | `gun_maker_12` |
 
-`GunUtils.isGun(ItemStack)` checks the broad `artillery:guns` tag. The six inspected native procedures primarily expose the older `stage`/`powder` transaction, so the generic keys must not be assumed to replace the per-weapon protocol.
+`GunUtils.isGun(ItemStack)` checks the broad `artillery:guns` tag. The inspected native procedures primarily expose the older `stage`/`powder` transaction, so the generic keys must not be assumed to replace the per-weapon protocol.
 
 ## Player-only and client/network hazards
 
-The broad `Entity` procedure descriptor is not NPC-safe. For every one of the six first-tranche procedures, `javap -p -s -c` found the same hazard family:
+The broad `Entity` procedure descriptor is not NPC-safe. For every listed executable procedure, `javap -p -s -c` found the same hazard family:
 
 - repeated casts to `LivingEntity` to read main/offhand stacks;
 - a guarded `instanceof Player` / `checkcast Player` branch that calls `Player.getInventory()` and `Inventory.setChanged()`;
@@ -172,12 +289,12 @@ These paths are player input/rendering infrastructure and are not reusable by co
 
 For recruits:
 
-1. Never invoke item `use`, any first-tranche `*RightclickProcedure.execute`, `CooldownProcedure`, or the GunMaker mouse packet path.
+1. Never invoke item `use`, any native `*RightclickProcedure.execute`, `CooldownProcedure`, or the GunMaker mouse packet path.
 2. Read and write only bytecode-confirmed loading state through an adapter owned by this project.
 3. Count every required component before mutation, then commit the reload transaction once.
 4. Construct the verified native projectile directly on the logical server, set owner/position/trajectory/pickup and confirmed properties, and check `Level.addFreshEntity` before committing weapon cleanup.
 5. Reproduce only confirmed server-safe sounds/particles/misfire effects.
-6. Keep the six-item support list explicit; do not use `#artillery:guns` as the production allowlist.
+6. Keep the supported-item list explicit; do not use `#artillery:guns` as the production allowlist.
 
 ## Reproduction commands
 
