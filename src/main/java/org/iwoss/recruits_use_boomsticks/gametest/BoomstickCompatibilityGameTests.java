@@ -3703,13 +3703,80 @@ public final class BoomstickCompatibilityGameTests {
         helper.assertTrue(carrying, "the order must report the drawn firearm");
         helper.assertTrue(recruit.getMainHandItem().is(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()),
                 "the firearm must move to the main hand, it holds " + recruit.getMainHandItem());
-        helper.assertTrue(recruit.getOffhandItem().is(stack("minecraft:iron_sword").getItem()),
-                "the displaced melee weapon must take the off hand, it holds " + recruit.getOffhandItem());
+        helper.assertTrue(recruit.getOffhandItem().isEmpty(),
+                "the off hand must be emptied, not refilled, it holds " + recruit.getOffhandItem());
         helper.assertTrue(
                 recruit.getInventory()
                         .getItem(recruit.getInventorySlotIndex(EquipmentSlot.OFFHAND))
-                        .is(stack("minecraft:iron_sword").getItem()),
+                        .isEmpty(),
                 "the inventory slot backing the off hand must agree with the equipment slot");
+        helper.assertTrue(
+                recruit.getInventory().countItem(stack("minecraft:iron_sword").getItem()) == 1,
+                "the displaced melee weapon must go to storage, neither lost nor duplicated");
+        helper.succeed();
+    }
+
+    /**
+     * Drawing out of the off hand and stowing again must not park the firearm in the off hand.
+     *
+     * <p>The off hand used to serve as the swap's storage, so drawing left the melee weapon there and
+     * the next stow found it first and swapped the firearm into its place. Recruits'
+     * {@code switchMainHandItem} starts its scan past both hand slots, so a firearm that lands there
+     * is unreachable for good: the attack goal keeps seeing a gun in the inventory, keeps failing to
+     * equip it, and the recruit never fires again.</p>
+     */
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void carryOrderNeverParksTheFirearmInTheOffHand(GameTestHelper helper) {
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, stack("minecraft:iron_sword"));
+        recruit.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND,
+                stack(SupportedBoomsticks.ARQUEBUS_ID));
+
+        BoomstickCarryOrder.apply(recruit, true);
+        boolean carrying = BoomstickCarryOrder.apply(recruit, false);
+
+        helper.assertFalse(carrying, "the order must report the stowed firearm");
+        helper.assertFalse(
+                RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getOffhandItem()),
+                "the firearm must never reach the off hand, it holds " + recruit.getOffhandItem());
+        helper.assertTrue(recruit.getMainHandItem().is(stack("minecraft:iron_sword").getItem()),
+                "the recruit must take its melee weapon back, it holds " + recruit.getMainHandItem());
+        helper.assertTrue(
+                recruit.getInventory().countItem(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()) == 1,
+                "the round trip must neither lose nor duplicate the firearm");
+
+        // A full inventory makes the off-hand candidate unsafe to swap, but a second firearm in
+        // storage can still exchange places with the sword without dropping or moving either hand.
+        CrossBowmanEntity fullRecruit = spawnCrossbowman(helper, 2);
+        fullRecruit.setItemSlot(EquipmentSlot.MAINHAND, stack("minecraft:iron_sword"));
+        fullRecruit.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND,
+                stack(SupportedBoomsticks.ARQUEBUS_ID));
+        int storedFirearmSlot = -1;
+        for (int slot = 0; slot < fullRecruit.getInventory().getContainerSize(); slot++) {
+            if (fullRecruit.getEquipmentSlotIndex(slot) == null) {
+                fullRecruit.getInventory().setItem(slot, stack("minecraft:cobblestone"));
+                if (storedFirearmSlot < 0) {
+                    storedFirearmSlot = slot;
+                }
+            }
+        }
+        helper.assertTrue(storedFirearmSlot >= 0, "the recruit must expose at least one storage slot");
+        fullRecruit.getInventory().setItem(
+                storedFirearmSlot,
+                stack(SupportedBoomsticks.ARQUEBUS_ID));
+
+        boolean fullInventoryCarrying = BoomstickCarryOrder.apply(fullRecruit, true);
+
+        helper.assertTrue(fullInventoryCarrying,
+                "an unsafe off-hand swap must not hide a safely swappable stored firearm");
+        helper.assertTrue(
+                fullRecruit.getMainHandItem().is(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()),
+                "the stored firearm must reach the main hand, it holds " + fullRecruit.getMainHandItem());
+        helper.assertTrue(
+                fullRecruit.getOffhandItem().is(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()),
+                "the blocked off-hand firearm must stay untouched, it holds " + fullRecruit.getOffhandItem());
+        helper.assertTrue(fullRecruit.getInventory().countItem(stack("minecraft:iron_sword").getItem()) == 1,
+                "the displaced sword must replace the stored firearm, neither lost nor duplicated");
         helper.succeed();
     }
 

@@ -28,8 +28,8 @@ import java.util.function.Predicate;
  *
  * <p>Recruits only draw a firearm when a combat goal starts, so an idle company keeps its melee
  * weapon in hand no matter what it carries. This order moves a supported firearm into the main hand
- * on demand and puts it back again, using Recruits' own {@code switchMainHandItem} so equipment and
- * inventory slots stay in the single place that owns them.</p>
+ * on demand and puts it back again. It walks the recruit's container directly because Recruits' own
+ * {@code switchMainHandItem} skips both hand slots.</p>
  */
 public final class BoomstickCarryOrder {
     /** Matches the radius Recruits' own group commands use. */
@@ -184,11 +184,12 @@ public final class BoomstickCarryOrder {
     }
 
     /**
-     * Puts the first stored stack the test accepts into the main hand and stores what was held.
+     * Puts the first safely swappable stack the test accepts into the main hand and stores what was held.
      *
      * <p>The recruit's equipment slots are backed by inventory slots, so both ends of the swap go
      * through the entity's own hand setters wherever a hand is involved and through the container
-     * everywhere else. Armour slots are never a source: nothing that belongs in a hand lives there.</p>
+     * everywhere else. Armour slots are never a source: nothing that belongs in a hand lives there.
+     * The off hand is a source but never a destination, so what was held always lands in storage.</p>
      */
     private static boolean swapIntoMainHand(CrossBowmanEntity recruit, Predicate<ItemStack> wanted) {
         SimpleContainer inventory = recruit.getInventory();
@@ -207,14 +208,24 @@ public final class BoomstickCarryOrder {
             if (!wanted.test(candidate)) {
                 continue;
             }
-            if (slot == offSlot && candidate.isEmpty()) {
-                // An empty off hand is not storage: parking the firearm there would just move it to
-                // the other hand.
-                continue;
-            }
             ItemStack taken = candidate.copy();
             if (slot == offSlot) {
-                recruit.setItemInHand(InteractionHand.OFF_HAND, held);
+                // The off hand is a source, never a destination. Parking the displaced item there
+                // leaves the recruit visibly holding a second weapon, and the next order in the
+                // other direction finds that item first and swaps the firearm into the off hand,
+                // where Recruits' own `switchMainHandItem` can never reach it again. Recruits'
+                // container agrees: its off-hand slot only accepts a shield.
+                int storage = firstFreeStorageSlot(recruit, inventory);
+                if (!held.isEmpty() && storage < 0) {
+                    // Nothing may be dropped and nothing may go into a hand, so the recruit is
+                    // left as it stands rather than half swapped. Keep looking: another matching
+                    // item in storage can still exchange places with the held item safely.
+                    continue;
+                }
+                recruit.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+                if (!held.isEmpty()) {
+                    inventory.setItem(storage, held);
+                }
             } else {
                 inventory.setItem(slot, held);
             }
@@ -222,6 +233,16 @@ public final class BoomstickCarryOrder {
             return true;
         }
         return false;
+    }
+
+    /** First empty slot that backs no equipment slot, or {@code -1} when storage is full. */
+    private static int firstFreeStorageSlot(CrossBowmanEntity recruit, SimpleContainer inventory) {
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            if (recruit.getEquipmentSlotIndex(slot) == null && inventory.getItem(slot).isEmpty()) {
+                return slot;
+            }
+        }
+        return -1;
     }
 
     private static boolean isArmourSlot(CrossBowmanEntity recruit, int slot) {
