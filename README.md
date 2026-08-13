@@ -85,8 +85,8 @@ Recruits also close the distance rather than throwing short. A thrown projectile
 
 Recruits only draw a weapon when a combat goal starts, so an idle company marches with a melee weapon in hand even when every recruit carries a supported ranged weapon. The combat tab of the Recruits command screen gets two extra buttons for that, next to the shield orders they are modelled on:
 
-- **Weapons out!** moves a supported ranged weapon into the main hand of every commanded crossbowman and keeps it there.
-- **Weapons away!** puts the ranged weapon back and returns the recruit's own weapon to its hand: a sword or an axe first, then its crossbow. A recruit whose only weapon is the ranged weapon keeps holding it — the order decides how a company carries its weapons, not whether it is armed.
+- **Weapons out!** wears a supported ranged weapon where a shield would go — the off-hand slot — on every commanded crossbowman, leaving its melee weapon in the main hand. A fight moves the weapon across on its own, because firing and the native loading chain both need it in the main hand.
+- **Weapons away!** puts the ranged weapon back into storage, whichever hand it is in, and returns the recruit's own weapon to its main hand: a sword or an axe first, then its crossbow. A recruit whose only weapon is the ranged weapon keeps holding it — the order decides how a company carries its weapons, not whether it is armed.
 
 The orders apply to the groups selected in the command screen, and to every recruit you own when no group is selected. Both report in chat what happened, including why nothing happened: no recruits in range, no supported ranged weapons in the company, or nothing to take back in place of one. A recruit that owns no supported ranged weapon is left untouched, and an open loading transaction is closed before the hands move, so the order can never strand a borrowed ramrod or flask. The borrowed powder flask and ramrod a reload puts in the recruit's **off** hand belong to that reload, not to this order. Setting `debugLogging` in the config logs each order and the resulting hands per recruit.
 
