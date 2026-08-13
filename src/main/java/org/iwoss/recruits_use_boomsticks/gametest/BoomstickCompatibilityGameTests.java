@@ -3956,12 +3956,13 @@ public final class BoomstickCompatibilityGameTests {
 
         helper.assertTrue(carrying, "the order must report the drawn firearm");
         helper.assertTrue(
-                RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getMainHandItem()),
-                "the recruit must hold the firearm, it holds " + recruit.getMainHandItem());
+                RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getOffhandItem()),
+                "the recruit must wear the firearm where a shield goes, its off hand holds "
+                        + recruit.getOffhandItem());
+        helper.assertTrue(recruit.getMainHandItem().is(stack("minecraft:iron_sword").getItem()),
+                "the melee weapon must stay in the main hand, it holds " + recruit.getMainHandItem());
         helper.assertTrue(BoomstickCarryOrder.isCarrying(recruit),
-                "the carry flag must be set so the client can render the parade pose");
-        helper.assertTrue(recruit.getInventory().countItem(stack("minecraft:iron_sword").getItem()) == 1,
-                "the displaced melee weapon must be stored, not destroyed");
+                "the carry flag must be set so the client can render the carry state");
         helper.succeed();
     }
 
@@ -3982,10 +3983,10 @@ public final class BoomstickCompatibilityGameTests {
 
         helper.assertFalse(carrying, "the order must report the stowed firearm");
         helper.assertFalse(
-                RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getMainHandItem()),
-                "the firearm must leave the main hand, it holds " + recruit.getMainHandItem());
+                RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getOffhandItem()),
+                "the firearm must leave the off hand, it holds " + recruit.getOffhandItem());
         helper.assertTrue(recruit.getMainHandItem().is(stack("minecraft:iron_sword").getItem()),
-                "the recruit must take its melee weapon back, it holds " + recruit.getMainHandItem());
+                "the melee weapon must still be in the main hand, it holds " + recruit.getMainHandItem());
         helper.assertFalse(BoomstickCarryOrder.isCarrying(recruit),
                 "the carry flag must be cleared with the stowed firearm");
         helper.assertTrue(
@@ -3995,14 +3996,15 @@ public final class BoomstickCompatibilityGameTests {
     }
 
     /**
-     * The order must reach a firearm sitting in the off-hand slot.
+     * A firearm already in the off-hand slot is what the order asks for.
      *
      * <p>A player handing out weapons through the recruit's inventory screen can drop the gun into
      * either hand slot. Recruits' own {@code switchMainHandItem} starts its scan past both of them,
-     * so a gun parked in the off hand would be invisible to the order.</p>
+     * so a gun parked in the off hand is invisible to it; the order must still see it and must not
+     * shuffle it anywhere.</p>
      */
     @GameTest(template = "empty", timeoutTicks = 40)
-    public static void carryOrderDrawsAFirearmOutOfTheOffHand(GameTestHelper helper) {
+    public static void carryOrderKeepsAFirearmAlreadyInTheOffHand(GameTestHelper helper) {
         CrossBowmanEntity recruit = spawnCrossbowman(helper);
         recruit.setItemSlot(EquipmentSlot.MAINHAND, stack("minecraft:iron_sword"));
         recruit.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND,
@@ -4011,36 +4013,77 @@ public final class BoomstickCompatibilityGameTests {
         boolean carrying = BoomstickCarryOrder.apply(recruit, true);
 
         helper.assertTrue(carrying, "the order must report the drawn firearm");
-        helper.assertTrue(recruit.getMainHandItem().is(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()),
-                "the firearm must move to the main hand, it holds " + recruit.getMainHandItem());
-        helper.assertTrue(recruit.getOffhandItem().isEmpty(),
-                "the off hand must be emptied, not refilled, it holds " + recruit.getOffhandItem());
+        helper.assertTrue(recruit.getOffhandItem().is(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()),
+                "the firearm must stay where a shield goes, it holds " + recruit.getOffhandItem());
+        helper.assertTrue(recruit.getMainHandItem().is(stack("minecraft:iron_sword").getItem()),
+                "the melee weapon must stay in the main hand, it holds " + recruit.getMainHandItem());
         helper.assertTrue(
                 recruit.getInventory()
                         .getItem(recruit.getInventorySlotIndex(EquipmentSlot.OFFHAND))
-                        .isEmpty(),
+                        .is(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()),
                 "the inventory slot backing the off hand must agree with the equipment slot");
         helper.assertTrue(
-                recruit.getInventory().countItem(stack("minecraft:iron_sword").getItem()) == 1,
-                "the displaced melee weapon must go to storage, neither lost nor duplicated");
+                recruit.getInventory().countItem(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()) == 1,
+                "the order must neither lose nor duplicate the firearm");
         helper.succeed();
     }
 
     /**
-     * Drawing out of the off hand and stowing again must not park the firearm in the off hand.
+     * A fight takes the weapon out of the off hand.
      *
-     * <p>The off hand used to serve as the swap's storage, so drawing left the melee weapon there and
-     * the next stow found it first and swapped the firearm into its place. Recruits'
-     * {@code switchMainHandItem} starts its scan past both hand slots, so a firearm that lands there
-     * is unreachable for good: the attack goal keeps seeing a gun in the inventory, keeps failing to
-     * equip it, and the recruit never fires again.</p>
+     * <p>The carry order wears the weapon where a shield goes, but firing and the native loading
+     * chain both need it in the main hand — the chain borrows the off hand for its own tools, one at
+     * a time. Recruits' own {@code switchMainHandItem} starts its scan past both hand slots, so a
+     * carried weapon would be invisible to it and the recruit would stand in a fight holding a
+     * sword it was told to shoot with.</p>
+     */
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void combatGoalDrawsTheCarriedFirearmOutOfTheOffHand(GameTestHelper helper) {
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        LivingEntity target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 4, 2, 1);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, stack("minecraft:iron_sword"));
+        recruit.getInventory().addItem(stack(SupportedBoomsticks.ARQUEBUS_ID));
+        recruit.getInventory().addItem(stack(SupportedBoomsticks.ROUND_BALL_ID, 4));
+        BoomstickCarryOrder.apply(recruit, true);
+        helper.assertTrue(
+                RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getOffhandItem()),
+                "the order must have parked the firearm in the off hand first");
+        recruit.setTarget(target);
+        recruit.setShouldRanged(true);
+
+        RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
+        helper.assertTrue(goal.canUse(), "the combat goal must claim a recruit carrying a firearm");
+        goal.start();
+        for (int tick = 0; tick < 10; tick++) {
+            goal.tick();
+        }
+
+        helper.assertTrue(
+                RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getMainHandItem()),
+                "the fight must move the firearm into the main hand, it holds "
+                        + recruit.getMainHandItem());
+        helper.assertFalse(
+                RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getOffhandItem()),
+                "the off hand must be free for the loading chain's own tools, it holds "
+                        + recruit.getOffhandItem());
+        helper.assertTrue(
+                recruit.getInventory().countItem(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()) == 1,
+                "drawing into a fight must neither lose nor duplicate the firearm");
+        helper.succeed();
+    }
+
+    /**
+     * A round trip through both orders must not lose or duplicate anything.
+     *
+     * <p>The off hand is now the destination rather than a scratch slot, so the failure this guards
+     * against is the opposite of the old one: drawing must not leave a second copy behind, and
+     * stowing must put the weapon back in storage where the attack goal can still reach it.</p>
      */
     @GameTest(template = "empty", timeoutTicks = 40)
-    public static void carryOrderNeverParksTheFirearmInTheOffHand(GameTestHelper helper) {
+    public static void carryOrderRoundTripKeepsExactlyOneFirearm(GameTestHelper helper) {
         CrossBowmanEntity recruit = spawnCrossbowman(helper);
         recruit.setItemSlot(EquipmentSlot.MAINHAND, stack("minecraft:iron_sword"));
-        recruit.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND,
-                stack(SupportedBoomsticks.ARQUEBUS_ID));
+        recruit.getInventory().addItem(stack(SupportedBoomsticks.ARQUEBUS_ID));
 
         BoomstickCarryOrder.apply(recruit, true);
         boolean carrying = BoomstickCarryOrder.apply(recruit, false);
@@ -4048,59 +4091,49 @@ public final class BoomstickCompatibilityGameTests {
         helper.assertFalse(carrying, "the order must report the stowed firearm");
         helper.assertFalse(
                 RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getOffhandItem()),
-                "the firearm must never reach the off hand, it holds " + recruit.getOffhandItem());
+                "the off hand must be free again, it holds " + recruit.getOffhandItem());
         helper.assertTrue(recruit.getMainHandItem().is(stack("minecraft:iron_sword").getItem()),
-                "the recruit must take its melee weapon back, it holds " + recruit.getMainHandItem());
+                "the melee weapon must never leave the main hand, it holds " + recruit.getMainHandItem());
         helper.assertTrue(
                 recruit.getInventory().countItem(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()) == 1,
                 "the round trip must neither lose nor duplicate the firearm");
 
-        // A full inventory makes the off-hand candidate unsafe to swap, but a second firearm in
-        // storage can still exchange places with the sword without dropping or moving either hand.
+        // Storage full: the weapon cannot leave the off hand without dropping something, so the
+        // recruit is left exactly as it stood rather than half stowed.
         CrossBowmanEntity fullRecruit = spawnCrossbowman(helper, 2);
         fullRecruit.setItemSlot(EquipmentSlot.MAINHAND, stack("minecraft:iron_sword"));
         fullRecruit.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND,
                 stack(SupportedBoomsticks.ARQUEBUS_ID));
-        int storedFirearmSlot = -1;
         for (int slot = 0; slot < fullRecruit.getInventory().getContainerSize(); slot++) {
             if (fullRecruit.getEquipmentSlotIndex(slot) == null) {
                 fullRecruit.getInventory().setItem(slot, stack("minecraft:cobblestone"));
-                if (storedFirearmSlot < 0) {
-                    storedFirearmSlot = slot;
-                }
             }
         }
-        helper.assertTrue(storedFirearmSlot >= 0, "the recruit must expose at least one storage slot");
-        fullRecruit.getInventory().setItem(
-                storedFirearmSlot,
-                stack(SupportedBoomsticks.ARQUEBUS_ID));
 
-        boolean fullInventoryCarrying = BoomstickCarryOrder.apply(fullRecruit, true);
+        BoomstickCarryOrder.apply(fullRecruit, false);
 
-        helper.assertTrue(fullInventoryCarrying,
-                "an unsafe off-hand swap must not hide a safely swappable stored firearm");
-        helper.assertTrue(
-                fullRecruit.getMainHandItem().is(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()),
-                "the stored firearm must reach the main hand, it holds " + fullRecruit.getMainHandItem());
         helper.assertTrue(
                 fullRecruit.getOffhandItem().is(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()),
-                "the blocked off-hand firearm must stay untouched, it holds " + fullRecruit.getOffhandItem());
-        helper.assertTrue(fullRecruit.getInventory().countItem(stack("minecraft:iron_sword").getItem()) == 1,
-                "the displaced sword must replace the stored firearm, neither lost nor duplicated");
+                "a firearm with nowhere to go must stay in the off hand, it holds "
+                        + fullRecruit.getOffhandItem());
+        helper.assertTrue(fullRecruit.getMainHandItem().is(stack("minecraft:iron_sword").getItem()),
+                "the blocked stow must not disturb the main hand, it holds "
+                        + fullRecruit.getMainHandItem());
         helper.succeed();
     }
 
     /**
-     * A recruit whose only weapon is the firearm must keep holding it.
+     * A recruit the combat goal already armed is stowed from the main hand too.
      *
-     * <p>Stowing is an order about how a company carries its weapons. Emptying the hand of a recruit
-     * that owns nothing else would disarm it outright, which is not what the order was asked to do.</p>
+     * <p>The order is about how a company carries its weapons, so it has to reach the weapon
+     * wherever it currently is. A recruit that owns nothing else keeps holding what it has: emptying
+     * its hand would disarm it outright, which is not what the order was asked to do.</p>
      */
     @GameTest(template = "empty", timeoutTicks = 40)
     public static void carryOrderKeepsTheFirearmWhenThereIsNothingToTakeBack(GameTestHelper helper) {
         CrossBowmanEntity recruit = spawnCrossbowman(helper);
-        recruit.getInventory().addItem(stack(SupportedBoomsticks.ARQUEBUS_ID));
-        BoomstickCarryOrder.apply(recruit, true);
+        recruit.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                stack(SupportedBoomsticks.ARQUEBUS_ID));
 
         boolean carrying = BoomstickCarryOrder.apply(recruit, false);
 
@@ -4121,9 +4154,9 @@ public final class BoomstickCompatibilityGameTests {
     @GameTest(template = "empty", timeoutTicks = 40)
     public static void carryOrderStowingFallsBackToTheCrossbow(GameTestHelper helper) {
         CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        recruit.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                stack(SupportedBoomsticks.ARQUEBUS_ID));
         recruit.getInventory().addItem(stack("minecraft:crossbow"));
-        recruit.getInventory().addItem(stack(SupportedBoomsticks.ARQUEBUS_ID));
-        BoomstickCarryOrder.apply(recruit, true);
 
         BoomstickCarryOrder.apply(recruit, false);
 
@@ -4159,14 +4192,14 @@ public final class BoomstickCompatibilityGameTests {
 
         BoomstickCarryOrder.apply(recruit, true);
 
-        helper.assertTrue(recruit.getMainHandItem().is(stack(SupportedArtillery.ARQUEBUS_ID).getItem()),
-                "the order must draw the gun, it drew " + recruit.getMainHandItem());
+        helper.assertTrue(recruit.getOffhandItem().is(stack(SupportedArtillery.ARQUEBUS_ID).getItem()),
+                "the order must draw the gun, it drew " + recruit.getOffhandItem());
         helper.assertTrue(
                 recruit.getInventory()
-                        .getItem(recruit.getInventorySlotIndex(EquipmentSlot.MAINHAND))
+                        .getItem(recruit.getInventorySlotIndex(EquipmentSlot.OFFHAND))
                         .is(stack(SupportedArtillery.ARQUEBUS_ID).getItem()),
-                "the inventory slot backing the main hand must show the same gun, it shows "
-                        + recruit.getInventory().getItem(recruit.getInventorySlotIndex(EquipmentSlot.MAINHAND)));
+                "the inventory slot backing the off hand must show the same gun, it shows "
+                        + recruit.getInventory().getItem(recruit.getInventorySlotIndex(EquipmentSlot.OFFHAND)));
         helper.assertTrue(recruit.getInventory().countItem(stack(POWDER_FLASK_ID).getItem()) == 1,
                 "the powder flask must stay stored");
         helper.assertTrue(recruit.getInventory().countItem(stack(RAMROD_ID).getItem()) == 1,

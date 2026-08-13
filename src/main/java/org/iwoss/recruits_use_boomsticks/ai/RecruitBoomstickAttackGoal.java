@@ -14,6 +14,7 @@ import org.iwoss.recruits_use_boomsticks.compat.BoomstickWeaponProfile;
 import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.compat.SupportedBoomsticks;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
+import org.iwoss.recruits_use_boomsticks.inventory.RecruitHandSwap;
 import org.slf4j.Logger;
 
 import java.util.EnumSet;
@@ -452,7 +453,10 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         if (!hasSupportedWeaponInInventory()) {
             return;
         }
-        crossBowman.switchMainHandItem(adapters::isSupportedEnabledWeapon);
+        // Not Recruits' own switchMainHandItem: it starts its scan past both hand slots, so it cannot
+        // see a weapon the carry order parked in the off hand. Firing and the native loading chain
+        // both need the weapon in the main hand — the chain borrows the off hand for its own tools.
+        RecruitHandSwap.intoMainHand(crossBowman, adapters::isSupportedEnabledWeapon);
         state.reset();
         activeSelection = null;
         switchDelay = 1;
