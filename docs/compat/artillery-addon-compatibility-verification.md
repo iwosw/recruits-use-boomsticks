@@ -95,6 +95,12 @@ back to an artifact-wide probe over the classes that do carry the marker, defaul
 The throwable cobblestone has no block-impact recovery procedure in either artifact, so its profile
 records no recovery roll rather than inventing one.
 
+Both of those resolutions are keyed on someone else's binary, so neither fails silently. A weapon
+whose native projectile entity is unregistered, or whose class no longer has the expected shape,
+refuses the shot and reports that refusal once per weapon; an artifact where no throwable class can
+be resolved at all logs that it is falling back to the pinned 1.11 pickup behaviour. Without those
+lines a repackaged artifact would look exactly like a recruit that simply never throws.
+
 #### Reach and the wind-up
 
 Two NPC behaviours follow from those velocities and are this project's policy rather than native
