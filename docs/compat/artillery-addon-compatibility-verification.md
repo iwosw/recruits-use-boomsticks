@@ -1,12 +1,12 @@
 # Artillery Addon compatibility verification
 
-## Status: THIRTEEN RUNTIME PROFILES VERIFIED; TILLER, NOBLE HANDGONNE, HACKBUT, AND DOUBLE BARREL GONNE IMPLEMENTED, RUNTIME-GATED
+## Status: THIRTEEN FIREARM PROFILES AND FIVE THROWING WEAPONS VERIFIED; FOUR FIREARMS RUNTIME-GATED
 
-The Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branches, Matchlock Pistol, Toradar Rifle, Mini Pistola, Handgonne, Taccola Handgonne iron-ball branch, Hand Cannon three-ball volley branch, Markmengonne Arrow-branch, both Harquebus branches, Windlass Crossbow, and Chu Ko Nu eight-round repeater are complete and runtime-verified when registered. Arquebus was already present in `HEAD` at `0a20856`; the later slices were added in the working tree. The Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne profiles/state/AI slices are implemented and binary-confirmed against Artillery 1.14.0, but their runtime GameTests are gated because the pinned server-safe 1.11 artifact does not register those items; the 1.14.0 artifact cannot be used for dedicated-server proof because it fails common/server loading on a client-only `ClientLevel` reference.
+The Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branches, Matchlock Pistol, Toradar Rifle, Mini Pistola, Handgonne, Taccola Handgonne iron-ball branch, Hand Cannon three-ball volley branch, Markmengonne Arrow-branch, both Harquebus branches, Windlass Crossbow, Chu Ko Nu eight-round repeater, and the whole throwing-weapon family — Francisca, Hurlbat, Throwing Cross, Javelin, and throwable cobblestone — are complete and runtime-verified when registered. Arquebus was already present in `HEAD` at `0a20856`; the later slices were added in the working tree. The Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne profiles/state/AI slices are implemented and binary-confirmed against Artillery 1.14.0, but their runtime GameTests are gated because the pinned server-safe 1.11 artifact does not register those items; the 1.14.0 artifact cannot be used for dedicated-server proof because it fails common/server loading on a client-only `ClientLevel` reference.
 
 ## Completed slices
 
-- The enabled Artillery gameplay boundary is intentionally limited to thirteen runtime-verified profiles, including both Harquebus branches and the Taccola iron-ball branch, plus the dependency-gated Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne profiles:
+- The enabled Artillery gameplay boundary is intentionally limited to thirteen runtime-verified firearm profiles and five runtime-verified throwing weapons, plus the dependency-gated Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne profiles:
 
 - `artillery_addon:arquebus`;
 - `artillery_addon:matchlock_musket`;
@@ -24,6 +24,7 @@ The Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branc
 - `artillery_addon:windlass_crossbow` Arrow branch;
 - `artillery_addon:chu_ko_nu` native eight-round `ammo` counter, filled one physical arrow per round exactly as the native procedure does; native firing cadence remains this project's NPC cooldown policy;
 - `artillery_addon:double_barrel_gonne` first-barrel `iron_ball` branch when registered by the runtime artifact; the second barrel, multi-shot operation, and other ammunition branches remain disabled;
+- `artillery_addon:francisca`, `artillery_addon:hurlbat`, `artillery_addon:throwing_cross`, `artillery_addon:javelin`, and `artillery_addon:throwable_cobblestone`, each consuming one physical held item per successful native `francisca_pro`, `hurlbatpro`, `throwing_cross_pro`, `javelin_proectile`, or `throwcobble` spawn without a reload or invented loaded marker;
 - `artillery_addon:iron_ball` for the eight full-size profiles;
 - `artillery_addon:small_iron_ball` for Mini Pistola and Tiller Gun;
 - `artillery_addon:large_iron_ball` for Hackbut;
@@ -55,6 +56,112 @@ Hackbut enables only the ordinary/no-`fork_rest` branch: one physical `large_iro
 Windlass Crossbow enables only the confirmed Arrow branch: one physical `minecraft:arrow` is consumed, the recruit weapon is committed at native `stage=4.0` without a powder marker, and firing creates one marked vanilla `Arrow`, finishing at native `stage=0.0`. The projectile preserves base damage `2.6`, velocity `3.5`, inaccuracy `1.0`, critical `true`, knockback `1`, pierce level `0`, audible (`silent=false`) state, and `AbstractArrow.Pickup.ALLOWED`. The player-only multi-step use transaction is collapsed into one NPC reload transaction; this does not claim full player transaction parity.
 
 Chu Ko Nu enables the full native repeater counter: `ChuKoNuShootProcedure` accepts one physical `minecraft:arrow` per round and walks the native double counter from `1.0` up to `8.0` with the lore `§7Ammo N/8`, and the recruit chain reproduces that step by step. Each shot creates one marked vanilla `Arrow` and spends exactly one native round back down to `0.0`, so the weapon stays loaded between rounds of a magazine and reloads only once the counter reaches zero. Every round preserves base damage `1.6`, velocity `2.4`, inaccuracy `0.5`, critical `true`, knockback `1`, pierce level `0`, audible (`silent=false`) state, and `AbstractArrow.Pickup.ALLOWED`. A partial magazine is refused rather than partially loaded, and counter values outside `1.0`-`8.0`, fractional values, and non-double NBT types are treated as unloaded. The interval between rounds is this project's NPC cooldown policy; native firing cadence and player-only use/finishUsingItem behavior remain disabled.
+
+### Throwing weapons
+
+All five Artillery throwing weapons are enabled and runtime-verified. They share one native shape, so
+they share one adapter: each item exposes `finishUsingItem(ItemStack, Level, LivingEntity)`, which
+delegates to its own `...PlayerFinishesUsingItemProcedure`, while the charge-based `releaseUsing`
+branch is `ServerPlayer`-only and unreachable for an NPC. Every one of those procedures builds its
+projectile identically — `createArrowWeaponItemStack(entity, 1, 0)`, then
+`initArrowProjectile(arrow, thrower, baseDamage, silent=true, critical=false, fire=false, pickup)`,
+then `setPos(x, eyeY - 0.1, z)` and `shoot(look.x, look.y, look.z, velocity, inaccuracy)` — and then
+spends one held item with `shrink(1)`. Only the per-weapon numbers differ:
+
+| Weapon | Native use window | Base damage | Velocity | Inaccuracy | Native recovery roll |
+|---|---|---|---|---|---|
+| `artillery_addon:francisca` | 15 | `5.5` | `1.5` | `1.9` | `0.7` |
+| `artillery_addon:hurlbat` | 14 | `6.5` | `1.2` | `2.0` | `0.4` |
+| `artillery_addon:throwing_cross` | 13 | `4.5` | `1.4` | `1.7` | `0.4` |
+| `artillery_addon:javelin` | 40 | `2.0` | `3.5` | `2.2` | `0.75` |
+| `artillery_addon:throwable_cobblestone` | 30 | `15.0` | `0.75` | `0.0` | none |
+
+Each held item is immediately ready, so the recruit never enters firearm reload state; the combat goal
+instead preserves that weapon's own uninterrupted native use window before each throw. Exactly one
+item is shrunk from the held stack, and only after the registered native projectile has been accepted
+by the server level. Every projectile keeps knockback `1`, silent, non-critical, non-piercing, and no
+fire, with the recruit as owner. Friendly-fire and lifetime hooks claim the five native projectile
+classes when owned by a recruit.
+
+Native pickup mode differs between artifacts and is resolved rather than assumed. Artillery 1.11
+passes `AbstractArrow.Pickup.DISALLOWED` for every throwable and discards the entity in its own
+`onHitBlock` recovery roll; Artillery 1.14 passes `ALLOWED` and leaves the embedded projectile
+collectible. Most classes carry a marker for that split — the 1.14 shape declares `isStuckInGround`,
+the 1.11 shape declares its own `onHitBlock` — so they are answered directly. `JavelinProectileEntity`
+declares neither in 1.14, and `ThrowcobbleEntity` is identical in both artifacts, so those two fall
+back to an artifact-wide probe over the classes that do carry the marker, defaulting to the pinned
+1.11 behaviour when none can be resolved.
+
+The throwable cobblestone has no block-impact recovery procedure in either artifact, so its profile
+records no recovery roll rather than inventing one.
+
+#### Reach and the wind-up
+
+Two NPC behaviours follow from those velocities and are this project's policy rather than native
+code.
+
+A recruit closes the distance instead of throwing short. `ArtilleryAddonAdapter.aimVector` pays for
+the projectile's drop with an upward arc of `g/2 * t²`, clipped at eight blocks; past the distance
+where that clip bites, the lead is no longer enough and the throw lands short no matter how long the
+recruit aims. `ArtilleryAddonAdapter.maxCompensatedRange` inverts that cap — reach is
+`velocity * sqrt(2 * 8 / 0.05)` — and the combat goal clamps the shared 45-block combat range down to
+it per weapon. A thrown cobblestone therefore reaches about 13 blocks and a Hurlbat about 21, so the
+recruit walks in; a Javelin at velocity `3.5` outruns the shared range and keeps it unchanged. A
+weapon may only shorten the range, never extend it, and an unusable report falls back to the shared
+maximum rather than pinning a recruit in place. Firearms are unaffected: every enabled firearm
+profile is fast enough to clamp back to the shared maximum.
+
+The raised arm is the wind-up, not the carry. The throwing pose is now driven by the aim window
+instead of by merely holding the weapon, so a recruit walking into range carries its Hurlbat at its
+side and cocks it back only once it has a shot it can take, dropping it again on the throw. The
+marker lives on the weapon stack, like the firearm reload marker, because the client renders the pose
+from the held item. It deliberately does not go through vanilla `startUsingItem`: these items
+implement `finishUsingItem`, so a completed vanilla use would run the native throw procedure a second
+time and spend another item.
+
+Artillery's shapeless recipe converts `magistuarmoryaddon:steel_francisca_axe` plus a steel nugget
+into `artillery_addon:francisca`; the Epic Knights Addon axe remains a normal melee
+`MedievalWeaponItem` and is not claimed directly.
+
+The player-only charge-based throw and its `BowItem.getPowerForTime` scaling remain outside the
+enabled NPC policy slice. None of these five items gates its `use()` behind a procedure, so nothing
+is bypassed to reach the full-use branch.
+
+### Grenades are deliberately out of scope
+
+The grenade family — `artillery_addon:clay_hand_grenade`, `artillery_addon:iron_hand_grenade`,
+`artillery_addon:fire_bomb`, and `artillery_addon:lime_bomb` — is excluded by decision rather than by
+omission, and the exclusion is not expected to be revisited without a separate area-weapon design.
+
+Their item shape is usable by an NPC: like the Francisca they expose
+`finishUsingItem(ItemStack, Level, LivingEntity)`, which delegates to a per-item
+`...PlayerFinishesUsingItemProcedure`, while the charge-based `releaseUsing` path is `ServerPlayer`-only.
+The blocking problem is the impact chain. `ClaynadeProProjectileHitsBlockProcedure` and its siblings
+play `entity.creeper.primed`, queue a 45-tick fuse through `ArtilleryAddonMod.queueServerWork`, and
+then call:
+
+```text
+Level.explode(null, x, y, z, 3.0F, Level.ExplosionInteraction.NONE)   // clay
+Level.explode(null, x, y, z, 4.0F, Level.ExplosionInteraction.NONE)   // iron
+```
+
+The explosion source is `null`. The projectiles themselves extend `AbstractArrow` and do carry an
+owner, so the flight phase would be attributable, but the damage is dealt by an ownerless explosion.
+This project's allied protection is keyed on projectile ownership and therefore cannot cover it: a
+recruit would damage its own squad and its owner, and the blast could not even be distinguished from
+a player's grenade or a creeper. Covering it would require matching an ownerless
+`ExplosionEvent.Detonate` back to a recruit's spent projectile by position and tick window, which is
+a deliberate deviation from native behaviour rather than a reproduction of it.
+
+Two further mismatches are independent of that: the 45-tick fuse gives a recruit time to walk into
+its own blast, and an area-denial weapon needs minimum-engagement-range and ground-aim targeting that
+the current single-target combat goal does not model. `FireBombProProjectileHitsBlock2Procedure`
+additionally applies `setSecondsOnFire(100)` over its area, which is worse for allies than the blast.
+
+No code change is needed to hold this boundary. `SupportedArtillery.profileFor` and
+`SupportedArtilleryThrowables.profileFor` are explicit allowlists that return `Optional.empty()` for
+every other identifier, so a grenade carried by a recruit is treated as an ordinary item: it is never
+selected as a weapon, never enters reload state, and never reaches an adapter.
 
 The other Artillery weapon profiles remain catalog/reference data only and are not enabled.
 
@@ -102,15 +209,24 @@ Every enabled gameplay weapon now has a captured chain. The single-transaction N
 
 The Matchlock Musket, Matchlock Carbine, Matchlock Pistol, Toradar Rifle, Mini Pistola, Tiller Gun, Handgonne, Taccola Handgonne iron-ball branch, Noble Handgonne Arrow, Markmengonne Arrow, both Harquebus branches, Windlass Crossbow, Chu Ko Nu, and Double Barrel Gonne first-barrel iron-ball branch passes all reuse the server-safe Artillery adapter/state/AI boundary and preserve their own confirmed ammunition, native state, projectile, and launch properties. The Matchlock Carbine and Harquebus passes cover both the empty-offhand standing branch and the `fork_rest` offhand branch, including rejection of unrelated non-empty offhands. The Hackbut pass adds only the ordinary/no-`fork_rest` branch with physical `large_iron_ball`, native stage-two state without a loaded flag, one native Ironball projectile, velocity `6.5`, inaccuracy `5.5`, base damage `5.25`, critical `true`, pierce level `1`, and silent `false`; its player-only shift gate is bypassed for the NPC path and its fork-rest branches remain disabled. The Double Barrel Gonne pass adds only the first-barrel branch with native double `barrel_one`/`rammed_one`/`loaded` state, one physical `iron_ball`, and one critical/piercing/audible native Ironball projectile. The Chu Ko Nu pass covers the full native repeater counter: eight physical arrows committed one round at a time, one round and one marked vanilla Arrow per shot back down to `0.0`, a refused shot on an empty magazine, and a combat-goal run proving no second reload occurs between rounds of the same magazine. Each slice has focused profile/state coverage and Forge GameTests; Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne's tests are dependency-gated against the pinned 1.11 artifact.
 
+The throwing-weapon pass uses a separate self-consuming throwable adapter rather than pretending the
+items are loaded firearms. All five weapons walk one shared native branch, so each has one direct
+GameTest validating its native projectile type and full-use profile, one-item atomic spend, recruit
+ownership, and allied-hit rejection, plus one combat GameTest proving the same item is selected and
+thrown by `RecruitBoomstickAttackGoal` without entering passive reload and only after that weapon's
+own native use window has elapsed. The pinned 1.11 artifact registers all five items and all five
+projectile entities, so none of these ten tests is dependency-gated.
+
 The following evidence was collected from the current checkout:
 
 - focused Artillery unit tests: `./gradlew.bat test --tests '*Artillery*' --rerun-tasks --console=plain` — `BUILD SUCCESSFUL`;
-- full unit-test result from `./gradlew.bat test`: 107 tests, 0 failures, 0 errors, and 0 skipped, including `ArtilleryReloadProtocolTest`, which walks every captured chain and asserts it ends exactly on its profile's native loaded payload;
+- full unit-test result from `./gradlew.bat test`: 117 tests, 0 failures, 0 errors, and 0 skipped, including `ArtilleryReloadProtocolTest`, which walks every captured chain and asserts it ends exactly on its profile's native loaded payload, and `ArtilleryThrowableAdapterTest`, which asserts every throwing weapon's native use window, base damage, velocity, inaccuracy, and recovery roll;
 - multi-step loading coverage: the Arquebus chain test asserts the native powder and ball stages are actually passed through, that a tool is visible in the off hand while the chain runs, that the weapon ends loaded with the off hand restored, and that the flask and ramrod are neither consumed nor duplicated; a second test proves a missing ramrod refuses the chain instead of starting one it cannot finish;
-- real Forge GameTest server with the pinned 1.11 artifact: `80 tests are now running!` followed by `All 80 required tests passed :)`; the Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne tests were gated because that artifact lacks those items;
+- real Forge GameTest server with the pinned 1.11 artifact: `106 tests are now running!` followed by `All 106 required tests passed :)`; this includes twelve executed throwing-weapon tests, while Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne remain gated because that artifact lacks those items;
+- one pre-existing flake was found and fixed while verifying this slice: over three consecutive `runGameTestServer` runs, `artilleryHandCannonRunsThroughTheCombatGoal` passed, then failed with `the combat goal must spawn a native three-projectile Hand Cannon volley`, then passed. It drove 160 goal ticks inside a single server tick while the shot cadence is measured against level game time — the same trap the Chu Ko Nu combat test already avoids — and it counted the volley at the end of the run, by which point the three native projectiles had flown out of the sampled box. It now runs on real server ticks through `runAtTickTime` and latches the volley at its widest. Three consecutive runs after the fix passed;
 - dependency resolution: `curse.maven:epic-knights-artillery-addon-1307540:7455014_mapped_official_1.20.1` on `runtimeClasspath`;
 - clean release build: `./gradlew.bat -Dnet.minecraftforge.gradle.check.certs=false clean build --rerun-tasks --console=plain` — `BUILD SUCCESSFUL`; the override was required because the canonical run stopped at ForgeGradle certificate validation for `libraries.minecraft.net`;
-- release artifact: `build/libs/recruits_use_boomsticks-1.0.3.jar` (195,715 bytes, SHA-256 `3aec1e69d2c7e3d41c2119ca46f22befaec0c0f9d3fade3c661ec7ad0cd1a84a`) contains 46 class entries and 9 non-class resources, including the Artillery adapter/state/profile classes and Mixin metadata; it contains no nested dependency JARs or copied Artillery classes, and its generated `META-INF/mods.toml` does not make `artillery_addon` mandatory;
+- release artifact: `build/libs/recruits_use_boomsticks-1.0.3.jar` (276,325 bytes, SHA-256 `22abe9de2ccd538246e8e6d430d5c7cdc51763bfc12a62dfa74df4376fd0700e`) contains the Artillery firearm/throwable adapter, state, profile, and Mixin metadata; it contains no nested dependency JARs or copied Artillery classes, and its generated `META-INF/mods.toml` does not make `artillery_addon` mandatory;
 - `git diff --check` passed.
 
 The implementation pass did not commit or push. The untracked stale audit was left in place and was not used as implementation evidence.
@@ -124,14 +240,14 @@ Run from the repository root:
 ./gradlew.bat runGameTestServer --rerun-tasks --console=plain
 ```
 
-The unit-test task completed successfully with the current test count and no failures, errors, or skips. Against the pinned server-safe 1.11 artifact, the GameTest task completed successfully with 80 required tests; the Tiller Gun-, Noble Handgonne-, Hackbut-, and Double Barrel Gonne-specific tests were dependency-gated rather than executed:
+The unit-test task completed successfully with the current test count and no failures, errors, or skips. Against the pinned server-safe 1.11 artifact, the GameTest task completed successfully with 106 required tests; the Tiller Gun-, Noble Handgonne-, Hackbut-, and Double Barrel Gonne-specific tests were dependency-gated rather than executed:
 
 ```text
-80 tests are now running!
-All 80 required tests passed :)
+106 tests are now running!
+All 106 required tests passed :)
 ```
 
-The GameTest coverage includes Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branches, Matchlock Pistol, Toradar Rifle, Mini Pistola, Handgonne, Taccola Handgonne iron-ball branch, Markmengonne, both Harquebus branches, Windlass Crossbow, Chu Ko Nu, and the Double Barrel Gonne first-barrel policy: pickup, native state, exact physical-ammunition consumption or the documented Chu Ko Nu NPC policy, server-side firing, native/marked projectile ownership, friendly-fire filtering, combat-goal integration, and both compatibility switches. The Chu Ko Nu combat test is driven on real server ticks rather than in a single tick, because the inter-round cooldown is measured against level game time; it counts rounds off the native magazine counter rather than off live projectiles, because a recruit may pick its own fired arrows back up. Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne tests are dependency-gated until a runtime artifact containing their items is available.
+The GameTest coverage includes Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branches, Matchlock Pistol, Toradar Rifle, Mini Pistola, Handgonne, Taccola Handgonne iron-ball branch, Markmengonne, both Harquebus branches, Windlass Crossbow, Chu Ko Nu, the Double Barrel Gonne first-barrel policy, and all five throwing weapons: pickup, native state where applicable, exact physical-ammunition or held-weapon consumption, server-side firing, native/marked projectile ownership, friendly-fire filtering, combat-goal integration, and both compatibility switches. The throwing-weapon tests execute against the real pinned native item/entity registry and prove one-item spend, projectile properties, ownership, allied-hit rejection, no invented reload, and combat-goal handoff for the Francisca, Hurlbat, Throwing Cross, Javelin, and throwable cobblestone alike. The Chu Ko Nu combat test is driven on real server ticks rather than in a single tick, because the inter-round cooldown is measured against level game time; it counts rounds off the native magazine counter rather than off live projectiles, because a recruit may pick its own fired arrows back up. Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne tests are dependency-gated until a runtime artifact containing their items is available.
 
 ## Test-environment limitations
 
@@ -140,7 +256,14 @@ The executable validation uses the pinned Artillery Addon 1.11 artifact availabl
 - `artillery_addon:throwing_francisca_recipe` -> `magistuarmoryaddon:steel_francisca_axe`;
 - `artillery_addon:firelancerecipe_0` -> `magistuarmoryaddon:steel_lance`.
 
-Forge reports those upstream recipe parsing errors while continuing to load the test server. The registered Artillery GameTests pass, while the Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne tests are skipped by their explicit registry prerequisites because this artifact predates those items. This environment must not be described as a clean Artillery datapack run. The missing companion dependency is outside this compatibility layer; the dependency JAR is not modified and unrelated recipes are not silently removed.
+Forge reports those upstream recipe parsing errors while continuing to load the test server. The
+Francisca item and projectile are nevertheless registered and their runtime GameTests execute. Epic
+Knights: Addon is optional and is not forced into the harness merely to satisfy the conversion
+recipe: its available 1.20.1 artifacts contain separate upstream tag/smithing errors unrelated to
+this adapter. The registered Artillery GameTests pass, while the Tiller Gun, Noble Handgonne,
+Hackbut, and Double Barrel Gonne tests are skipped by their explicit registry prerequisites because
+this artifact predates those items. This environment must not be described as a clean Artillery
+datapack run; dependency JARs are not modified and unrelated recipes are not silently removed.
 
 The 1.14.0 artifact (`8325660`) is resolvable in this checkout and was confirmed to contain `TillerGunItem`, `NobleHandgonneItem`, `HackbutItem`, and `DoubleBarrelGonneItem`, with all seventeen guns listed in `data/artillery/tags/items/guns.json` and the `iron_ball`, `small_iron_ball`, `large_iron_ball`, and `fork_rest` ammunition items present. `build.gradle` exposes it as the opt-in `-Partillery=1.14` runtime file for client runs only; `runGameTestServer` rejects that property because the artifact cannot start a dedicated server.
 

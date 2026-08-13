@@ -13,7 +13,9 @@ This report records the compatibility boundary inspected for Recruits Use Boomst
 - [x] The Harquebus standing and `fork_rest` branches are implemented and runtime-verified against the pinned server-safe artifact: physical `iron_ball`, the native stage-three load its own chain reaches (`stage=1.0`, `2.0`, `3.0`) without inventing a `loaded` flag, one native `IronballProjectileEntity`, normal inaccuracy `6.0`, rest inaccuracy `3.5`, and native stage-zero fired cleanup. Other Harquebus branches remain disabled.
 - [x] The Hackbut ordinary/no-`fork_rest` branch is implemented and binary-confirmed against this 1.14.0 artifact: physical `large_iron_ball`, native stage-two load without inventing a `loaded` flag, and one native `IronballProjectileEntity`. Runtime proof remains gated because the pinned server-safe 1.11 artifact does not register Hackbut.
 - [x] The Taccola Handgonne iron-ball branch is implemented and runtime-verified against the pinned server-safe 1.11 artifact: physical `iron_ball`, native double `ammo=0.0`, stage-two `loaded=true` load, stage-three fired cleanup, and one native `IronballProjectileEntity`. Its Shatter Shot, Iron Bit, and Arrow branches remain disabled.
-- [ ] The full Artillery catalog is not claimed as complete; the other profiles and transaction families remain catalog/reference data only. Double Barrel Gonne's second barrel, multi-shot operation, other ammunition branches, and player reload parity remain outside the enabled policy slice. Chu Ko Nu's player reload parity and native firing cadence also remain outside the enabled policy slice.
+- [x] The whole throwing-weapon family is implemented and runtime-verified against the pinned server-safe 1.11 artifact: `francisca`, `hurlbat`, `throwing_cross`, `javelin`, and `throwable_cobblestone`. Each spends one physical held item, spawns its own native `FranciscaProEntity`, `HurlbatproEntity`, `ThrowingCrossProEntity`, `JavelinProectileEntity`, or `ThrowcobbleEntity`, and reproduces its own confirmed full-use branch — use window `15`/`14`/`13`/`40`/`30` ticks, base damage `5.5`/`6.5`/`4.5`/`2.0`/`15.0`, velocity `1.5`/`1.2`/`1.4`/`3.5`/`0.75`, inaccuracy `1.9`/`2.0`/`1.7`/`2.2`/`0.0` — with knockback `1`, silent, non-critical, non-piercing, no fire, Recruits combat AI handoff, and allied-projectile protection. Native pickup differs per artifact (1.11 `DISALLOWED` with its own recovery roll, 1.14 `ALLOWED`) and is resolved from the binary shape rather than assumed.
+- [ ] The full Artillery catalog is not claimed as complete; the other profiles and transaction families remain catalog/reference data only. Double Barrel Gonne's second barrel, multi-shot operation, other ammunition branches, and player reload parity remain outside the enabled policy slice. Chu Ko Nu's player reload parity and native firing cadence also remain outside the enabled policy slice. The throwing weapons' player-only charge-based `releaseUsing` branch and its `BowItem.getPowerForTime` scaling remain disabled.
+- [ ] The grenade family (`clay_hand_grenade`, `iron_hand_grenade`, `fire_bomb`, `lime_bomb`) is excluded by decision, not by omission. Their impact chain queues a 45-tick fuse and then calls `Level.explode(null, x, y, z, 3.0F/4.0F, ExplosionInteraction.NONE)`; the ownerless explosion carries no attribution, so this project's ownership-keyed allied protection cannot cover its damage and a recruit would kill its own squad and owner. Area-denial targeting is also outside the current single-target combat goal. See `artillery-addon-compatibility-verification.md` for the full rationale.
 
 ## Artifact identity
 
@@ -51,6 +53,12 @@ The upstream `META-INF/mods.toml` declares only Minecraft 1.20.1 and does not de
 - the normal `minecraft`, `forge`, and `artillery_addon` namespaces.
 
 Recruits Use Boomsticks already declares Epic Knights (`magistuarmory`) as mandatory, which covers the hard recipe reference. Better Combat is not made mandatory because the reference is compatibility metadata rather than a recipe result. Architectury and Cloth Config remain runtime dependencies of the pinned Epic Knights installation, not direct Artillery metadata requirements.
+
+The Artillery shapeless recipe `throwing_francisca_recipe` references
+`magistuarmoryaddon:steel_francisca_axe` plus `#forge:nuggets/steel` and returns one
+`artillery_addon:francisca`. Epic Knights: Addon is optional for this project's runtime adapter but
+required if that native conversion recipe should load and be craftable. The original
+`steel_francisca_axe` is a normal `MedievalWeaponItem`; it is not itself claimed as throwable.
 
 The project does not link Artillery classes at compile time. The isolated adapter is exercised in the Forge runtime with the pinned 1.11 file (`7455014`), whose common registry/NBT contract matches this report; the registered gameplay profiles are runtime-verified there. The Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne profiles are binary-confirmed against the 1.14 file (`8325660`) but their items are absent from `7455014`, so their GameTests fail closed on the registry prerequisite. The 1.14 artifact fails dedicated-server loading because its automatic subscriber attempts to load the client-only `ClientLevel` class, so 1.14 must not be advertised as a supported server dependency until that upstream boundary is corrected. The current runtime-verified gameplay slice remains deliberately limited to the registered profiles in the pinned artifact; the four dependency-gated profiles are implemented for registering artifacts but are not yet runtime-verified here.
 
@@ -101,12 +109,63 @@ The tag mixes single-shot, repeating, multi-projectile, and mounted/rest-depende
 
 All class names above are under `net.mcreator.artilleryaddon`. Registration access is exposed through:
 
-- `init.ArtilleryAddonModItems`: `HANDGONNE`, `TACCOLA_HANDGONNE`, `ARQUEBUS`, `HARQUEBUS`, `HACKBUT`, `MATCHLOCK_MUSKET`, `MATCHLOCK_PISTOL`, `TORADAR_RIFLE`, `MINI_PISTOLA`, `TILLER_GUN`, `MARKMENGONNE`, `WINDLASS_CROSSBOW`, `IRON_BALL`, `SMALL_IRON_BALL`, `LARGE_IRON_BALL`, and `FORK_REST`;
-- `init.ArtilleryAddonModEntities`: `IRONBALL_PROJECTILE` and `IRON_BIT_PROJECTILE`;
+- `init.ArtilleryAddonModItems`: `HANDGONNE`, `TACCOLA_HANDGONNE`, `ARQUEBUS`, `HARQUEBUS`, `HACKBUT`, `MATCHLOCK_MUSKET`, `MATCHLOCK_PISTOL`, `TORADAR_RIFLE`, `MINI_PISTOLA`, `TILLER_GUN`, `MARKMENGONNE`, `WINDLASS_CROSSBOW`, `FRANCISCA`, `IRON_BALL`, `SMALL_IRON_BALL`, `LARGE_IRON_BALL`, and `FORK_REST`;
+- `init.ArtilleryAddonModEntities`: `IRONBALL_PROJECTILE`, `IRON_BIT_PROJECTILE`, and `FRANCISCA_PRO`;
 - `init.ArtilleryAddonModSounds`: loading/firing/impact sound registry objects including `HAND_CANNON_LOAD_BALL`, `HAND_CANNON_LOADING_POWDER`, `HAND_CANNON_FIREING`, `ARQUEBUS_BALL`, `ARQUEBUS_RAMMING`, `ARQUEBUS_FIRING`, `BALL_IMPACT`, and `BALL_HITS`;
 - `init.ArtilleryAddonModParticleTypes`: `GUNSMOKE`.
 
 `IronBitProjectileEntity` is registered and relevant to other ammunition families. Noble Handgonne's other Iron Bit/ball branches remain outside the enabled Arrow slice.
+
+## Throwing-weapon executable profiles
+
+| Registry ID | Item class | Native full-use procedure | Projectile |
+|---|---|---|---|
+| `artillery_addon:francisca` | `item.FranciscaItem` | `procedures.FranciscaPlayerFinishesUseingProcedure` | native `FranciscaProEntity` (`artillery_addon:francisca_pro`) |
+| `artillery_addon:hurlbat` | `item.HurlbatItem` | `procedures.HurlbatPlayerFinishesUsingItemProcedure` | native `HurlbatproEntity` (`artillery_addon:hurlbatpro`) |
+| `artillery_addon:throwing_cross` | `item.ThrowingCrossItem` | `procedures.ThrowingCrossPlayerFinshesUseingProcedure` | native `ThrowingCrossProEntity` (`artillery_addon:throwing_cross_pro`) |
+| `artillery_addon:javelin` | `item.JavelinItem` | `procedures.JavelinPlayerFinishesUsingItemProcedure` | native `JavelinProectileEntity` (`artillery_addon:javelin_proectile`) |
+| `artillery_addon:throwable_cobblestone` | `item.ThrowableCobblestoneItem` | `procedures.ThrowableCobblestonePlayerFinishesUsingItemProcedure` | native `ThrowcobbleEntity` (`artillery_addon:throwcobble`) |
+
+Every one of these items uses `UseAnim.SPEAR`, and every full-use procedure has the same body:
+
+```text
+createArrowWeaponItemStack(entity, knockback=1, pierce=0)
+initArrowProjectile(arrow, thrower, baseDamage, silent=true, critical=false, fire=false, pickup)
+setPos(x, eyeY - 0.1, z)
+Projectile.shoot(look.x, look.y, look.z, velocity, inaccuracy)
+Level.addFreshEntity(...)
+mainHandItem.shrink(1)
+```
+
+Only the constants differ:
+
+| Weapon | Use duration | Base damage | Velocity | Inaccuracy | Native recovery procedure |
+|---|---|---|---|---|---|
+| `francisca` | 15 | `5.5` | `1.5` | `1.9` | `FranciscaProjectileProcedure`, roll `0.7` |
+| `hurlbat` | 14 | `6.5` | `1.2` | `2.0` | `HurlbatproProjectileHitsProcedure`, roll `0.4` |
+| `throwing_cross` | 13 | `4.5` | `1.4` | `1.7` | `ThrowingCrossProjectileProcedure`, roll `0.4` |
+| `javelin` | 40 | `2.0` | `3.5` | `2.2` | `JavelinProectileHitsBlockProcedure`, roll `0.75` |
+| `throwable_cobblestone` | 30 | `15.0` | `0.75` | `0.0` | none |
+
+Each recovery procedure rolls `Math.random()` against its constant and, on success, creates one
+`ItemEntity` of the thrown item with a pickup delay. All five projectile classes extend
+`AbstractArrow` and implement `ItemSupplier`, so the thrown item is also the pickup item.
+
+Native pickup mode is artifact-dependent. The pinned 1.11 procedures pass `DISALLOWED` for all five
+and the entities discard themselves in their own `onHitBlock`; the 1.14 procedures pass `ALLOWED` and
+leave vanilla in-ground pickup active. `FranciscaProEntity`, `HurlbatproEntity`, and
+`ThrowingCrossProEntity` declare `isStuckInGround` only in 1.14 and `onHitBlock` only in 1.11, so
+their shape is directly observable. `JavelinProectileEntity` declares `onHitBlock` only in 1.11, and
+`ThrowcobbleEntity` is identical in both artifacts; those fall back to an artifact-wide probe over
+the marker classes.
+
+The item `use`/`finishUsingItem` path is player-oriented, and the early-release branch explicitly
+requires `ServerPlayer`. Recruit compatibility therefore does not invoke either entry point. It
+constructs the registered native projectile directly on the logical server, applies the confirmed
+full-use profile, preserves that weapon's own native uninterrupted use window in the recruit combat
+goal, and shrinks one held item only after `addFreshEntity` succeeds. No loaded NBT or separate
+ammunition is invented. The generic generated `shoot(LivingEntity, LivingEntity)` helpers have
+different constants and are not the executable item full-use boundary, so they are not used.
 
 ## Relevant signatures
 
@@ -122,7 +181,7 @@ The native procedures expose a broader-looking but unsafe entry point:
 execute(LevelAccessor, double, double, double, Entity, ItemStack) -> void
 ```
 
-Both native projectile classes extend `AbstractArrow` and expose constructors for `(EntityType, Level)`, `(EntityType, x, y, z, Level)`, and `(EntityType, LivingEntity, Level)`. They also expose static `shoot` overloads. The position constructor is the one used by the inspected executable procedures; owner and launch properties are then assigned explicitly.
+The inspected native projectile classes extend `AbstractArrow` and expose constructors for `(EntityType, Level)`, `(EntityType, x, y, z, Level)`, and `(EntityType, LivingEntity, Level)`. They also expose static `shoot` overloads. The position constructor is the one used by the inspected executable procedures; owner and launch properties are then assigned explicitly.
 
 `IronballProjectileEntity` owns hit/tick behavior through:
 
@@ -295,6 +354,7 @@ For recruits:
 4. Construct the verified native projectile directly on the logical server, set owner/position/trajectory/pickup and confirmed properties, and check `Level.addFreshEntity` before committing weapon cleanup.
 5. Reproduce only confirmed server-safe sounds/particles/misfire effects.
 6. Keep the supported-item list explicit; do not use `#artillery:guns` as the production allowlist.
+7. Treat a physical throwing stack as both weapon and projectile supply: never route it through the firearm reload protocol, and spend it only after the native projectile is accepted by the server level.
 
 ## Reproduction commands
 

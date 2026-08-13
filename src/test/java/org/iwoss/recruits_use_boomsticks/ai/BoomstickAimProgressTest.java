@@ -33,4 +33,16 @@ class BoomstickAimProgressTest {
 
         assertTrue(progress.advance("target"));
     }
+
+    @Test
+    void resettingWithANewWindowUsesTheNewDuration() {
+        BoomstickAimProgress progress = new BoomstickAimProgress(2);
+        assertFalse(progress.advance("target"));
+
+        progress.reset(3);
+
+        assertFalse(progress.advance("target"));
+        assertFalse(progress.advance("target"));
+        assertTrue(progress.advance("target"));
+    }
 }

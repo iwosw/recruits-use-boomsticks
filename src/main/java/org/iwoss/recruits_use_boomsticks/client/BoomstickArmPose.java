@@ -10,7 +10,7 @@ import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import java.util.Optional;
 
 /**
- * Chooses the arm pose a recruit uses while carrying a supported firearm.
+ * Chooses the arm pose a recruit uses while carrying a supported ranged weapon.
  *
  * <p>This is display policy only. It reads weapon state through the same adapters the combat goal
  * uses and never writes anything, so a rendering failure can never corrupt a loading transaction.</p>
@@ -22,9 +22,8 @@ public final class BoomstickArmPose {
     /**
      * Returns the pose to show, or empty to leave the renderer's own choice alone.
      *
-     * <p>A loaded weapon is shouldered with both hands. A weapon mid-reload uses the charging pose,
-     * which keeps the recruit's hands on the weapon while it works through powder, ball, and
-     * ramrod.</p>
+     * <p>A loaded firearm is shouldered with both hands. A firearm mid-reload uses the charging
+     * pose, while a physical throwing weapon uses the spear-throwing pose.</p>
      */
     public static Optional<HumanoidModel.ArmPose> firearmPose(
             AbstractInventoryEntity entity,
@@ -43,6 +42,15 @@ public final class BoomstickArmPose {
                 return Optional.empty();
             }
             BoomstickWeaponAdapter selected = adapter.orElseThrow();
+            if (selected.isThrowable(held)) {
+                // The raised arm is the wind-up itself, so it belongs to the aim window rather than
+                // to merely holding the weapon: a recruit walking into range carries it at its side
+                // and only cocks it back once it has a shot it can take.
+                return Optional.of(selected.isAiming(held)
+                        && !BoomstickCarryClientState.isCarrying(entity.getId())
+                        ? HumanoidModel.ArmPose.THROW_SPEAR
+                        : HumanoidModel.ArmPose.ITEM);
+            }
             if (selected.isReloading(held)) {
                 return Optional.of(HumanoidModel.ArmPose.CROSSBOW_CHARGE);
             }

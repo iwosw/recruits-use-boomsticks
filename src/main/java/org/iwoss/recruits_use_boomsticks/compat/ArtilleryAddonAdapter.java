@@ -681,6 +681,23 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         return new Vec3(dx, dy + arc, dz);
     }
 
+    /**
+     * Horizontal distance past which {@link #aimVector} can no longer pay for the drop.
+     *
+     * <p>This is the inverse of the arc above at its cap: the compensation grows with the square of
+     * the flight time until it hits {@link #MAX_AIM_ARC}, and beyond that point the lead is clipped
+     * and the projectile lands short no matter how long the recruit aims. A slow projectile reaches
+     * that wall early — a thrown cobblestone at velocity {@code 0.75} runs out at roughly thirteen
+     * blocks — so the combat goal uses this to decide when to close the distance instead of lobbing
+     * shots into the ground.</p>
+     */
+    public static double maxCompensatedRange(double projectileVelocity) {
+        if (!Double.isFinite(projectileVelocity) || projectileVelocity <= 0.0D) {
+            return 0.0D;
+        }
+        return projectileVelocity * Math.sqrt(2.0D * MAX_AIM_ARC / ARROW_GRAVITY_PER_TICK);
+    }
+
     private static AbstractArrow createProjectile(ServerLevel level, ArtilleryWeaponProfile profile) {
         if (SupportedArtillery.VANILLA_ARROW_ID.equals(profile.projectileEntityId())) {
             return new Arrow(level, 0.0D, 0.0D, 0.0D);

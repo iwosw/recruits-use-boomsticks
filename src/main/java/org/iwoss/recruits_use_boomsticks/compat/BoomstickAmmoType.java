@@ -4,5 +4,6 @@ package org.iwoss.recruits_use_boomsticks.compat;
 public enum BoomstickAmmoType {
     ROUND_BALL,
     HEAVY_BOLT,
-    ARROW
+    ARROW,
+    THROWN_WEAPON
 }

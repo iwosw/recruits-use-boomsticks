@@ -27,7 +27,6 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     }
 
     private static final Logger LOGGER = LogUtils.getLogger();
-    private static final int AIM_WINDOW_TICKS = 12;
     private static final int FIRE_ANIMATION_TICKS = 3;
     /**
      * Backoff after a shot the current setup can never complete.
@@ -48,7 +47,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     private final RecruitWeaponAdapters adapters;
     private final Mode mode;
     private final BoomstickAttackState state = new BoomstickAttackState();
-    private final BoomstickAimProgress aimProgress = new BoomstickAimProgress(AIM_WINDOW_TICKS);
+    private final BoomstickAimProgress aimProgress = new BoomstickAimProgress(0);
 
     private RecruitWeaponAdapters.Selection activeSelection;
     private int switchDelay;
@@ -214,10 +213,13 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         activeSelection = selected.orElseThrow();
         BoomstickWeaponAdapter adapter = activeSelection.adapter();
 
+        // A slow projectile cannot cross the shared combat range, so each weapon reports how far its
+        // own shot actually reaches and the recruit walks in rather than throwing short.
+        double combatRange = effectiveCombatRange(adapter, weapon);
         boolean combatAllowed = mode == Mode.COMBAT && commandAllowsCombat();
-        AimPoint aimPoint = combatAllowed ? findAimPoint() : null;
+        AimPoint aimPoint = combatAllowed ? findAimPoint(combatRange) : null;
         if (aimPoint != null || (combatAllowed && validTarget(crossBowman.getTarget()))) {
-            moveAndLook(aimPoint);
+            moveAndLook(aimPoint, combatRange);
         }
 
         BoomstickWeaponProfile profile = adapter.profile(weapon).orElse(null);
@@ -267,6 +269,11 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             }
             return;
         }
+        // The wind-up is display state and belongs to the aim window alone, so it is raised on the
+        // way in and dropped on every way out, including an aim the recruit never got to finish.
+        if (previous == BoomstickAttackState.Phase.AIM) {
+            adapter.setAiming(weapon, false);
+        }
 
         if (next == BoomstickAttackState.Phase.RELOAD) {
             beginReload(weapon, profile, adapter);
@@ -276,7 +283,8 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             completeReload(weapon, ammoRequired, adapter);
         }
         if (next == BoomstickAttackState.Phase.AIM) {
-            aimProgress.reset();
+            aimProgress.reset(adapter.aimTicks(weapon));
+            adapter.setAiming(weapon, true);
             shotOutcome = null;
         }
         if (next == BoomstickAttackState.Phase.FIRE) {
@@ -576,14 +584,21 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                 .orElse(false);
     }
 
-    private AimPoint findAimPoint() {
+    /** Clamps the shared combat range to what this weapon's own projectile can actually reach. */
+    private double effectiveCombatRange(BoomstickWeaponAdapter adapter, ItemStack weapon) {
+        return BoomstickCombatPolicy.clampCombatRange(
+                adapter.effectiveRange(weapon, MAX_COMBAT_RANGE),
+                MAX_COMBAT_RANGE);
+    }
+
+    private AimPoint findAimPoint(double combatRange) {
         LivingEntity target = crossBowman.getTarget();
         boolean validCombatTarget = validTarget(target);
         if (validCombatTarget) {
             if (crossBowman.hasLineOfSight(target)
                     && BoomstickCombatPolicy.isWithinCombatRange(
                             crossBowman.distanceToSqr(target),
-                            MAX_COMBAT_RANGE)) {
+                            combatRange)) {
                 return new AimPoint(target.getEyePosition(1.0F), target);
             }
             return null;
@@ -608,7 +623,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                 && crossBowman.getStrategicFirePos() != null;
     }
 
-    private void moveAndLook(AimPoint aimPoint) {
+    private void moveAndLook(AimPoint aimPoint, double combatRange) {
         navigationControlled = true;
         LivingEntity target = aimPoint == null ? crossBowman.getTarget() : aimPoint.entity();
         if (aimPoint != null) {
@@ -625,7 +640,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         if (BoomstickCombatPolicy.shouldApproachTarget(
                 hasLineOfSight,
                 crossBowman.distanceToSqr(target),
-                MAX_COMBAT_RANGE)) {
+                combatRange)) {
             crossBowman.getNavigation().moveTo(target, speedModifier);
         } else {
             crossBowman.getNavigation().stop();

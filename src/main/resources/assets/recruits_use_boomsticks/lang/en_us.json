@@ -1,11 +1,11 @@
 {
   "gui.recruits_use_boomsticks.command.text.weapons_out": "Weapons out!",
   "gui.recruits_use_boomsticks.command.text.weapons_away": "Weapons away!",
-  "gui.recruits_use_boomsticks.command.tooltip.weapons_out": "Make the recruits take a supported firearm into their main hand and carry it.",
-  "gui.recruits_use_boomsticks.command.tooltip.weapons_away": "Make the recruits put the firearm back and take their other weapon.",
-  "chat.recruits_use_boomsticks.weapons_out": "Weapons out: %s of %s armed recruits drew a firearm.",
-  "chat.recruits_use_boomsticks.weapons_away": "Weapons away: %s of %s armed recruits stowed a firearm.",
+  "gui.recruits_use_boomsticks.command.tooltip.weapons_out": "Make the recruits take a supported ranged weapon into their main hand and carry it.",
+  "gui.recruits_use_boomsticks.command.tooltip.weapons_away": "Make the recruits put the ranged weapon back and take their other weapon.",
+  "chat.recruits_use_boomsticks.weapons_out": "Weapons out: %s of %s armed recruits drew a ranged weapon.",
+  "chat.recruits_use_boomsticks.weapons_away": "Weapons away: %s of %s armed recruits stowed a ranged weapon.",
   "chat.recruits_use_boomsticks.carry.nobody": "The order reached nobody: none of your recruits from the selected groups are nearby.",
-  "chat.recruits_use_boomsticks.carry.unarmed": "The order reached %s recruits, but none of them owns a supported firearm.",
-  "chat.recruits_use_boomsticks.carry.no_replacement": "Weapons away: %s recruits own no other weapon, so they keep the firearm in hand."
+  "chat.recruits_use_boomsticks.carry.unarmed": "The order reached %s recruits, but none of them owns a supported ranged weapon.",
+  "chat.recruits_use_boomsticks.carry.no_replacement": "Weapons away: %s recruits own no other weapon, so they keep the ranged weapon in hand."
 }
