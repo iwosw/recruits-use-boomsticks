@@ -54,14 +54,15 @@ public final class BoomstickArmPose {
             if (selected.isReloading(held)) {
                 return Optional.of(HumanoidModel.ArmPose.CROSSBOW_CHARGE);
             }
-            if (BoomstickCarryClientState.isCarrying(entity.getId())) {
-                // A recruit that drew its firearm on command carries it upright in the main hand
-                // instead of levelling it, so an ordered company does not look mid-volley on the march.
-                return Optional.of(HumanoidModel.ArmPose.ITEM);
-            }
-            return Optional.of(selected.isLoaded(held)
-                    ? HumanoidModel.ArmPose.CROSSBOW_HOLD
-                    : HumanoidModel.ArmPose.ITEM);
+            // Every other firearm state is gripped with both hands, including an empty weapon and
+            // the parade carry an order puts a recruit in.
+            //
+            // ITEM was used for those two before, on the assumption it reads as an upright carry the
+            // way it does on a player. It does not: a recruit's arm hangs at its side while the item
+            // renders at the humanoid hand point, so a musket floats beside the body instead of
+            // being held. A pose the model cannot carry is worse than losing the distinction between
+            // a loaded and an empty weapon, which the reload animation and the aim already show.
+            return Optional.of(HumanoidModel.ArmPose.CROSSBOW_HOLD);
         } catch (RuntimeException | LinkageError exception) {
             // Rendering must never take the game down over a pose decision.
             return Optional.empty();
