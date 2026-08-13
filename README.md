@@ -77,7 +77,7 @@ Only the shot is consumed. The flask and the ramrod take durability damage per r
 
 Not every weapon needs a ramrod. The Matchlock Carbine and the Harquebus ram bare-handed, the Handgonne, Taccola Handgonne, Hand Cannon, and Matchlock Pistol accept a bare hand before they reach for a ramrod, the Tiller Gun rams with a bare hand or its flask, and the Mini Pistola, Noble Handgonne, and Markmengonne have no ramming step at all — all exactly as their native procedures do it. The Windlass Crossbow and the Chu Ko Nu need no powder and no ramrod, only arrows.
 
-A recruit shoulders a loaded firearm with both hands and drops to a one-handed carry while it works through a reload, so the weapon's state is readable at a glance. A throwing weapon is carried at the recruit's side and cocked back into the spear-throwing pose only during the wind-up before a throw, dropping again as the weapon leaves the hand.
+A recruit holds a firearm with both hands and switches to the charging pose while it works through a reload, so a reloading weapon is readable at a glance. The one-handed carry the idle and parade states used before is gone: a recruit's arm hangs at its side while the item renders at the humanoid hand point, so a musket floated beside the body instead of being held. A throwing weapon is carried at the recruit's side and cocked back into the spear-throwing pose only during the wind-up before a throw, dropping again as the weapon leaves the hand.
 
 Recruits also close the distance rather than throwing short. A thrown projectile only reaches as far as the aim compensation can pay for its drop — roughly 13 blocks for a cobblestone and 21 for a Hurlbat — so a recruit holding one walks toward a target beyond that instead of lobbing into the ground. A Javelin already outruns the normal engagement range and behaves as before, as do all firearms.
 
@@ -85,7 +85,7 @@ Recruits also close the distance rather than throwing short. A thrown projectile
 
 Recruits only draw a weapon when a combat goal starts, so an idle company marches with a melee weapon in hand even when every recruit carries a supported ranged weapon. The combat tab of the Recruits command screen gets two extra buttons for that, next to the shield orders they are modelled on:
 
-- **Weapons out!** moves a supported ranged weapon into the main hand of every commanded crossbowman and keeps it there in an upright parade carry instead of the firing pose.
+- **Weapons out!** moves a supported ranged weapon into the main hand of every commanded crossbowman and keeps it there.
 - **Weapons away!** puts the ranged weapon back and returns the recruit's own weapon to its hand: a sword or an axe first, then its crossbow. A recruit whose only weapon is the ranged weapon keeps holding it — the order decides how a company carries its weapons, not whether it is armed.
 
 The orders apply to the groups selected in the command screen, and to every recruit you own when no group is selected. Both report in chat what happened, including why nothing happened: no recruits in range, no supported ranged weapons in the company, or nothing to take back in place of one. A recruit that owns no supported ranged weapon is left untouched, and an open loading transaction is closed before the hands move, so the order can never strand a borrowed ramrod or flask. The borrowed powder flask and ramrod a reload puts in the recruit's **off** hand belong to that reload, not to this order. Setting `debugLogging` in the config logs each order and the resulting hands per recruit.
