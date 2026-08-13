@@ -1,8 +1,15 @@
 # Сравнительный аудит `recruits_use_boomsticks`
 
+> **Статус: обновлён 2026-08-13 под текущий снимок (коммит `08522f7`).** Первая редакция была
+> написана до появления Artillery-адаптеров и утверждала, что поддержки Artillery Addon в проекте
+> нет; это больше не так. Разделы 2, 4, 5, 6 и «Итог» переписаны под проверенное состояние,
+> сопоставление с upstream в разделе 3 перепроверено и оставлено. Полное описание Artillery-границы
+> живёт в `docs/compat/artillery-addon-compatibility-verification.md`; этот документ отвечает только
+> на вопрос «как аддон соотносится с upstream Recruits».
+
 ## 1. Область и источники
 
-Проверен рабочий снимок проекта `recruits use boomsticks` на ветке `master` с незакоммиченными изменениями. Контрольный upstream — Villager Recruits 1.15.2:
+Проверен рабочий снимок проекта `recruits use boomsticks` на ветке `main`. Контрольный upstream — Villager Recruits 1.15.2:
 
 - репозиторий: `talhanation/recruits`;
 - commit: `1cc10948f6e04fd146f9eb7fb84421033629dc1a` (`1.15.2`);
@@ -12,25 +19,27 @@
 
 ## 2. Краткий вывод
 
-Аддон не переписывает весь `CrossBowmanEntity`. Он добавляет отдельный server-side goal и adapter boundary для четырёх явно перечисленных предметов Medieval Boomsticks:
+Аддон не переписывает весь `CrossBowmanEntity`. Он добавляет отдельный server-side goal и три adapter boundary, каждый из которых работает по явному списку registry ID:
 
-- `medieval_boomsticks:handgonne`;
-- `medieval_boomsticks:spikedhandgonne`;
-- `medieval_boomsticks:arquebus`;
-- `medieval_boomsticks:arbalest`.
+- `MedievalBoomsticksAdapter` — `medieval_boomsticks:handgonne`, `spikedhandgonne`, `arquebus`, `arbalest`;
+- `ArtilleryAddonAdapter` — 17 профилей огнестрела Artillery Addon, из них 13 подтверждены в рантайме и 4 (`tiller_gun`, `noble_handgonne`, `hackbut`, `double_barrel_gonne`) реализованы, но их GameTests гейтятся отсутствием предметов в закреплённом артефакте 1.11;
+- `ArtilleryThrowableAdapter` — 5 метательных Artillery (`francisca`, `hurlbat`, `throwing_cross`, `javelin`, `throwable_cobblestone`), все подтверждены в рантайме.
+
+Гранаты Artillery (`clay_hand_grenade`, `iron_hand_grenade`, `fire_bomb`, `lime_bomb`) исключены по решению: их impact-цепочка вызывает `Level.explode(null, ...)`, взрыв без owner, поэтому защита союзников по ownership на него не распространяется.
 
 При отсутствии поддерживаемого предмета штатный Recruits AI остаётся основным путём. При наличии поддерживаемого предмета аддон отключает штатный crossbow goal, переключает предмет в main hand при необходимости и ведёт собственный цикл `IDLE → RELOAD → AIM → FIRE → COOLDOWN`.
 
 Сильные стороны текущего снимка:
 
-- физические round ball/heavy bolt потребляются целой очередью на этапе reload;
-- состояние `ChargedProjectiles` синхронизируется с нативным состоянием Medieval Boomsticks;
+- физические round ball/heavy bolt/iron ball/arrow потребляются на этапе reload, независимо от upstream-настройки `RangedRecruitsNeedArrowsToShoot`;
+- состояние `ChargedProjectiles` синхронизируется с нативным состоянием Medieval Boomsticks, а нативные NBT-цепочки Artillery воспроизводятся пошагово (`ArtilleryReloadProtocol`);
+- метательное оружие не получает выдуманного loaded-состояния: один предмет списывается только после того, как нативный projectile принят сервером;
 - выстрел создаётся только на dedicated/server level и сохраняет owner recruit;
 - friendly fire защищён одновременно в `AbstractArrow.canHitEntity` и Forge impact event;
 - reload не отменяется появлением цели, а emergency movement имеет приоритет;
-- есть 43 JUnit-теста и 16 Forge GameTests.
+- 117 JUnit-тестов и 106 Forge GameTests, прогнаны 2026-08-13 (см. раздел 4).
 
-Главный подтверждённый release-риск: в конфиге и логировании заявлен `ARTILLERY_ADDON`, но в production registry зарегистрирован только `MedievalBoomsticksAdapter`. Реальной поддержки Artillery Addon в текущем снимке нет.
+Заявленный в конфиге `ARTILLERY_ADDON` теперь соответствует коду: `RecruitWeaponAdapters.production()` регистрирует оба Artillery-адаптера рядом с `MedievalBoomsticksAdapter`. Прежний P0 закрыт.
 
 ## 3. Сопоставление с upstream
 
@@ -54,60 +63,59 @@
 
 ### JUnit
 
-После чистой сборки Gradle обнаружены 8 JUnit XML-файлов:
+После чистой сборки Gradle обнаружены 14 JUnit XML-файлов:
 
-- всего `43` теста;
+- всего `117` тестов;
 - failures `0`;
 - errors `0`;
 - skipped `0`.
 
-Покрыты pure policy/state, profiles, ammo access, adapter lookup, projectile policy и config. Это хорошие unit-level проверки, но они не заменяют полную игровую проверку с несколькими внешними версиями.
+Покрыты pure policy/state, профили Medieval Boomsticks и Artillery, нативные loading-цепочки (`ArtilleryReloadProtocolTest` проходит каждую захваченную цепочку до её нативного loaded-состояния), профили метательного оружия (`ArtilleryThrowableAdapterTest` — окно use, damage, velocity, inaccuracy, recovery roll), ammo access, adapter lookup, projectile policy и config. Это хорошие unit-level проверки, но они не заменяют полную игровую проверку с несколькими внешними версиями.
 
 ### Forge GameTest
 
 Запущено:
 
 ```text
-./gradlew runGameTestServer --console=plain --stacktrace
+./gradlew.bat runGameTestServer --console=plain
 ```
 
 Результат — `BUILD SUCCESSFUL`. В `run/logs/latest.log` подтверждено:
 
-- `16 tests are now running` (`run/logs/latest.log:66`);
-- `All 16 required tests passed :)` (`run/logs/latest.log:74`);
-- в лог попали Recruits `1.15.2`, Medieval Boomsticks `1.01`, GeckoLib `4.8.3`, Forge `47.4.20` (`run/logs/latest.log:34`).
+- `106 tests are now running!`;
+- `All 106 required tests passed :)`.
 
 GameTests фактически проверяют, в частности:
 
-- reload до получения цели;
-- продолжение reload после появления атакующего;
-- замедление reload на mount;
-- физический расход round balls/heavy bolts;
-- spiked handgonne volley;
-- native charged payload и очистку invalid payload;
-- стратегический огонь и приоритет цели;
-- friendly fire и owner hit;
-- TNT emergency movement;
-- независимость физического ammo requirement от upstream arrow setting и arbalest ballistic arc.
+- reload до получения цели, продолжение reload после появления атакующего, замедление reload на mount;
+- физический расход round balls/heavy bolts/iron balls/arrows и spiked handgonne volley;
+- native charged payload Medieval Boomsticks и очистку invalid payload;
+- нативные многошаговые цепочки Artillery: powder/ball/ramrod со ступенями `stage`, borrow-возврат инструмента в off hand, отказ начинать цепочку без ramrod;
+- магазин Chu Ko Nu на восемь патронов и отсутствие лишней перезарядки между выстрелами;
+- все пять метательных: тип нативного projectile, списание ровно одного предмета, ownership, отказ по союзнику, handoff в combat goal без входа в reload;
+- стратегический огонь и приоритет цели, friendly fire и owner hit, TNT emergency movement;
+- оба kill-switch'а совместимости.
 
-Лог также показывает ожидаемую нормализацию legacy state и предупреждения об очищенных invalid payload. Это не failure: все 16 GameTests завершились успешно.
+Оговорка по числу `106`: восемь тестов относятся к `tiller_gun`, `noble_handgonne`, `hackbut` и `double_barrel_gonne` и при отсутствии предмета завершаются через ранний `succeed()` вместо реального прогона. Фактически исполняется около 98 тестов; закреплённый артефакт 1.11 этих предметов не регистрирует, а 1.14 не стартует на dedicated server из-за апстримной ссылки на `ClientLevel`.
+
+Лог также показывает ожидаемую нормализацию legacy state и предупреждения об очищенных invalid payload, а также апстримные ошибки разбора двух рецептов Artillery, ссылающихся на отсутствующий namespace `magistuarmoryaddon`. Это не failures: все 106 GameTests завершились успешно.
 
 ## 5. Артефакт и release-проверка
 
 Команда:
 
 ```text
-./gradlew clean test build --warning-mode all --stacktrace
+./gradlew.bat -Dnet.minecraftforge.gradle.check.certs=false clean build --console=plain
 ```
 
-Результат: `BUILD SUCCESSFUL in 18s`, `14 actionable tasks`, compilation/test/jar/reobf прошли.
+Результат: `BUILD SUCCESSFUL`, `14 actionable tasks: 14 executed`, compilation/test/jar/reobf прошли. Override сертификатов нужен потому, что канонический прогон останавливается на проверке сертификата `libraries.minecraft.net` в ForgeGradle.
 
 Собранный файл:
 
 ```text
 build/libs/recruits_use_boomsticks-1.0.3.jar
-size: 142690 bytes
-sha256: b885406071dd20b159cf29ae52849ff0ebd5b476e0f0bd0a432d76d7c43c3049
+size: 277007 bytes
+sha256: 8e0cb8561b696f264ce42511007309d015814273130a2955288d3ed5fdabab84
 ```
 
 Проверено наличие в JAR:
@@ -118,17 +126,21 @@ sha256: b885406071dd20b159cf29ae52849ff0ebd5b476e0f0bd0a432d76d7c43c3049
 - `icon.png`;
 - `org/iwoss/recruits_use_boomsticks/gametest/BoomstickCompatibilityGameTests.class`.
 
-В архиве: `34` class entries и `9` non-class resource entries.
-
-`git diff --check` завершился с кодом `0`. Рабочее дерево намеренно не чистилось и не коммитилось: до создания этого отчёта в нём были пользовательские изменения `16` tracked-файлов и `2` untracked-файла. Коммит, push и переписывание истории не выполнялись.
+В архиве: `71` class entry и `11` non-class resource entries. Вложенных dependency-JAR и скопированных классов Artillery нет; `artillery_addon` вообще не объявлен в `mods.toml`, поэтому интеграция остаётся опциональной и отключается сама при отсутствии мода.
 
 ## 6. Риски и приоритеты
 
-### P0 — заявлена, но не реализована Artillery compatibility
+### P0 (закрыт) — Artillery compatibility реализована
 
-`RecruitWeaponIntegration` содержит `ARTILLERY_ADDON` (`.../RecruitWeaponIntegration.java:3-7`), а config имеет `artilleryAddonEnabled=true` (`.../CompatConfig.java:18-24`). Однако production registry регистрирует только `MedievalBoomsticksAdapter` (`.../RecruitWeaponAdapters.java:11-15`). `mods.toml` также не объявляет `artillery_addon` dependency (`.../META-INF/mods.toml:30-70`). В GameTest log прямо указано `Artillery Addon=missing` (`run/logs/latest.log:34`).
+Прежний P0 звучал так: `ARTILLERY_ADDON` заявлен в конфиге, но в production registry зарегистрирован только `MedievalBoomsticksAdapter`. Это исправлено: `RecruitWeaponAdapters.production()` регистрирует `MedievalBoomsticksAdapter`, `ArtilleryAddonAdapter` и `ArtilleryThrowableAdapter`, каждый со своими профилями, нативными цепочками загрузки и GameTests. Пункт закрыт.
 
-Следствие: переключатель и лог создают ложное впечатление работающей интеграции, но код не поддерживает Artillery weapons/projectiles. До отдельного adapter implementation лучше считать эту интеграцию `planned`, отключить её по умолчанию или убрать из текущего release surface.
+### P1 — четыре ствола Artillery не проверены в рантайме
+
+`tiller_gun`, `noble_handgonne`, `hackbut` и `double_barrel_gonne` реализованы и подтверждены по байткоду 1.14.0, но закреплённый server-safe артефакт 1.11 их не регистрирует, поэтому их восемь GameTests завершаются ранним `succeed()` вместо реального прогона. Артефакт 1.14.0 не может дать доказательство на dedicated server: Forge падает с `Attempted to load class net/minecraft/client/multiplayer/ClientLevel for invalid dist DEDICATED_SERVER` при регистрации автоподписчиков Artillery. До появления пригодного артефакта эти профили следует считать непроверенными в игре, а не подтверждёнными.
+
+### P1 — клиентская часть без автоматических тестов
+
+Позы рук (`BoomstickArmPose` и mixins на `RecruitVillagerRenderer`/human-модель), включая wind-up метательного оружия, проверялись только плейтестом: GameTest server туда не достаёт. Регрессия в рендере не будет поймана существующим набором тестов.
 
 ### P1 — precedence при смешанном инвентаре
 
@@ -141,11 +153,15 @@ sha256: b885406071dd20b159cf29ae52849ff0ebd5b476e0f0bd0a432d76d7c43c3049
 
 ### P1 — баллистика не доказана как parity с upstream
 
-Upstream целится в eye height через свой crossbow path, а текущий `AimPoint.shotPosition()` для entity target использует `entity.getY(1.0D / 3.0D)` (`.../RecruitBoomstickAttackGoal.java:520-524`). Для arbalest дополнительно применяется вертикальная поправка `horizontalDistance * 0.2` (`.../MedievalBoomsticksAdapter.java:334-345`), а для spiked handgonne — spread `±10°` (`.../MedievalBoomsticksAdapter.java:321-332`). Это осознанные профили, но damage/trajectory parity на дистанциях и по разным hitboxes не измерялась. Нужен отдельный gameplay/physics test matrix.
+Upstream целится в eye height через свой crossbow path, а текущий `AimPoint.shotPosition()` для entity target использует `entity.getY(1.0D / 3.0D)` (`.../RecruitBoomstickAttackGoal.java:652-656`). Поверх этой точки Artillery-адаптер добавляет компенсацию падения `g/2 * t²` с потолком в восемь блоков (`ArtilleryAddonAdapter.aimVector`), а дальность каждого оружия обрезается обратной функцией этого потолка (`maxCompensatedRange` + `BoomstickCombatPolicy.clampCombatRange`). Для arbalest применяется вертикальная поправка `horizontalDistance * 0.2`, для spiked handgonne — spread `±10°`. Компенсация падения сверялась с замером в игре, но damage/trajectory parity на разных дистанциях и hitboxes не измерялась. Нужен отдельный gameplay/physics test matrix.
 
 ### P1 — широкая версия зависимости Epic Knights
 
 `mods.toml` допускает `magistuarmory` от `8.2` без верхней границы (`.../META-INF/mods.toml:51-56`), тогда как фактическая smoke-проверка прошла только с текущим runtime artifact. Если API Medieval Boomsticks использует Epic Knights classes, совместимость со всеми будущими версиями не следует считать подтверждённой. Лучше либо ограничить version range, либо иметь CI matrix.
+
+### P2 — привязка к именам классов Artillery
+
+`SupportedArtilleryThrowables` держит имена нативных entity-классов строкой (`net.mcreator.artilleryaddon.entity.*`), а режим подбора снаряда резолвится рефлексией по объявленным методам (`isStuckInGround` в 1.14 против собственного `onHitBlock` в 1.11). Переупаковка апстрима сломает распознавание. Граница fail closed — оружие просто перестанет использоваться, — и с 2026-08-13 оба нерезолвящихся случая пишут предупреждение в лог по одному разу (`ArtilleryThrowableAdapter.reportProjectileFailure`, fallback в `artifactUsesVanillaGroundPickup`), так что это больше не тихий отказ. Устойчивее было бы опознавать классы по registry ID entity-типа, но нативные различия в поведении подбора всё равно требуют проверки формы класса.
 
 ### P2 — legacy charged state может дать бесплатную загрузку
 
@@ -163,12 +179,15 @@ Upstream целится в eye height через свой crossbow path, а те
 
 ## 7. Рекомендованный следующий порядок
 
-1. Перед публикацией убрать несоответствие Artillery: реализовать полноценный adapter с tests или удалить/отключить неподдержанный switch и claims.
-2. Добавить precedence GameTests для mixed inventory и optional musketmod.
-3. Добавить дистанционные GameTests/ручной dedicated-server smoke для trajectory, damage, owner hit и ally hit.
-4. Принять решение по legacy `charged=true` без payload и зафиксировать его в migration policy.
-5. После этого обновить release notes, проверить зависимые версии и только затем публиковать артефакт.
+1. Добавить precedence GameTests для mixed inventory и optional musketmod.
+2. Добавить дистанционные GameTests/ручной dedicated-server smoke для trajectory, damage, owner hit и ally hit.
+3. Принять решение по legacy `charged=true` без payload и зафиксировать его в migration policy.
+4. Прогнать `tiller_gun`, `noble_handgonne`, `hackbut` и `double_barrel_gonne` на артефакте, который их регистрирует, как только появится такой, стартующий на dedicated server.
+5. Ограничить version range `magistuarmory` или завести CI matrix.
+6. После этого обновить release notes, проверить зависимые версии и только затем публиковать артефакт.
 
 ## Итог
 
-По подтверждённому upstream commit аддон уже реализует рабочий и хорошо изолированный путь для Medieval Boomsticks: сборка, 43 JUnit и 16 GameTests проходят, JAR содержит mixin/refmap и ожидаемые классы. Готовность нельзя называть полной для всех заявленных compatibility integrations из-за отсутствующего Artillery adapter и пока не доказанной parity баллистики/смешанного precedence. Для текущего заявленного scope `Recruits 1.15.2 + Medieval Boomsticks 1.01` состояние выглядит release-candidate, но не безусловно production-ready.
+Аддон реализует рабочий и хорошо изолированный путь для Medieval Boomsticks и для Artillery Addon: сборка, 117 JUnit и 106 GameTests проходят, JAR содержит mixin/refmap и ожидаемые классы, обе интеграции отключаются своими kill-switch'ами и сами уходят в no-op при отсутствии мода. Прежний P0 (заявленная, но отсутствующая Artillery-интеграция) закрыт.
+
+Полной готовность назвать всё ещё нельзя: четыре ствола Artillery не прогонялись в игре из-за отсутствия пригодного артефакта, клиентские позы держатся на плейтесте, parity баллистики и матрица precedence при смешанном инвентаре не измерялись. Для заявленного scope — `Recruits 1.15.2 + Medieval Boomsticks 1.01` плюс опциональный Artillery Addon 1.11 — состояние release-candidate: публиковать можно, но перечисленные границы должны оставаться в release notes, а не исчезать из них.

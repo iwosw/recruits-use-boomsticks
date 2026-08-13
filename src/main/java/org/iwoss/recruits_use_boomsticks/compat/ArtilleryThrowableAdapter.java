@@ -14,6 +14,8 @@ import net.minecraftforge.registries.ForgeRegistries;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
 
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BooleanSupplier;
 
 /** Server-safe Artillery boundary for physical throwing weapons used by recruit ranged AI. */
@@ -25,6 +27,8 @@ public final class ArtilleryThrowableAdapter implements BoomstickWeaponAdapter {
 
     /** Cached artifact shape probe; see {@link #artifactUsesVanillaGroundPickup(ClassLoader)}. */
     private static volatile Boolean vanillaGroundPickupArtifact;
+    /** Weapons whose projectile could not be built; reported once each instead of per shot. */
+    private static final Set<String> REPORTED_PROJECTILE_FAILURES = ConcurrentHashMap.newKeySet();
 
     private final BooleanSupplier availability;
 
@@ -264,6 +268,9 @@ public final class ArtilleryThrowableAdapter implements BoomstickWeaponAdapter {
                 ? null
                 : ForgeRegistries.ENTITY_TYPES.getValue(projectileId);
         if (entityType == null) {
+            reportProjectileFailure(
+                    nativeThrowable,
+                    "native projectile entity {} is not registered by the installed Artillery artifact");
             return null;
         }
 
@@ -273,9 +280,32 @@ public final class ArtilleryThrowableAdapter implements BoomstickWeaponAdapter {
             if (created != null) {
                 created.remove(Entity.RemovalReason.DISCARDED);
             }
+            reportProjectileFailure(
+                    nativeThrowable,
+                    "native projectile entity {} no longer has the expected class shape");
             return null;
         }
         return arrow;
+    }
+
+    /**
+     * A refused projectile fails the shot closed, which is correct but invisible. An artifact whose
+     * entity registration or class shape moved would otherwise look like a recruit that simply never
+     * throws, so each weapon reports its first failure and then stays quiet.
+     */
+    private static void reportProjectileFailure(
+            SupportedArtilleryThrowables.ArtilleryThrowable nativeThrowable,
+            String reason
+    ) {
+        if (!REPORTED_PROJECTILE_FAILURES.add(nativeThrowable.weaponId())) {
+            return;
+        }
+        RecruitsUseBoomsticks.LOGGER.warn(
+                "Artillery throwing weapon {} is disabled for recruits: " + reason
+                        + " (expected class {}); recruits will not throw it",
+                nativeThrowable.weaponId(),
+                nativeThrowable.projectileId(),
+                nativeThrowable.projectileClassName());
     }
 
     private static void configureProjectile(
@@ -329,15 +359,26 @@ public final class ArtilleryThrowableAdapter implements BoomstickWeaponAdapter {
         }
 
         boolean vanillaPickup = false;
+        boolean answered = false;
         for (String className : SupportedArtilleryThrowables.supportedProjectileClassNames()) {
             try {
-                if (declaresMethod(Class.forName(className, false, classLoader), "isStuckInGround")) {
+                Class<?> projectileClass = Class.forName(className, false, classLoader);
+                answered = true;
+                if (declaresMethod(projectileClass, "isStuckInGround")) {
                     vanillaPickup = true;
                     break;
                 }
             } catch (ClassNotFoundException | LinkageError exception) {
                 // An artifact that does not register this throwable cannot answer the probe.
             }
+        }
+        if (!answered) {
+            // The fallback is a guess about someone else's binary, so it is stated rather than
+            // silently applied: a repackaged artifact would otherwise hand out the wrong pickup
+            // mode with nothing in the log to explain it.
+            RecruitsUseBoomsticks.LOGGER.warn(
+                    "No Artillery throwing-weapon projectile class could be resolved to decide native"
+                            + " pickup mode; assuming the pinned 1.11 behaviour (not collectible)");
         }
         vanillaGroundPickupArtifact = vanillaPickup;
         return vanillaPickup;
