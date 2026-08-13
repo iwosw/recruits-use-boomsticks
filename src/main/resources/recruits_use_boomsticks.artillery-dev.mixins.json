@@ -1,0 +1,13 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "org.iwoss.recruits_use_boomsticks.mixin.artillery",
+  "plugin": "org.iwoss.recruits_use_boomsticks.mixin.artillery.ArtilleryDedicatedServerTestPlugin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "GunMakerEventsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

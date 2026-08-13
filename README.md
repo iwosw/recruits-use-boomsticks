@@ -16,7 +16,7 @@ A small Forge compatibility mod that lets **Villager Recruits crossbowmen** use 
 | Medieval Boomsticks | 1.01 |
 | GeckoLib | 4.8.3–4.8.x |
 | Epic Knights | 8.2 or newer |
-| EK: Artillery Addon | optional; thirteen firearm profiles and all five throwing weapons validated with file 7455014 (1.11), Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne binary-confirmed but gated in that artifact |
+| EK: Artillery Addon | optional; thirteen firearm profiles and all five throwing weapons validated with file 7455014 (1.11); Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne validated separately against 1.14.0, which the mod's own client-only listener stops from loading on a dedicated server |
 | Epic Knights: Addon | optional; supplies `steel_francisca_axe` for Artillery's native throwing-Francisca recipe |
 | Architectury API | 9.2.14–9.x |
 | Cloth Config | 11.1.118–11.x |
@@ -24,7 +24,7 @@ A small Forge compatibility mod that lets **Villager Recruits crossbowmen** use 
 
 Install the mod on both the client and the dedicated server. Recruits Use Boomsticks does not bundle its dependencies. Villager Recruits, Medieval Boomsticks, GeckoLib, Epic Knights, Architectury API, and Cloth Config are required and must be installed separately. The Artillery Addon integration is optional; when the addon is present, this release enables the confirmed profiles and branches listed below with their physical ammunition and projectile boundaries.
 
-**Artillery slice status:** thirteen firearm profiles and all five throwing weapons — Francisca, Hurlbat, Throwing Cross, Javelin, and throwable cobblestone — are runtime-verified against the pinned server-safe artifact, including both Matchlock Carbine branches, the Taccola Handgonne iron-ball branch, the Markmengonne Arrow, both Harquebus branches, the Windlass Crossbow Arrow, and the Chu Ko Nu eight-round repeater. Tiller Gun, the Noble Handgonne Arrow branch, Hackbut, and the Double Barrel Gonne first-barrel branch are implemented and binary-confirmed, but their runtime tests are gated because file 7455014 does not register those items.
+**Artillery slice status:** thirteen firearm profiles and all five throwing weapons — Francisca, Hurlbat, Throwing Cross, Javelin, and throwable cobblestone — are runtime-verified against the pinned server-safe artifact, including both Matchlock Carbine branches, the Taccola Handgonne iron-ball branch, the Markmengonne Arrow, both Harquebus branches, the Windlass Crossbow Arrow, and the Chu Ko Nu eight-round repeater. Tiller Gun, the Noble Handgonne Arrow branch, Hackbut, and the Double Barrel Gonne first-barrel branch are not registered by file 7455014, so their tests are gated there; they are runtime-verified separately against Artillery 1.14.0, which needs a development-only patch to start a dedicated server at all. That patch is not shipped, and this release still does not advertise Artillery 1.14 as server-safe.
 
 ## Supported weapons
 
@@ -108,7 +108,7 @@ Strategic fire is used only when the crossbowman has no valid hostile target. A 
 
 - Only Villager Recruits **crossbowmen** use Boomsticks weapons.
 - Artillery support is currently limited to the thirteen runtime-verified firearm profiles, the five runtime-verified throwing weapons, and dependency-gated Tiller Gun, Hackbut, Noble Handgonne Arrow, and Double Barrel Gonne first-barrel branches. Taccola is limited to its physical `iron_ball` branch; its Shatter Shot, Iron Bit, and Arrow branches remain unsupported. Double Barrel Gonne is limited to `barrel_one` with one physical iron ball; its second barrel, multi-shot operation, and other ammunition branches remain unsupported. Matchlock Carbine and Harquebus accept an empty offhand for the standing branch or `artillery_addon:fork_rest` for the rest branch; other non-empty offhands and other Artillery rest branches remain unsupported. Chu Ko Nu's physical Arrow magazine is an explicitly documented NPC policy boundary; its native player reload and native firing cadence are not supported. Other Artillery guns and Noble's other ammunition branches are not enabled. Grenades — `clay_hand_grenade`, `iron_hand_grenade`, `fire_bomb`, and `lime_bomb` — are excluded by decision: their impact chain explodes with a `null` source, so ownership-keyed allied protection cannot cover the blast and a recruit would kill its own squad.
-- Artillery Addon 1.14 is not advertised for dedicated servers yet because the upstream artifact loads a client-only `ClientLevel` class during server startup; the validated runtime file is 1.11 (`7455014`).
+- Artillery Addon 1.14 is not advertised for dedicated servers, because `GunMaker$Events` in that artifact subscribes to a client-only render event without a `Dist` filter and Forge refuses to load it on a server. The validated runtime file is 1.11 (`7455014`). This project can start a 1.14 test server through a development-only patch, but does not ship it: fixing that class is upstream's call, and one patched leak is not a promise about the rest of the artifact.
 - Mounted crossbowmen can fire and reload supported Boomsticks; mounted reloads take twice as long.
 - Compatibility is intentionally limited to the versions in the table above. Other versions may change internal APIs or Mixins.
 

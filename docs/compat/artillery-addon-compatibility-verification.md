@@ -1,8 +1,23 @@
 # Artillery Addon compatibility verification
 
-## Status: THIRTEEN FIREARM PROFILES AND FIVE THROWING WEAPONS VERIFIED; FOUR FIREARMS RUNTIME-GATED
+## Status: SEVENTEEN FIREARM PROFILES AND FIVE THROWING WEAPONS RUNTIME-VERIFIED
 
-The Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branches, Matchlock Pistol, Toradar Rifle, Mini Pistola, Handgonne, Taccola Handgonne iron-ball branch, Hand Cannon three-ball volley branch, Markmengonne Arrow-branch, both Harquebus branches, Windlass Crossbow, Chu Ko Nu eight-round repeater, and the whole throwing-weapon family — Francisca, Hurlbat, Throwing Cross, Javelin, and throwable cobblestone — are complete and runtime-verified when registered. Arquebus was already present in `HEAD` at `0a20856`; the later slices were added in the working tree. The Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne profiles/state/AI slices are implemented and binary-confirmed against Artillery 1.14.0, but their runtime GameTests are gated because the pinned server-safe 1.11 artifact does not register those items; the 1.14.0 artifact cannot be used for dedicated-server proof because it fails common/server loading on a client-only `ClientLevel` reference.
+Thirteen firearms and all five throwing weapons are proven against the pinned server-safe 1.11
+artifact. The remaining four — Tiller Gun, Noble Handgonne, Hackbut, Double Barrel Gonne — are now
+proven too, on a dedicated GameTest server running Artillery 1.14.0, reached through a
+development-only patch described under [Running the gated tests](#running-the-gated-tests). The
+release claim stays pinned to the 1.11 run: this project does not ship that patch and does not
+advertise Artillery 1.14 as server-safe.
+
+Two model defects surfaced the moment those four tests actually executed, and both were expectations
+in the tests rather than in the adapters: the Tiller Gun test denied the `loaded` flag its native
+ramming step writes, and the Noble Handgonne test demanded one its native Arrow branch never writes.
+The bytecode settles both, and the profiles already matched it; only the assertions were stale. That
+is the concrete cost of a dependency-gated test — it passes without ever checking anything.
+
+## Historical status: thirteen verified, four gated
+
+The Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branches, Matchlock Pistol, Toradar Rifle, Mini Pistola, Handgonne, Taccola Handgonne iron-ball branch, Hand Cannon three-ball volley branch, Markmengonne Arrow-branch, both Harquebus branches, Windlass Crossbow, Chu Ko Nu eight-round repeater, and the whole throwing-weapon family — Francisca, Hurlbat, Throwing Cross, Javelin, and throwable cobblestone — are complete and runtime-verified when registered. Arquebus was already present in `HEAD` at `0a20856`; the later slices were added in the working tree. The Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne profiles/state/AI slices are implemented and binary-confirmed against Artillery 1.14.0, but their runtime GameTests are gated because the pinned server-safe 1.11 artifact does not register those items; the 1.14.0 artifact could not be used for dedicated-server proof because it fails common/server loading on a client-only `ClientLevel` reference. That last sentence is what changed: the cause is now identified and worked around for testing.
 
 ## Completed slices
 
@@ -31,7 +46,7 @@ The Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branc
 - `minecraft:arrow` for the Markmengonne, Noble Handgonne, Windlass Crossbow, and Chu Ko Nu NPC policy branches;
 - `artillery_addon:ironball_projectile` / `IronballProjectileEntity`;
 - explicit registry-ID routing through `SupportedArtillery` and `RecruitWeaponAdapters`;
-- native item state (`powder` and `stage` as NBT doubles where the native procedure uses them, plus the compatibility reload marker); Windlass Crossbow uses native `stage=4.0`/`stage=0.0` without inventing `powder`, Noble Handgonne preserves native `ammo=2.0` and `loaded=true`, Taccola preserves native double `ammo=0.0` alongside `stage=2.0`/`stage=3.0` and `loaded=true`/`false`, Chu Ko Nu preserves only the native double `ammo=1.0`/`ammo=0.0` boundary without inventing `stage`, `powder`, or `loaded`, and Double Barrel Gonne preserves only the first-barrel native double `barrel_one=2.0`/`rammed_one=1.0`/`loaded=1.0` boundary with the second barrel held at zero;
+- native item state (`powder` and `stage` as NBT doubles where the native procedure uses them, plus the compatibility reload marker); Windlass Crossbow uses native `stage=4.0`/`stage=0.0` without inventing `powder`, Noble Handgonne preserves native `ammo=2.0` without a `loaded` flag, because its Arrow branch never reaches the ramming step that writes one, Taccola preserves native double `ammo=0.0` alongside `stage=2.0`/`stage=3.0` and `loaded=true`/`false`, Chu Ko Nu preserves only the native double `ammo=1.0`/`ammo=0.0` boundary without inventing `stage`, `powder`, or `loaded`, and Double Barrel Gonne preserves only the first-barrel native double `barrel_one=2.0`/`rammed_one=1.0`/`loaded=1.0` boundary with the second barrel held at zero;
 - one physical native ball consumed per reload, independently of Recruits' vanilla-arrow setting;
 - server-side native projectile creation with the recruit as owner;
 - existing recruit targeting, ownership, allied-projectile protection, cooldown, and animation cleanup;
@@ -213,7 +228,7 @@ Every enabled gameplay weapon now has a captured chain. The single-transaction N
 
 ## Verification checkpoint record
 
-The Matchlock Musket, Matchlock Carbine, Matchlock Pistol, Toradar Rifle, Mini Pistola, Tiller Gun, Handgonne, Taccola Handgonne iron-ball branch, Noble Handgonne Arrow, Markmengonne Arrow, both Harquebus branches, Windlass Crossbow, Chu Ko Nu, and Double Barrel Gonne first-barrel iron-ball branch passes all reuse the server-safe Artillery adapter/state/AI boundary and preserve their own confirmed ammunition, native state, projectile, and launch properties. The Matchlock Carbine and Harquebus passes cover both the empty-offhand standing branch and the `fork_rest` offhand branch, including rejection of unrelated non-empty offhands. The Hackbut pass adds only the ordinary/no-`fork_rest` branch with physical `large_iron_ball`, native stage-two state without a loaded flag, one native Ironball projectile, velocity `6.5`, inaccuracy `5.5`, base damage `5.25`, critical `true`, pierce level `1`, and silent `false`; its player-only shift gate is bypassed for the NPC path and its fork-rest branches remain disabled. The Double Barrel Gonne pass adds only the first-barrel branch with native double `barrel_one`/`rammed_one`/`loaded` state, one physical `iron_ball`, and one critical/piercing/audible native Ironball projectile. The Chu Ko Nu pass covers the full native repeater counter: eight physical arrows committed one round at a time, one round and one marked vanilla Arrow per shot back down to `0.0`, a refused shot on an empty magazine, and a combat-goal run proving no second reload occurs between rounds of the same magazine. Each slice has focused profile/state coverage and Forge GameTests; Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne's tests are dependency-gated against the pinned 1.11 artifact.
+The Matchlock Musket, Matchlock Carbine, Matchlock Pistol, Toradar Rifle, Mini Pistola, Tiller Gun, Handgonne, Taccola Handgonne iron-ball branch, Noble Handgonne Arrow, Markmengonne Arrow, both Harquebus branches, Windlass Crossbow, Chu Ko Nu, and Double Barrel Gonne first-barrel iron-ball branch passes all reuse the server-safe Artillery adapter/state/AI boundary and preserve their own confirmed ammunition, native state, projectile, and launch properties. The Matchlock Carbine and Harquebus passes cover both the empty-offhand standing branch and the `fork_rest` offhand branch, including rejection of unrelated non-empty offhands. The Hackbut pass adds only the ordinary/no-`fork_rest` branch with physical `large_iron_ball`, native stage-two state without a loaded flag, one native Ironball projectile, velocity `6.5`, inaccuracy `5.5`, base damage `5.25`, critical `true`, pierce level `1`, and silent `false`; its player-only shift gate is bypassed for the NPC path and its fork-rest branches remain disabled. The Double Barrel Gonne pass adds only the first-barrel branch with native double `barrel_one`/`rammed_one`/`loaded` state, one physical `iron_ball`, and one critical/piercing/audible native Ironball projectile. The Chu Ko Nu pass covers the full native repeater counter: eight physical arrows committed one round at a time, one round and one marked vanilla Arrow per shot back down to `0.0`, a refused shot on an empty magazine, and a combat-goal run proving no second reload occurs between rounds of the same magazine. Each slice has focused profile/state coverage and Forge GameTests. Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne's tests are dependency-gated against the pinned 1.11 artifact and were executed against Artillery 1.14.0 as described under [Running the gated tests](#running-the-gated-tests); the Tiller Gun `loaded` flag and the Noble Handgonne's absent one were corrected there.
 
 The throwing-weapon pass uses a separate self-consuming throwable adapter rather than pretending the
 items are loaded firearms. All five weapons walk one shared native branch, so each has one direct
@@ -228,7 +243,8 @@ The following evidence was collected from the current checkout:
 - focused Artillery unit tests: `./gradlew.bat test --tests '*Artillery*' --rerun-tasks --console=plain` — `BUILD SUCCESSFUL`;
 - full unit-test result from `./gradlew.bat test`: 117 tests, 0 failures, 0 errors, and 0 skipped, including `ArtilleryReloadProtocolTest`, which walks every captured chain and asserts it ends exactly on its profile's native loaded payload, and `ArtilleryThrowableAdapterTest`, which asserts every throwing weapon's native use window, base damage, velocity, inaccuracy, and recovery roll;
 - multi-step loading coverage: the Arquebus chain test asserts the native powder and ball stages are actually passed through, that a tool is visible in the off hand while the chain runs, that the weapon ends loaded with the off hand restored, and that the flask and ramrod are neither consumed nor duplicated; a second test proves a missing ramrod refuses the chain instead of starting one it cannot finish;
-- real Forge GameTest server with the pinned 1.11 artifact: `106 tests are now running!` followed by `All 106 required tests passed :)`; this includes twelve executed throwing-weapon tests, while Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne remain gated because that artifact lacks those items;
+- real Forge GameTest server with the pinned 1.11 artifact: `106 tests are now running!` followed by `All 106 required tests passed :)`; this includes twelve executed throwing-weapon tests, while Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne stay gated because that artifact lacks those items;
+- real Forge GameTest server with Artillery 1.14.0 (`8325660`) and the development-only patch: the same `All 106 required tests passed :)`, with those four weapons executing rather than gating, and every throwable resolving `ALLOWED` instead of the pinned artifact's `DISALLOWED`;
 - one pre-existing flake was found and fixed while verifying this slice: over three consecutive `runGameTestServer` runs, `artilleryHandCannonRunsThroughTheCombatGoal` passed, then failed with `the combat goal must spawn a native three-projectile Hand Cannon volley`, then passed. It drove 160 goal ticks inside a single server tick while the shot cadence is measured against level game time — the same trap the Chu Ko Nu combat test already avoids — and it counted the volley at the end of the run, by which point the three native projectiles had flown out of the sampled box. It now runs on real server ticks through `runAtTickTime` and latches the volley at its widest. Three consecutive runs after the fix passed;
 - dependency resolution: `curse.maven:epic-knights-artillery-addon-1307540:7455014_mapped_official_1.20.1` on `runtimeClasspath`;
 - clean release build: `./gradlew.bat -Dnet.minecraftforge.gradle.check.certs=false clean build --rerun-tasks --console=plain` — `BUILD SUCCESSFUL`; the override was required because the canonical run stopped at ForgeGradle certificate validation for `libraries.minecraft.net`;
@@ -246,14 +262,51 @@ Run from the repository root:
 ./gradlew.bat runGameTestServer --rerun-tasks --console=plain
 ```
 
-The unit-test task completed successfully with the current test count and no failures, errors, or skips. Against the pinned server-safe 1.11 artifact, the GameTest task completed successfully with 106 required tests; the Tiller Gun-, Noble Handgonne-, Hackbut-, and Double Barrel Gonne-specific tests were dependency-gated rather than executed:
+The unit-test task completed successfully with the current test count and no failures, errors, or skips. Both GameTest runs — the pinned 1.11 artifact and Artillery 1.14.0 through the development-only patch — completed successfully with 106 required tests. Against 1.11 the Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne tests are dependency-gated rather than executed; against 1.14.0 they run:
 
 ```text
 106 tests are now running!
 All 106 required tests passed :)
 ```
 
-The GameTest coverage includes Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branches, Matchlock Pistol, Toradar Rifle, Mini Pistola, Handgonne, Taccola Handgonne iron-ball branch, Markmengonne, both Harquebus branches, Windlass Crossbow, Chu Ko Nu, the Double Barrel Gonne first-barrel policy, and all five throwing weapons: pickup, native state where applicable, exact physical-ammunition or held-weapon consumption, server-side firing, native/marked projectile ownership, friendly-fire filtering, combat-goal integration, and both compatibility switches. The throwing-weapon tests execute against the real pinned native item/entity registry and prove one-item spend, projectile properties, ownership, allied-hit rejection, no invented reload, and combat-goal handoff for the Francisca, Hurlbat, Throwing Cross, Javelin, and throwable cobblestone alike. The Chu Ko Nu combat test is driven on real server ticks rather than in a single tick, because the inter-round cooldown is measured against level game time; it counts rounds off the native magazine counter rather than off live projectiles, because a recruit may pick its own fired arrows back up. Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne tests are dependency-gated until a runtime artifact containing their items is available.
+The GameTest coverage includes Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branches, Matchlock Pistol, Toradar Rifle, Mini Pistola, Handgonne, Taccola Handgonne iron-ball branch, Markmengonne, both Harquebus branches, Windlass Crossbow, Chu Ko Nu, the Double Barrel Gonne first-barrel policy, and all five throwing weapons: pickup, native state where applicable, exact physical-ammunition or held-weapon consumption, server-side firing, native/marked projectile ownership, friendly-fire filtering, combat-goal integration, and both compatibility switches. The throwing-weapon tests execute against the real pinned native item/entity registry and prove one-item spend, projectile properties, ownership, allied-hit rejection, no invented reload, and combat-goal handoff for the Francisca, Hurlbat, Throwing Cross, Javelin, and throwable cobblestone alike. The Chu Ko Nu combat test is driven on real server ticks rather than in a single tick, because the inter-round cooldown is measured against level game time; it counts rounds off the native magazine counter rather than off live projectiles, because a recruit may pick its own fired arrows back up. Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne tests are dependency-gated against the pinned artifact and executed against 1.14.0. Throwable pickup mode is asserted from whatever the installed artifact declares rather than pinned to one release, so the same test proves `DISALLOWED` under 1.11 and `ALLOWED` under 1.14.
+
+## Running the gated tests
+
+Artillery 1.14.0 registers all seventeen guns, but upstream it cannot start a dedicated server. The
+cause is one class:
+
+```text
+RuntimeException: Attempted to load class net/minecraft/client/multiplayer/ClientLevel
+        for invalid dist DEDICATED_SERVER
+    at AutomaticEventSubscriber.inject(AutomaticEventSubscriber.java:48)
+    Failed to register automatic subscribers. ModID: artillery_addon
+```
+
+`net.mcreator.artilleryaddon.gun_maker.GunMaker$Events` carries a bare `@Mod.EventBusSubscriber` —
+no `Dist` filter — while declaring `onEventTriggered(RenderPlayerEvent.Pre)` and `onClientTick`,
+neither marked `@OnlyIn(Dist.CLIENT)`, unlike its own `onClientMouseTick`, which is. FML therefore
+loads the class on a dedicated server and Forge's dist cleaner refuses what verifying it drags in.
+The `gun_maker` package does not exist at all in the 1.11 artifact, which is exactly why that one
+boots a server. The upstream fix is one annotation.
+
+`recruits_use_boomsticks.artillery-dev.mixins.json` removes those two listeners through a Mixin
+config plugin, which lets the test server start:
+
+```text
+./gradlew.bat runGameTestServer -Partillery=1.14 --console=plain
+```
+
+Its boundaries are deliberate. `onPlayerTick` is kept, because it runs on both dists and Artillery's
+own 1.14 Handgonne, Noble Gonne, and Bronze Gonne procedures call into `GunMaker`. The config is
+registered for development runs only and is absent from the release jar's `MixinConfigs` manifest
+entry, and the plugin additionally refuses to apply outside a dev dedicated server. Shipping it
+would make this project answerable for Artillery's server stability, which it cannot be: this
+removes the first client-only leak in that artifact, not every one it may contain.
+
+One 1.14-only difference is recorded rather than modelled: `TestgunRightclickedProcedure` also
+writes `GunMaker$GunUtils.IS_AIMING` onto the stack, a marker the 1.11 Handgonne chain has no
+equivalent for. It is aiming display state and does not affect the loading transaction.
 
 ## Test-environment limitations
 

@@ -886,14 +886,38 @@ public final class BoomstickCompatibilityGameTests {
                 "the native " + weaponId + " projectile must remain non-critical");
         helper.assertTrue(projectile.getPierceLevel() == 0,
                 "the native " + weaponId + " projectile must not pierce");
-        helper.assertTrue(projectile.pickup == AbstractArrow.Pickup.DISALLOWED,
-                "the pinned Artillery 1.11 branch passes DISALLOWED for every throwable");
+        AbstractArrow.Pickup expectedPickup = expectedNativeThrowablePickup();
+        helper.assertTrue(projectile.pickup == expectedPickup,
+                "the installed Artillery artifact passes " + expectedPickup + " for every throwable");
         helper.assertTrue(
                 Math.abs(projectile.getDeltaMovement().length() - nativeThrowable.velocity()) < 0.15D,
                 "the " + weaponId + " launch speed must stay near its native velocity");
         helper.assertFalse(canHitEntity(projectile, ally),
                 "a recruit-owned " + weaponId + " must pass through allied recruits");
         helper.succeed();
+    }
+
+    /**
+     * Native pickup mode differs between Artillery artifacts, so the expectation is read from the
+     * installed one rather than pinned to a single release. Artillery 1.11 passes
+     * {@code DISALLOWED} for every throwable and recovers the item in its own {@code onHitBlock}
+     * roll; 1.14 passes {@code ALLOWED} and leaves the embedded projectile collectible, and marks
+     * that shape by declaring {@code isStuckInGround}.
+     */
+    private static AbstractArrow.Pickup expectedNativeThrowablePickup() {
+        for (String className : SupportedArtilleryThrowables.supportedProjectileClassNames()) {
+            try {
+                Class<?> projectileClass = Class.forName(
+                        className,
+                        false,
+                        BoomstickCompatibilityGameTests.class.getClassLoader());
+                projectileClass.getDeclaredMethod("isStuckInGround");
+                return AbstractArrow.Pickup.ALLOWED;
+            } catch (ClassNotFoundException | NoSuchMethodException | LinkageError ignored) {
+                // This artifact does not register the throwable, or does not carry the 1.14 marker.
+            }
+        }
+        return AbstractArrow.Pickup.DISALLOWED;
     }
 
     private static void assertThrowableRunsThroughTheRecruitCombatGoal(
@@ -2166,8 +2190,10 @@ public final class BoomstickCompatibilityGameTests {
                 "Tiller Gun stage must retain the native double NBT type");
         helper.assertTrue(weapon.getOrCreateTag().getDouble(ArtilleryNativeState.STAGE_KEY) == 2.0D,
                 "Tiller Gun reload must use native stage two");
-        helper.assertFalse(weapon.getOrCreateTag().contains(ArtilleryNativeState.LOADED_KEY),
-                "Tiller Gun reload must not invent the optional loaded flag");
+        // TillerGunRightclickedProcedure writes loaded=true on its ramming step and loaded=false as
+        // it fires, unlike the matchlock family, which never writes the flag at all.
+        helper.assertTrue(weapon.getOrCreateTag().getBoolean(ArtilleryNativeState.LOADED_KEY),
+                "Tiller Gun reload must set the native loaded flag its ramming step writes");
 
         recruit.setShiftKeyDown(true);
         BoomstickWeaponAdapter.ShotResult result = ArtilleryAddonAdapter.INSTANCE.fire(
@@ -2739,8 +2765,10 @@ public final class BoomstickCompatibilityGameTests {
                 "Noble Handgonne reload must commit its native stage-two loaded state");
         helper.assertTrue(recruit.getInventory().countItem(ammo.getItem()) == 0,
                 "Noble Handgonne reload must consume exactly one physical arrow");
-        helper.assertTrue(weapon.getOrCreateTag().getBoolean(ArtilleryNativeState.LOADED_KEY),
-                "Noble Handgonne reload must set the native loaded flag");
+        // The native Arrow branch jumps to stage 2.0 with ammo=2.0 and never reaches the ramming
+        // step that writes `loaded`, so the recruit payload must not invent one either.
+        helper.assertFalse(weapon.getOrCreateTag().contains(ArtilleryNativeState.LOADED_KEY),
+                "the Noble Handgonne Arrow branch must not invent a loaded flag");
         helper.assertTrue(weapon.getOrCreateTag().getTagType(ArtilleryNativeState.AMMO_KEY) == Tag.TAG_DOUBLE,
                 "Noble Handgonne must preserve the native double ammo marker type");
         helper.assertTrue(weapon.getOrCreateTag().getDouble(ArtilleryNativeState.AMMO_KEY) == 2.0D,
