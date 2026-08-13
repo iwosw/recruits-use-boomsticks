@@ -4073,6 +4073,85 @@ public final class BoomstickCompatibilityGameTests {
     }
 
     /**
+     * Stowing must not leave the main hand empty.
+     *
+     * <p>The weapon is worn in the off hand while the main hand keeps the melee weapon, but a
+     * recruit given nothing but a gun stands with an empty main hand. Putting the gun away then has
+     * to arm it with whatever it owns, or the order visibly disarms it.</p>
+     */
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void carryOrderStowingRearmsAnEmptyMainHand(GameTestHelper helper) {
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        recruit.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        recruit.getInventory().addItem(stack(SupportedBoomsticks.ARQUEBUS_ID));
+        recruit.getInventory().addItem(stack("minecraft:iron_sword"));
+        BoomstickCarryOrder.apply(recruit, true);
+        helper.assertTrue(
+                RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getOffhandItem()),
+                "the order must have parked the firearm in the off hand first");
+
+        BoomstickCarryOrder.apply(recruit, false);
+
+        helper.assertTrue(recruit.getMainHandItem().is(stack("minecraft:iron_sword").getItem()),
+                "stowing must arm the empty main hand, it holds " + recruit.getMainHandItem());
+        helper.assertFalse(
+                RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getOffhandItem()),
+                "the firearm must leave the off hand, it holds " + recruit.getOffhandItem());
+        helper.assertTrue(
+                recruit.getInventory().countItem(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()) == 1,
+                "stowing must neither lose nor duplicate the firearm");
+        helper.succeed();
+    }
+
+    /**
+     * The hand-gonne family is lit with a match, so the recruit shows one for the shot.
+     *
+     * <p>Natively a player holds the match in one hand and the gun in the other. A recruit keeps the
+     * weapon in its main hand, so the match is mirrored into the off hand for the shot and given
+     * straight back — nothing is spent, exactly as the native branch spends nothing.</p>
+     */
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void handgonneShowsTheNativeMatchForTheShot(GameTestHelper helper) {
+        if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()
+                || !artilleryItemRegistered(SupportedArtillery.HANDGONNE_ID)
+                || !artilleryItemRegistered(ArtilleryReloadProtocol.MATCH_ID)) {
+            helper.succeed();
+            return;
+        }
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        ItemStack weapon = stack(SupportedArtillery.HANDGONNE_ID);
+        recruit.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, weapon);
+        recruit.getInventory().addItem(stack(ArtilleryReloadProtocol.MATCH_ID));
+
+        ArtilleryAddonAdapter.INSTANCE.showFiringTool(recruit, weapon);
+
+        helper.assertTrue(recruit.getOffhandItem().is(stack(ArtilleryReloadProtocol.MATCH_ID).getItem()),
+                "the shot must show the native match, the off hand holds " + recruit.getOffhandItem());
+
+        ArtilleryAddonAdapter.INSTANCE.clearFiringTool(recruit);
+
+        helper.assertTrue(recruit.getOffhandItem().isEmpty(),
+                "the match must leave the hand with the shot, it holds " + recruit.getOffhandItem());
+        helper.assertTrue(
+                recruit.getInventory().countItem(stack(ArtilleryReloadProtocol.MATCH_ID).getItem()) == 1,
+                "showing the match must neither spend nor duplicate it");
+
+        // A weapon that is not lit by hand never borrows one: the matchlock family carries its cord
+        // in the lock, so its own procedures never ask for a match.
+        CrossBowmanEntity matchlockRecruit = spawnCrossbowman(helper, 2);
+        ItemStack matchlock = stack(SupportedArtillery.ARQUEBUS_ID);
+        matchlockRecruit.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, matchlock);
+        matchlockRecruit.getInventory().addItem(stack(ArtilleryReloadProtocol.MATCH_ID));
+
+        ArtilleryAddonAdapter.INSTANCE.showFiringTool(matchlockRecruit, matchlock);
+
+        helper.assertTrue(matchlockRecruit.getOffhandItem().isEmpty(),
+                "a matchlock must not borrow a match, its off hand holds "
+                        + matchlockRecruit.getOffhandItem());
+        helper.succeed();
+    }
+
+    /**
      * A round trip through both orders must not lose or duplicate anything.
      *
      * <p>The off hand is now the destination rather than a scratch slot, so the failure this guards

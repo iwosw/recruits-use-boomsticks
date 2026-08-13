@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Objects;
 
 /**
@@ -27,6 +28,28 @@ public final class ArtilleryReloadProtocol {
     /** Native ramrod tag; its members are `iron_ramrod` and `ramrod`. */
     public static final String RAMROD_TAG = "artillery:ramrod";
     public static final String MATCH_ID = SupportedArtillery.MOD_ID + ":match";
+
+    /**
+     * Weapons whose native firing branch is lit with a hand-held {@code artillery_addon:match}.
+     *
+     * <p>Read from the binary rather than assumed: these are the procedures that reference the match
+     * item at all. The matchlock family is deliberately absent — an arquebus, musket, carbine,
+     * pistol, toradar, or hackbut carries its cord in the lock, so its own procedures never ask for
+     * one — and neither is the Noble Handgonne, whose branch does not use it either.</p>
+     */
+    private static final Set<String> MATCH_LIT_WEAPONS = Set.of(
+            SupportedArtillery.HANDGONNE_ID,
+            SupportedArtillery.TACCOLA_HANDGONNE_ID,
+            SupportedArtillery.HAND_CANNON_ID,
+            SupportedArtillery.MINI_PISTOLA_ID,
+            SupportedArtillery.TILLER_GUN_ID,
+            SupportedArtillery.MARKMENGONNE_ID,
+            SupportedArtillery.DOUBLE_BARREL_GONNE_ID);
+
+    /** Whether the native shot for this weapon is lit with a match held in the free hand. */
+    public static boolean firesWithMatch(String registryId) {
+        return MATCH_LIT_WEAPONS.contains(registryId);
+    }
 
     /** Native Chu Ko Nu magazine capacity; its lore counts every round out of eight. */
     public static final int CHU_KO_NU_CAPACITY = 8;

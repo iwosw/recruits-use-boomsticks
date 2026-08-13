@@ -72,6 +72,19 @@ public interface BoomstickWeaponAdapter {
         return maxRange;
     }
 
+    /**
+     * Shows the tool the native shot is taken with, if this weapon has one.
+     *
+     * <p>The hand-gonne family is lit with a match held in the free hand. This is display only: the
+     * tool is borrowed from the recruit's own inventory for the shot and given straight back.</p>
+     */
+    default void showFiringTool(CrossBowmanEntity recruit, ItemStack weapon) {
+    }
+
+    /** Returns a borrowed firing tool to the inventory. */
+    default void clearFiringTool(CrossBowmanEntity recruit) {
+    }
+
     /** Clears animation-only state without changing a committed loaded payload. */
     default void clearTransientState(ItemStack weapon) {
         setReloading(weapon, false);
