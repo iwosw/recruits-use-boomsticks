@@ -24,7 +24,8 @@ public final class RecruitsUseBoomsticks {
 
     private void onCommonSetup(final FMLCommonSetupEvent event) {
         BoomstickNetwork.register();
-        LOGGER.info("{} {} loaded; Recruits={}, Medieval Boomsticks={}, GeckoLib={}, Artillery Addon={}; "
+        LOGGER.info("{} {} loaded; Recruits={}, Medieval Boomsticks={}, GeckoLib={}, Epic Knights Addon={}, "
+                        + "Artillery Addon={}; "
                         + "compatibility switches: global={}, medievalBoomsticks={}, artilleryAddon={}",
                 MOD_ID,
                 ModList.get().getModContainerById(MOD_ID)
@@ -33,6 +34,7 @@ public final class RecruitsUseBoomsticks {
                 dependencyVersion("recruits"),
                 dependencyVersion("medieval_boomsticks"),
                 dependencyVersion("geckolib"),
+                dependencyVersion("magistuarmoryaddon"),
                 dependencyVersion("artillery_addon"),
                 CompatConfig.ENABLED.get(),
                 CompatConfig.MEDIEVAL_BOOMSTICKS_ENABLED.get(),

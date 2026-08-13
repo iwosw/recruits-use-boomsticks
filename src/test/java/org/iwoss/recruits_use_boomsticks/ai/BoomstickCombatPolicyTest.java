@@ -50,6 +50,30 @@ class BoomstickCombatPolicyTest {
     }
 
     @Test
+    void aWeaponMayOnlyShortenTheSharedCombatRange() {
+        assertEquals(13.4D, BoomstickCombatPolicy.clampCombatRange(13.4D, 45.0D));
+        assertEquals(45.0D, BoomstickCombatPolicy.clampCombatRange(62.6D, 45.0D));
+        assertEquals(45.0D, BoomstickCombatPolicy.clampCombatRange(45.0D, 45.0D));
+    }
+
+    @Test
+    void anUnusableWeaponRangeFallsBackToTheSharedMaximum() {
+        assertEquals(45.0D, BoomstickCombatPolicy.clampCombatRange(0.0D, 45.0D));
+        assertEquals(45.0D, BoomstickCombatPolicy.clampCombatRange(-1.0D, 45.0D));
+        assertEquals(45.0D, BoomstickCombatPolicy.clampCombatRange(Double.NaN, 45.0D));
+        assertEquals(0.0D, BoomstickCombatPolicy.clampCombatRange(13.4D, Double.NaN));
+    }
+
+    @Test
+    void aShortRangedWeaponMakesADistantTargetWorthApproaching() {
+        // A thrown cobblestone runs out of drop compensation at roughly thirteen blocks, so a target
+        // twenty blocks away is out of reach for it while a full-range weapon would already shoot.
+        assertTrue(BoomstickCombatPolicy.shouldApproachTarget(true, 20.0D * 20.0D, 13.4D));
+        assertFalse(BoomstickCombatPolicy.shouldApproachTarget(true, 20.0D * 20.0D, 45.0D));
+        assertFalse(BoomstickCombatPolicy.isWithinCombatRange(20.0D * 20.0D, 13.4D));
+    }
+
+    @Test
     void mountedReloadMatchesTheSlowerUpstreamMusketBehavior() {
         assertEquals(40, BoomstickCombatPolicy.reloadTicks(40, false, false));
         assertEquals(80, BoomstickCombatPolicy.reloadTicks(40, true, false));

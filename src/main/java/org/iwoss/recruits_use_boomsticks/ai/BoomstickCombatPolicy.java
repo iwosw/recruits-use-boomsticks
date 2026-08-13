@@ -30,6 +30,22 @@ public final class BoomstickCombatPolicy {
         return !hasLineOfSight || distanceSquared > combatRange * combatRange;
     }
 
+    /**
+     * Narrows the shared combat range to what a weapon can actually reach.
+     *
+     * <p>A weapon may only shorten the range, never extend it, and a nonsensical report falls back
+     * to the shared maximum rather than pinning a recruit in place.</p>
+     */
+    public static double clampCombatRange(double weaponRange, double maxRange) {
+        if (!Double.isFinite(maxRange) || maxRange <= 0.0D) {
+            return 0.0D;
+        }
+        if (!Double.isFinite(weaponRange) || weaponRange <= 0.0D) {
+            return maxRange;
+        }
+        return Math.min(weaponRange, maxRange);
+    }
+
     public static boolean isWithinCombatRange(double distanceSquared, double combatRange) {
         return Double.isFinite(distanceSquared)
                 && Double.isFinite(combatRange)

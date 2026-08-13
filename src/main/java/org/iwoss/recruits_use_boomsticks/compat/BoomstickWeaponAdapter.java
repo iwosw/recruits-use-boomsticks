@@ -39,10 +39,44 @@ public interface BoomstickWeaponAdapter {
 
     void setFiring(ItemStack weapon, boolean firing);
 
+    /** Whether client rendering should use a throwing pose instead of a shouldered weapon pose. */
+    default boolean isThrowable(ItemStack weapon) {
+        return false;
+    }
+
+    /** Number of uninterrupted target-facing ticks required before this weapon can fire. */
+    default int aimTicks(ItemStack weapon) {
+        return 12;
+    }
+
+    /**
+     * Marks the wind-up before a throw so the client can raise the weapon.
+     *
+     * <p>Weapons whose pose does not change while aiming ignore this.</p>
+     */
+    default void setAiming(ItemStack weapon, boolean aiming) {
+    }
+
+    /** Whether this weapon is currently held in its wind-up. */
+    default boolean isAiming(ItemStack weapon) {
+        return false;
+    }
+
+    /**
+     * Farthest distance at which a shot from this weapon can still reach its target.
+     *
+     * <p>Weapons whose projectiles are fast enough to cross the whole combat range keep the shared
+     * maximum. A slow projectile cannot, and the goal walks the recruit closer instead.</p>
+     */
+    default double effectiveRange(ItemStack weapon, double maxRange) {
+        return maxRange;
+    }
+
     /** Clears animation-only state without changing a committed loaded payload. */
     default void clearTransientState(ItemStack weapon) {
         setReloading(weapon, false);
         setFiring(weapon, false);
+        setAiming(weapon, false);
     }
 
     /**

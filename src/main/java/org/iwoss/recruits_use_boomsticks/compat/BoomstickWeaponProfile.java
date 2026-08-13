@@ -3,7 +3,7 @@ package org.iwoss.recruits_use_boomsticks.compat;
 import java.util.Objects;
 
 /**
- * Immutable, server-safe description of one supported Medieval Boomsticks weapon.
+ * Immutable, server-safe description of one adapter-backed ranged weapon.
  *
  * <p>The profile intentionally contains no Minecraft entity or item instances. That keeps
  * weapon selection and state-machine policy testable without booting a game server.</p>

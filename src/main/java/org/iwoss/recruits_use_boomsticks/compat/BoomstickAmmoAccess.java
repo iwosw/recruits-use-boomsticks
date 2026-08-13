@@ -97,6 +97,7 @@ public final class BoomstickAmmoAccess {
             case ROUND_BALL -> SupportedBoomsticks.isRoundBallAmmo(stack);
             case HEAVY_BOLT -> SupportedBoomsticks.isHeavyBoltAmmo(stack);
             case ARROW -> stack != null && !stack.isEmpty() && stack.getItem() == Items.ARROW;
+            case THROWN_WEAPON -> false;
         };
     }
 }

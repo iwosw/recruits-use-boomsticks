@@ -37,12 +37,14 @@ import org.iwoss.recruits_use_boomsticks.compat.BoomstickTransientStateRecovery;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickWeaponAdapter;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickWeaponProfile;
 import org.iwoss.recruits_use_boomsticks.compat.ArtilleryAddonAdapter;
+import org.iwoss.recruits_use_boomsticks.compat.ArtilleryThrowableAdapter;
 import org.iwoss.recruits_use_boomsticks.compat.ArtilleryNativeState;
 import org.iwoss.recruits_use_boomsticks.compat.ArtilleryReloadProtocol;
 import org.iwoss.recruits_use_boomsticks.compat.ArtilleryReloadStep;
 import org.iwoss.recruits_use_boomsticks.compat.ArtilleryWeaponProfile;
 import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.compat.SupportedArtillery;
+import org.iwoss.recruits_use_boomsticks.compat.SupportedArtilleryThrowables;
 import org.iwoss.recruits_use_boomsticks.compat.MedievalBoomsticksAdapter;
 import org.iwoss.recruits_use_boomsticks.compat.SupportedBoomsticks;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
@@ -675,6 +677,277 @@ public final class BoomstickCompatibilityGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void artilleryFranciscaConsumesOnePhysicalAxeAndSpawnsItsNativeProjectile(
+            GameTestHelper helper
+    ) {
+        assertThrowableSpendsOneItemForItsNativeProjectile(
+                helper, SupportedArtilleryThrowables.FRANCISCA_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void artilleryHurlbatConsumesOnePhysicalItemAndSpawnsItsNativeProjectile(
+            GameTestHelper helper
+    ) {
+        assertThrowableSpendsOneItemForItsNativeProjectile(
+                helper, SupportedArtilleryThrowables.HURLBAT_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void artilleryThrowingCrossConsumesOnePhysicalItemAndSpawnsItsNativeProjectile(
+            GameTestHelper helper
+    ) {
+        assertThrowableSpendsOneItemForItsNativeProjectile(
+                helper, SupportedArtilleryThrowables.THROWING_CROSS_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void artilleryJavelinConsumesOnePhysicalItemAndSpawnsItsNativeProjectile(
+            GameTestHelper helper
+    ) {
+        assertThrowableSpendsOneItemForItsNativeProjectile(
+                helper, SupportedArtilleryThrowables.JAVELIN_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void artilleryThrowableCobblestoneConsumesOneItemAndSpawnsItsNativeProjectile(
+            GameTestHelper helper
+    ) {
+        assertThrowableSpendsOneItemForItsNativeProjectile(
+                helper, SupportedArtilleryThrowables.THROWABLE_COBBLESTONE_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void artilleryFranciscaRunsThroughTheRecruitCombatGoal(GameTestHelper helper) {
+        assertThrowableRunsThroughTheRecruitCombatGoal(
+                helper, SupportedArtilleryThrowables.FRANCISCA_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void artilleryHurlbatRunsThroughTheRecruitCombatGoal(GameTestHelper helper) {
+        assertThrowableRunsThroughTheRecruitCombatGoal(
+                helper, SupportedArtilleryThrowables.HURLBAT_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void artilleryThrowingCrossRunsThroughTheRecruitCombatGoal(GameTestHelper helper) {
+        assertThrowableRunsThroughTheRecruitCombatGoal(
+                helper, SupportedArtilleryThrowables.THROWING_CROSS_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void artilleryJavelinRunsThroughTheRecruitCombatGoal(GameTestHelper helper) {
+        assertThrowableRunsThroughTheRecruitCombatGoal(
+                helper, SupportedArtilleryThrowables.JAVELIN_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void artilleryThrowableCobblestoneRunsThroughTheRecruitCombatGoal(
+            GameTestHelper helper
+    ) {
+        assertThrowableRunsThroughTheRecruitCombatGoal(
+                helper, SupportedArtilleryThrowables.THROWABLE_COBBLESTONE_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void artilleryThrowableWindsUpOnlyWhileAiming(GameTestHelper helper) {
+        SupportedArtilleryThrowables.ArtilleryThrowable nativeThrowable =
+                SupportedArtilleryThrowables.throwableFor(SupportedArtilleryThrowables.HURLBAT_ID)
+                        .orElseThrow();
+        if (!ArtilleryThrowableAdapter.INSTANCE.isAvailable()
+                || !artilleryItemRegistered(SupportedArtilleryThrowables.HURLBAT_ID)
+                || !artilleryEntityRegistered(nativeThrowable.projectileId())) {
+            helper.succeed();
+            return;
+        }
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        LivingEntity target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 5, 2, 1);
+        ItemStack held = stack(SupportedArtilleryThrowables.HURLBAT_ID, 2);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, held);
+        recruit.setTarget(target);
+        recruit.setShouldRanged(true);
+
+        helper.assertFalse(ArtilleryThrowableAdapter.INSTANCE.isAiming(held),
+                "an idle throwing weapon must not be held in its wind-up");
+
+        RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
+        helper.assertTrue(goal.canUse(), "the combat goal must claim an equipped Hurlbat");
+        goal.start();
+        goal.tick();
+        helper.assertTrue(ArtilleryThrowableAdapter.INSTANCE.isAiming(held),
+                "entering the aim window must raise the throwing weapon");
+
+        for (int tick = 1; tick <= nativeThrowable.useDurationTicks(); tick++) {
+            goal.tick();
+        }
+        helper.assertTrue(recruit.getMainHandItem().getCount() == 1,
+                "the wind-up test must actually complete one throw");
+        helper.assertFalse(ArtilleryThrowableAdapter.INSTANCE.isAiming(held),
+                "the throw must drop the wind-up instead of leaving the arm cocked");
+
+        goal.stop();
+        helper.assertFalse(ArtilleryThrowableAdapter.INSTANCE.isAiming(recruit.getMainHandItem()),
+                "a goal that ends mid-aim must not leave a wind-up marker behind");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void artilleryThrowableReachMatchesItsOwnProjectileSpeed(GameTestHelper helper) {
+        if (!ArtilleryThrowableAdapter.INSTANCE.isAvailable()
+                || !artilleryItemRegistered(SupportedArtilleryThrowables.THROWABLE_COBBLESTONE_ID)
+                || !artilleryItemRegistered(SupportedArtilleryThrowables.JAVELIN_ID)) {
+            helper.succeed();
+            return;
+        }
+
+        double sharedRange = 45.0D;
+        double cobblestoneReach = ArtilleryThrowableAdapter.INSTANCE.effectiveRange(
+                stack(SupportedArtilleryThrowables.THROWABLE_COBBLESTONE_ID), sharedRange);
+        double javelinReach = ArtilleryThrowableAdapter.INSTANCE.effectiveRange(
+                stack(SupportedArtilleryThrowables.JAVELIN_ID), sharedRange);
+
+        helper.assertTrue(cobblestoneReach < sharedRange,
+                "a thrown cobblestone must report a shorter reach than the shared combat range");
+        helper.assertTrue(cobblestoneReach > 0.0D,
+                "a thrown cobblestone must still report a usable reach");
+        helper.assertTrue(javelinReach == sharedRange,
+                "a javelin outruns the shared combat range and must keep it unchanged");
+        helper.assertTrue(
+                ArtilleryThrowableAdapter.INSTANCE.effectiveRange(
+                        stack(SupportedArtillery.ARQUEBUS_ID), sharedRange) == sharedRange,
+                "a stack this adapter does not own must keep the shared combat range");
+        helper.succeed();
+    }
+
+    /**
+     * Every Artillery throwing weapon walks the same native full-use branch, so one body covers
+     * them all and each weapon only supplies its own confirmed launch numbers.
+     */
+    private static void assertThrowableSpendsOneItemForItsNativeProjectile(
+            GameTestHelper helper,
+            String weaponId
+    ) {
+        SupportedArtilleryThrowables.ArtilleryThrowable nativeThrowable =
+                SupportedArtilleryThrowables.throwableFor(weaponId).orElseThrow();
+        if (!ArtilleryThrowableAdapter.INSTANCE.isAvailable()
+                || !artilleryItemRegistered(weaponId)
+                || !artilleryEntityRegistered(nativeThrowable.projectileId())) {
+            helper.succeed();
+            return;
+        }
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper, 1);
+        CrossBowmanEntity ally = spawnCrossbowman(helper, 2);
+        Player owner = helper.makeMockPlayer();
+        recruit.setOwnerUUID(Optional.of(owner.getUUID()));
+        ally.setOwnerUUID(Optional.of(owner.getUUID()));
+        recruit.setIsOwned(true);
+        ally.setIsOwned(true);
+
+        ItemStack held = stack(weaponId, 2);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, held);
+
+        helper.assertTrue(recruit.wantsToPickUp(stack(weaponId)),
+                "the crossbowman pickup hook must accept " + weaponId);
+        helper.assertTrue(RecruitWeaponAdapters.production().find(held).orElseThrow()
+                        == ArtilleryThrowableAdapter.INSTANCE,
+                "the throwing adapter must uniquely own the " + weaponId + " stack");
+
+        BoomstickWeaponAdapter.ShotResult result = ArtilleryThrowableAdapter.INSTANCE.fire(
+                recruit,
+                held,
+                recruit.position().add(8.0D, 1.0D, 0.0D));
+
+        helper.assertTrue(result.outcome() == BoomstickWeaponAdapter.ShotOutcome.FIRED,
+                weaponId + " must throw from the logical server without the player-only item path");
+        helper.assertTrue(result.projectilesSpawned() == 1,
+                "one physical " + weaponId + " must create one native projectile");
+        helper.assertTrue(recruit.getMainHandItem().getCount() == 1,
+                "a successful throw must spend exactly one held " + weaponId);
+
+        AbstractArrow projectile = helper.getLevel()
+                .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
+                .stream()
+                .filter(candidate -> candidate.getOwner() == recruit
+                        && candidate.getClass().getName()
+                        .equals(nativeThrowable.projectileClassName()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "the native " + weaponId + " projectile was not spawned"));
+        helper.assertTrue(
+                Math.abs(projectile.getBaseDamage() - nativeThrowable.baseDamage()) < 1.0E-6D,
+                "the native full-use " + weaponId + " branch must preserve its base damage");
+        helper.assertTrue(projectile.getKnockback() == SupportedArtilleryThrowables.KNOCKBACK,
+                "the native " + weaponId + " projectile must preserve knockback one");
+        helper.assertTrue(projectile.isSilent(),
+                "the native " + weaponId + " projectile must remain silent");
+        helper.assertFalse(projectile.isCritArrow(),
+                "the native " + weaponId + " projectile must remain non-critical");
+        helper.assertTrue(projectile.getPierceLevel() == 0,
+                "the native " + weaponId + " projectile must not pierce");
+        helper.assertTrue(projectile.pickup == AbstractArrow.Pickup.DISALLOWED,
+                "the pinned Artillery 1.11 branch passes DISALLOWED for every throwable");
+        helper.assertTrue(
+                Math.abs(projectile.getDeltaMovement().length() - nativeThrowable.velocity()) < 0.15D,
+                "the " + weaponId + " launch speed must stay near its native velocity");
+        helper.assertFalse(canHitEntity(projectile, ally),
+                "a recruit-owned " + weaponId + " must pass through allied recruits");
+        helper.succeed();
+    }
+
+    private static void assertThrowableRunsThroughTheRecruitCombatGoal(
+            GameTestHelper helper,
+            String weaponId
+    ) {
+        SupportedArtilleryThrowables.ArtilleryThrowable nativeThrowable =
+                SupportedArtilleryThrowables.throwableFor(weaponId).orElseThrow();
+        if (!ArtilleryThrowableAdapter.INSTANCE.isAvailable()
+                || !artilleryItemRegistered(weaponId)
+                || !artilleryEntityRegistered(nativeThrowable.projectileId())) {
+            helper.succeed();
+            return;
+        }
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        LivingEntity target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 5, 2, 1);
+        ItemStack held = stack(weaponId, 3);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, held);
+        recruit.setTarget(target);
+        recruit.setShouldRanged(true);
+
+        helper.assertTrue(ArtilleryThrowableAdapter.INSTANCE.isLoaded(held),
+                "each held " + weaponId + " must be ready without an invented loaded marker");
+        helper.assertFalse(RecruitBoomstickAttackGoal.passiveReload(recruit).canUse(),
+                "a physical throwing stack must never enter the firearm reload state");
+
+        RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
+        helper.assertTrue(goal.canUse(),
+                "the recruit combat goal must claim an equipped " + weaponId);
+        helper.assertTrue(
+                ArtilleryThrowableAdapter.INSTANCE.aimTicks(held)
+                        == nativeThrowable.useDurationTicks(),
+                "the throwing adapter must preserve the native use duration of " + weaponId);
+        goal.start();
+        for (int tick = 0; tick < nativeThrowable.useDurationTicks(); tick++) {
+            goal.tick();
+        }
+        helper.assertTrue(recruit.getMainHandItem().getCount() == 3,
+                "the combat goal must not throw before the full native aim window elapses");
+        goal.tick();
+
+        helper.assertTrue(recruit.getMainHandItem().getCount() == 2,
+                "the combat goal must complete one throw and spend one physical " + weaponId);
+        helper.assertTrue(helper.getLevel()
+                        .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
+                        .stream()
+                        .anyMatch(projectile -> projectile.getOwner() == recruit
+                                && projectile.getClass().getName()
+                                .equals(nativeThrowable.projectileClassName())),
+                "the combat goal must hand off to the native " + weaponId + " projectile boundary");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 120)
     public static void artilleryArquebusSteppedReloadWalksTheNativeChain(GameTestHelper helper) {
         if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()
@@ -973,22 +1246,31 @@ public final class BoomstickCompatibilityGameTests {
         RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
         helper.assertTrue(goal.canUse(), "the combat goal must claim an equipped Hand Cannon");
         goal.start();
-        for (int tick = 0; tick < 160; tick++) {
-            goal.tick();
-        }
-
-        helper.assertTrue(recruit.getInventory().countItem(ammo.getItem()) < 30,
-                "the combat goal must consume the one iron ball each native Hand Cannon volley loads");
-        helper.assertTrue(
-                helper.getLevel()
+        // The shot cadence is measured against level game time, so the reload and the volley only
+        // advance on real server ticks. A tight in-tick loop can never leave the first cooldown.
+        // The volley is latched at its widest, because the three native projectiles leave the
+        // sampled box as they fly and would no longer be countable at the end of the run.
+        int[] widestVolley = {0};
+        for (long tick = 0L; tick < COMBAT_CADENCE_TICKS; tick++) {
+            helper.runAtTickTime(tick, () -> {
+                goal.tick();
+                int live = (int) helper.getLevel()
                         .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
                         .stream()
                         .filter(projectile -> projectile.getOwner() == recruit
                                 && projectile.getClass().getName()
                                 .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
-                        .count() >= 3,
-                "the combat goal must spawn a native three-projectile Hand Cannon volley");
-        helper.succeed();
+                        .count();
+                widestVolley[0] = Math.max(widestVolley[0], live);
+            });
+        }
+        helper.runAtTickTime(COMBAT_CADENCE_TICKS, () -> {
+            helper.assertTrue(recruit.getInventory().countItem(ammo.getItem()) < 30,
+                    "the combat goal must consume the one iron ball each native Hand Cannon volley loads");
+            helper.assertTrue(widestVolley[0] >= 3,
+                    "the combat goal must spawn a native three-projectile Hand Cannon volley");
+            helper.succeed();
+        });
     }
 
     @GameTest(template = "empty", timeoutTicks = 100)
@@ -3952,6 +4234,10 @@ public final class BoomstickCompatibilityGameTests {
     private static boolean artilleryItemRegistered(String registryId) {
         Item item = ForgeRegistries.ITEMS.getValue(id(registryId));
         return item != null && item != Items.AIR;
+    }
+
+    private static boolean artilleryEntityRegistered(String registryId) {
+        return ForgeRegistries.ENTITY_TYPES.getValue(id(registryId)) != null;
     }
 
     private static ResourceLocation id(String value) {

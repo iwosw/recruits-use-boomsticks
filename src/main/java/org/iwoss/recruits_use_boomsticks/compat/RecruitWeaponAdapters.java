@@ -13,7 +13,10 @@ import java.util.function.Predicate;
 /** Ordered lookup for every ranged-weapon integration available to recruit AI. */
 public final class RecruitWeaponAdapters {
     private static final RecruitWeaponAdapters PRODUCTION = new RecruitWeaponAdapters(
-            List.of(MedievalBoomsticksAdapter.INSTANCE, ArtilleryAddonAdapter.INSTANCE));
+            List.of(
+                    MedievalBoomsticksAdapter.INSTANCE,
+                    ArtilleryAddonAdapter.INSTANCE,
+                    ArtilleryThrowableAdapter.INSTANCE));
 
     private final List<BoomstickWeaponAdapter> adapters;
 

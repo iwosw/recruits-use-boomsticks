@@ -119,10 +119,12 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
             throw new GradleException('GameTest log was not created')
         }
         def output = gameTestLog.getText('UTF-8')
+        def requiredTests = 106
         if (output.contains('Failed to load datapacks')
-                || !output.contains('94 tests are now running')
-                || !output.contains('All 94 required tests passed')) {
-            throw new GradleException('GameTest harness did not execute and pass all 94 required tests')
+                || !output.contains("${requiredTests} tests are now running")
+                || !output.contains("All ${requiredTests} required tests passed")) {
+            throw new GradleException(
+                    "GameTest harness did not execute and pass all ${requiredTests} required tests")
         }
     }
 }

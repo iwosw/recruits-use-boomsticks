@@ -309,6 +309,8 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
             case HEAVY_BOLT -> SupportedBoomsticks.HEAVY_BOLT_ID;
             case ROUND_BALL -> SupportedBoomsticks.ROUND_BALL_ID;
             case ARROW -> "minecraft:arrow";
+            case THROWN_WEAPON -> throw new IllegalArgumentException(
+                    "self-consuming throwing weapons have no separate ammo stack");
         };
         ResourceLocation id = ResourceLocation.tryParse(ammoId);
         if (id == null) {
