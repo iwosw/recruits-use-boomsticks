@@ -75,6 +75,8 @@ That means those weapons need more than ammunition. Give the recruit:
 
 Only the shot is consumed. The flask and the ramrod take durability damage per reload and eventually break, exactly as they do for a player, so resupply them like any other tool. A recruit missing a component it needs will not start a reload it cannot finish.
 
+The hand-gonne family is lit by hand: the Handgonne, Taccola, Hand Cannon, Mini Pistola, Tiller Gun, Markmengonne, and Double Barrel Gonne show an `artillery_addon:match` in the off hand for the shot itself, borrowed from the recruit's own inventory and given straight back. The matchlock family carries its cord in the lock and shows nothing.
+
 Not every weapon needs a ramrod. The Matchlock Carbine and the Harquebus ram bare-handed, the Handgonne, Taccola Handgonne, Hand Cannon, and Matchlock Pistol accept a bare hand before they reach for a ramrod, the Tiller Gun rams with a bare hand or its flask, and the Mini Pistola, Noble Handgonne, and Markmengonne have no ramming step at all — all exactly as their native procedures do it. The Windlass Crossbow and the Chu Ko Nu need no powder and no ramrod, only arrows.
 
 A recruit holds a firearm with both hands and switches to the charging pose while it works through a reload, so a reloading weapon is readable at a glance. The one-handed carry the idle and parade states used before is gone: a recruit's arm hangs at its side while the item renders at the humanoid hand point, so a musket floated beside the body instead of being held. A throwing weapon is carried at the recruit's side and cocked back into the spear-throwing pose only during the wind-up before a throw, dropping again as the weapon leaves the hand.

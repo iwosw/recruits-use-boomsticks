@@ -179,9 +179,11 @@ public final class BoomstickCarryOrder {
         // The config switches are deliberately ignored: a weapon carried while the integration was
         // still on has to be stowable after it was switched off.
         RecruitHandSwap.outOfOffHand(recruit, adapters::isSupportedWeapon);
-        if (adapters.isSupportedWeapon(recruit.getMainHandItem())) {
-            // A recruit the combat goal already armed is stowed from the main hand too, and takes its
-            // own weapon back so the order does not disarm it.
+        if (adapters.isSupportedWeapon(recruit.getMainHandItem())
+                || recruit.getMainHandItem().isEmpty()) {
+            // Two cases, one answer. A recruit the combat goal already armed is stowed from the main
+            // hand too, and a recruit that was carrying in the off hand with an empty main hand must
+            // not be left standing there empty-handed: either way it takes its own weapon back.
             takeBackOwnWeapon(recruit, adapters);
         }
         // Carrying means the weapon is still in a hand for anyone to see, whichever hand that is: a

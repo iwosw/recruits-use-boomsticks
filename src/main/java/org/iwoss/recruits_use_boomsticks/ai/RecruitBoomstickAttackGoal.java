@@ -164,6 +164,11 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     }
 
     private void resetAfterStop() {
+        if (activeSelection != null) {
+            // A goal torn down between the shot and the end of its animation must not leave the
+            // borrowed match in the recruit's hand.
+            activeSelection.adapter().clearFiringTool(crossBowman);
+        }
         endSteppedReloadIfActive();
         clearWeaponAnimationState();
         state.reset();
@@ -353,12 +358,17 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         }
         try {
             int cooldownTicks = Math.max(0, adapter.cooldownTicks(weapon));
+            // The match belongs to the shot, so it is in the hand before the shot goes off and gone
+            // again with the fire animation.
+            adapter.showFiringTool(crossBowman, weapon);
             shotOutcome = adapter.fire(crossBowman, weapon, aimPoint.shotPosition()).outcome();
             if (shotOutcome == BoomstickWeaponAdapter.ShotOutcome.FIRED
                     || shotOutcome == BoomstickWeaponAdapter.ShotOutcome.MISFIRED) {
                 beginCooldown(cooldownTicks);
                 if (shotOutcome == BoomstickWeaponAdapter.ShotOutcome.FIRED) {
                     fireAnimationTicks = FIRE_ANIMATION_TICKS;
+                } else {
+                    adapter.clearFiringTool(crossBowman);
                 }
             } else if (isRejectedShot(shotOutcome)) {
                 beginCooldown(REJECTED_SHOT_BACKOFF_TICKS);
@@ -533,6 +543,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         fireAnimationTicks--;
         if (fireAnimationTicks == 0 && activeSelection != null) {
             activeSelection.adapter().setFiring(activeSelection.weapon(), false);
+            activeSelection.adapter().clearFiringTool(crossBowman);
         }
     }
 

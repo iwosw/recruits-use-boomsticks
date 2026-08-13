@@ -269,6 +269,48 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
     }
 
     /**
+     * Puts the match in the recruit's free hand for the shot.
+     *
+     * <p>Natively a player holds the match in one hand and the loaded gun in the other; a recruit
+     * keeps the weapon in its main hand, so the match is mirrored into the off hand exactly as the
+     * loading chain mirrors a flask or a ramrod. Nothing is spent: the native branch only checks the
+     * match, and a recruit that owns none simply fires without showing one.</p>
+     */
+    @Override
+    public void showFiringTool(CrossBowmanEntity recruit, ItemStack weapon) {
+        if (recruit == null || recruit.level().isClientSide) {
+            return;
+        }
+        Optional<ArtilleryWeaponProfile> profile = artilleryProfile(weapon);
+        if (profile.isEmpty() || !ArtilleryReloadProtocol.firesWithMatch(profile.get().registryId())) {
+            return;
+        }
+        try {
+            returnBorrowedComponent(recruit);
+            saveOffhandOnce(recruit, List.of());
+            borrowComponent(
+                    recruit,
+                    new ArtilleryReloadStep.ComponentRequirement(
+                            ArtilleryReloadProtocol.MATCH_ID,
+                            ArtilleryReloadStep.ComponentRequirement.Kind.ITEM),
+                    ArtilleryReloadStep.ComponentUse.NONE);
+        } catch (RuntimeException | LinkageError exception) {
+            RecruitsUseBoomsticks.LOGGER.warn(
+                    "Artillery match display failed for recruit {}",
+                    recruit.getId(),
+                    exception);
+        }
+    }
+
+    @Override
+    public void clearFiringTool(CrossBowmanEntity recruit) {
+        if (recruit == null || recruit.level().isClientSide) {
+            return;
+        }
+        restoreOffhand(recruit);
+    }
+
+    /**
      * Moves the real component into the visible off hand.
      *
      * <p>A recruit's off hand is backed by an inventory slot, so the inventory is the single source
