@@ -68,6 +68,12 @@ minecraft {
 mixin {
     add sourceSets.main, "${mod_id}.refmap.json"
     config "${mod_id}.mixins.json"
+    // Development-only. It strips the client-only listeners that stop Artillery 1.14 from loading on
+    // a dedicated server, so runGameTestServer -Partillery=1.14 can execute the tests that the
+    // pinned 1.11 artifact leaves dependency-gated. It is deliberately absent from the release jar's
+    // MixinConfigs manifest entry below: patching another mod's binary for players would make this
+    // project answerable for Artillery's server stability.
+    config "${mod_id}.artillery-dev.mixins.json"
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
@@ -106,10 +112,12 @@ tasks.named('test', Test).configure {
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
     doFirst {
         if (artilleryFile != '7455014') {
-            throw new GradleException(
-                    'runGameTestServer is validated only against the pinned server-safe Artillery file '
-                            + '7455014; Artillery 1.14 fails dedicated-server loading upstream. '
-                            + 'Drop -Partillery=1.14 for this task.')
+            // 1.14 needs the development-only mixin config above to load on a dedicated server at
+            // all. The release boundary is still the pinned 7455014 run; this variant exists to
+            // execute the tests that artifact cannot register.
+            logger.lifecycle('Running GameTests against Artillery 1.14 (8325660) with the '
+                    + 'development-only dedicated-server patch. The release claim stays with the '
+                    + 'pinned 7455014 run.')
         }
         delete file('run/logs/latest.log')
     }
@@ -164,6 +172,12 @@ tasks.named('jar', Jar).configure {
                 'MixinConfigs'            : "${mod_id}.mixins.json"
         ])
     }
+
+    // The Artillery 1.14 dedicated-server patch is verification scaffolding. Development runs read
+    // it straight from the build directory, so keeping it out of the release artifact costs nothing
+    // and leaves no inert patch of another mod's binary inside a published jar.
+    exclude "${mod_id}.artillery-dev.mixins.json"
+    exclude 'org/iwoss/recruits_use_boomsticks/mixin/artillery/**'
 
     finalizedBy 'reobfJar'
 }
