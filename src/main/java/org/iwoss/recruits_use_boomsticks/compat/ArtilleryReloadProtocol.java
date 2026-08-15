@@ -75,6 +75,8 @@ public final class ArtilleryReloadProtocol {
             ComponentRequirement.tag(POWDER_FLASK_TAG));
 
     private static final Map<String, List<ArtilleryReloadStep>> CHAINS = createChains();
+    private static final List<ArtilleryReloadStep> NOBLE_HANDGONNE_IRON_BALL_CHAIN =
+            handCannonChain(SupportedArtillery.IRON_BALL_ID, true, true);
 
     private ArtilleryReloadProtocol() {
     }
@@ -82,6 +84,16 @@ public final class ArtilleryReloadProtocol {
     /** Returns the confirmed native chain, or an empty list when the weapon keeps the single-step reload. */
     public static List<ArtilleryReloadStep> stepsFor(String registryId) {
         return CHAINS.getOrDefault(registryId, List.of());
+    }
+
+    /** Resolves a branch-specific chain for multi-ammunition weapons. */
+    public static List<ArtilleryReloadStep> stepsFor(ArtilleryWeaponProfile profile) {
+        Objects.requireNonNull(profile, "profile");
+        if (SupportedArtillery.NOBLE_HANDGONNE_ID.equals(profile.registryId())
+                && SupportedArtillery.IRON_BALL_ID.equals(profile.ammoId())) {
+            return NOBLE_HANDGONNE_IRON_BALL_CHAIN;
+        }
+        return stepsFor(profile.registryId());
     }
 
     public static boolean hasSteppedChain(String registryId) {
@@ -101,6 +113,13 @@ public final class ArtilleryReloadProtocol {
      */
     public static int ammoConsumed(String registryId) {
         return (int) stepsFor(registryId).stream()
+                .filter(step -> step.componentUse() == ComponentUse.CONSUME_ONE)
+                .count();
+    }
+
+    /** Physical ammunition spent by the selected native ammunition branch. */
+    public static int ammoConsumed(ArtilleryWeaponProfile profile) {
+        return (int) stepsFor(profile).stream()
                 .filter(step -> step.componentUse() == ComponentUse.CONSUME_ONE)
                 .count();
     }

@@ -29,6 +29,19 @@ public interface BoomstickWeaponAdapter {
 
     Optional<BoomstickWeaponProfile> profile(ItemStack weapon);
 
+    /**
+     * Expected damage of one complete trigger pull after this integration's damage settings.
+     *
+     * <p>The combat goal uses this only to keep a formation from committing far more projectiles
+     * than a shared target can survive. Adapters with native damage data override it; the fallback
+     * remains conservative and lets one point of target health justify one projectile.</p>
+     */
+    default double estimatedVolleyDamage(ItemStack weapon) {
+        return profile(weapon)
+                .map(value -> (double) Math.max(1, value.projectileCount()))
+                .orElse(1.0D);
+    }
+
     boolean isLoaded(ItemStack weapon);
 
     void setLoaded(ItemStack weapon, boolean loaded);

@@ -1,7 +1,7 @@
 package org.iwoss.recruits_use_boomsticks.mixin.client;
 
 import com.talhanation.recruits.client.render.RecruitHumanRenderer;
-import com.talhanation.recruits.entities.AbstractInventoryEntity;
+import com.talhanation.recruits.entities.AbstractRecruitEntity;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
@@ -21,16 +21,12 @@ public abstract class RecruitHumanArmPoseMixin {
             remap = false
     )
     private static void recruits_use_boomsticks$holdFirearmsTwoHanded(
-            AbstractInventoryEntity entity,
+            AbstractRecruitEntity entity,
             InteractionHand hand,
             CallbackInfoReturnable<HumanoidModel.ArmPose> callback
     ) {
-        if (callback.getReturnValue() != HumanoidModel.ArmPose.ITEM
-                || entity == null
-                || hand != InteractionHand.MAIN_HAND) {
-            // Only the main hand is posed. A weapon the carry order wears in the off hand sits in the
-            // shield slot, which the renderer already places correctly; forcing a two-handed pose for
-            // it would raise both arms around a weapon the recruit is not holding.
+        if (entity == null || hand != InteractionHand.MAIN_HAND) {
+            // Only the main hand is posed. The off hand belongs to loading tools and ordinary gear.
             return;
         }
         ItemStack held = entity.getItemInHand(hand);

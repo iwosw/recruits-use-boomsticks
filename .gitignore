@@ -19,6 +19,9 @@ hs_err_pid*
 
 # Common working directory
 run
+run-gametest*
+run-client-*
+run-server-*
 
 # Hermes local recovery snapshots
 .hermes/

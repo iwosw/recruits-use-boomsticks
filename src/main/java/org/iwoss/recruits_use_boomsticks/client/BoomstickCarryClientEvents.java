@@ -6,7 +6,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
 
-/** Drops the carry flags of a connection that ended, before their entity ids are handed out again. */
+/** Drops the client state of a connection that ended, before its entity ids are handed out again. */
 @Mod.EventBusSubscriber(
         modid = RecruitsUseBoomsticks.MOD_ID,
         bus = Mod.EventBusSubscriber.Bus.FORGE,
@@ -19,5 +19,6 @@ public final class BoomstickCarryClientEvents {
     @SubscribeEvent
     public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         BoomstickCarryClientState.clear();
+        BoomstickReloadProgress.clearAll();
     }
 }

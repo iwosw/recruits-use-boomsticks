@@ -7,11 +7,13 @@
   "mixins": [
     "CrossBowmanEntityMixin",
     "RecruitRangedCrossbowAttackGoalMixin",
+    "RecruitRangedMusketAttackGoalMixin",
     "AbstractArrowMixin"
   ],
   "client": [
     "client.CombatCategoryMixin",
     "client.RecruitArmPoseMixin",
+    "client.RecruitBoomstickReloadAnimationMixin",
     "client.RecruitHumanArmPoseMixin"
   ],
   "injectors": {

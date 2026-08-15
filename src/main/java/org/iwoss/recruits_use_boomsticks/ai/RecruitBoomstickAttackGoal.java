@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 
 import java.util.EnumSet;
 import java.util.Optional;
+import java.util.UUID;
 
 /** Shared ranged goal for adapter-backed weapons on Recruits crossbowmen. */
 public final class RecruitBoomstickAttackGoal extends Goal {
@@ -38,6 +39,9 @@ public final class RecruitBoomstickAttackGoal extends Goal {
      * recruit spins on a full aim cycle every few ticks and never reports why.</p>
      */
     private static final int REJECTED_SHOT_BACKOFF_TICKS = 40;
+    private static final int AIM_RESERVATION_LEASE_TICKS = 5;
+    private static final int MIN_PROJECTILE_RESERVATION_TICKS = 20;
+    private static final int MAX_PROJECTILE_RESERVATION_TICKS = 100;
     private static final double MAX_COMBAT_RANGE = 45.0D;
     private static final double HOLD_POSITION_RADIUS = 4.0D;
     private static final double EMERGENCY_TNT_RADIUS = 10.0D;
@@ -60,6 +64,10 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     private int fireAnimationTicks;
     private BoomstickWeaponAdapter.ShotOutcome shotOutcome;
     private boolean navigationControlled;
+    private UUID reservedTargetId;
+    private BoomstickShotFacing.Snapshot formationFacingBeforeAim;
+    private Vec3 firingFacingPosition;
+    private LivingEntity retainedCombatTarget;
 
     public RecruitBoomstickAttackGoal(CrossBowmanEntity crossBowman, double speedModifier) {
         this(crossBowman, speedModifier, RecruitWeaponAdapters.production(), Mode.COMBAT);
@@ -105,17 +113,25 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     public boolean canUse() {
         if (!isOperational()
                 || mustYieldToEmergencyMovement()
-                || !hasSupportedWeapon()
-                || isCooldownActive()) {
+                || !hasSupportedWeapon()) {
+            return false;
+        }
+        // GoalSelector still polls this goal while its persistent cooldown keeps it stopped. Use
+        // that poll to hand a retained live enemy back to Recruits instead of short-circuiting on
+        // cooldown first and leaving the entity's visible target empty for the whole gap.
+        boolean combatActive = commandAllowsCombat() && hasCombatPosition();
+        if (isCooldownActive()) {
             return false;
         }
         ItemStack mainHandWeapon = crossBowman.getMainHandItem();
-        if (mode == Mode.COMBAT && adapters.findEnabled(mainHandWeapon)
+        // A loading window has exactly one owner. Whichever goal opened it drives its timer, its
+        // native steps, and the marker the client renders from, so the other goal stays out until
+        // the weapon reports itself done rather than opening a second window over the same weapon.
+        if (adapters.findEnabled(mainHandWeapon)
                 .map(adapter -> adapter.isReloading(mainHandWeapon))
                 .orElse(false)) {
             return false;
         }
-        boolean combatActive = commandAllowsCombat() && hasCombatPosition();
         return mode == Mode.COMBAT
                 ? combatActive
                 : !combatActive && mainHandWeaponNeedsReload();
@@ -132,11 +148,21 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         if (fireAnimationTicks > 0) {
             return true;
         }
-        if (mode == Mode.PASSIVE_RELOAD && state.phase() == BoomstickAttackState.Phase.RELOAD) {
+        // A reload outlives the target that prompted it. Tearing the goal down the moment an enemy
+        // dies drops the weapon's reloading marker, so the recruit's arms fall and the passive goal
+        // then opens a fresh window that starts the motion again from zero — a recruit that kills
+        // its target mid-reload finishes that reload here instead. Combat mode holds the movement
+        // flags, so a standing order to be somewhere else still ends it; the passive goal holds no
+        // flags and blocks nothing, so it always sees its window through.
+        if (state.phase() == BoomstickAttackState.Phase.RELOAD
+                && (mode == Mode.PASSIVE_RELOAD || commandAllowsCombat())) {
             return true;
         }
+        // Do not short-circuit target retention on cooldown: the visual facing can return to the
+        // formation while the entity continues to remember whom it is fighting.
+        boolean combatPosition = commandAllowsCombat() && hasCombatPosition();
         boolean cooldownActive = isCooldownActive();
-        boolean combatActive = !cooldownActive && commandAllowsCombat() && hasCombatPosition();
+        boolean combatActive = !cooldownActive && combatPosition;
         return mode == Mode.COMBAT
                 ? combatActive
                 : !combatActive && !cooldownActive && mainHandWeaponNeedsReload();
@@ -144,6 +170,8 @@ public final class RecruitBoomstickAttackGoal extends Goal {
 
     @Override
     public void start() {
+        restoreFormationFacing();
+        releasePendingShotReservation();
         state.reset();
         activeSelection = null;
         switchDelay = 0;
@@ -156,6 +184,8 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         fireAnimationTicks = 0;
         shotOutcome = null;
         navigationControlled = false;
+        reservedTargetId = null;
+        firingFacingPosition = null;
     }
 
     @Override
@@ -164,12 +194,22 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     }
 
     private void resetAfterStop() {
+        if (CompatConfig.DEBUG_LOGGING.get()) {
+            LOGGER.debug(
+                    "Boomstick recruit {} [{}] goal torn down in phase {} with reloadTicksLeft={}",
+                    crossBowman.getId(),
+                    mode,
+                    state.phase(),
+                    reloadTicksRemaining);
+        }
         if (activeSelection != null) {
             // A goal torn down between the shot and the end of its animation must not leave the
             // borrowed match in the recruit's hand.
             activeSelection.adapter().clearFiringTool(crossBowman);
         }
         endSteppedReloadIfActive();
+        releasePendingShotReservation();
+        restoreFormationFacing();
         clearWeaponAnimationState();
         state.reset();
         activeSelection = null;
@@ -181,6 +221,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         reloadStepsAborted = false;
         aimProgress.reset();
         fireAnimationTicks = 0;
+        firingFacingPosition = null;
         shotOutcome = null;
         if (navigationControlled) {
             crossBowman.getNavigation().stop();
@@ -224,14 +265,21 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         double combatRange = effectiveCombatRange(adapter, weapon);
         boolean combatAllowed = mode == Mode.COMBAT && commandAllowsCombat();
         AimPoint aimPoint = combatAllowed ? findAimPoint(combatRange) : null;
-        if (aimPoint != null || (combatAllowed && validTarget(crossBowman.getTarget()))) {
-            moveAndLook(aimPoint, combatRange);
-        }
 
         BoomstickWeaponProfile profile = adapter.profile(weapon).orElse(null);
         if (profile == null) {
+            restoreFormationFacing();
             state.reset();
             return;
+        }
+
+        // The marker lives on the weapon stack, which means anything else holding that stack can put
+        // it down: the item's own release path clears it outright, and a goal torn down elsewhere in
+        // the same tick clears it on its way out. It is also the only thing a client can see a reload
+        // through, so it is raised again for as long as the window is open rather than left to
+        // whatever last touched the weapon.
+        if (state.phase() == BoomstickAttackState.Phase.RELOAD && !adapter.isReloading(weapon)) {
+            adapter.setReloading(weapon, true);
         }
 
         BoomstickAttackState.Phase previous = state.phase();
@@ -242,12 +290,20 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                 || steppedReloadInProgress();
         boolean loaded = adapter.isLoaded(weapon);
         boolean reloadComplete = advanceReloadTimer(previous);
-        boolean aimComplete = advanceAimTimer(previous, aimPoint);
+        boolean fireTurnAvailable = reserveFireTurnIfNeeded(
+                previous,
+                aimPoint,
+                weapon,
+                profile,
+                adapter,
+                loaded);
+        AimPoint authorizedAimPoint = fireTurnAvailable ? aimPoint : null;
+        boolean aimComplete = advanceAimTimer(previous, authorizedAimPoint);
         boolean cooldownComplete = !isCooldownActive();
 
         BoomstickAttackState.Signals signals = new BoomstickAttackState.Signals(
                 isOperational(),
-                aimPoint != null,
+                authorizedAimPoint != null,
                 true,
                 loaded,
                 ammoAvailable,
@@ -257,7 +313,13 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                 shotOutcome
         );
         BoomstickAttackState.Phase next = state.advance(signals);
-        handleTransition(previous, next, weapon, profile, aimPoint, ammoRequired, adapter);
+        handleTransition(previous, next, weapon, profile, authorizedAimPoint, ammoRequired, adapter);
+        if (authorizedAimPoint != null || (combatAllowed && validTarget(crossBowman.getTarget()))) {
+            moveAndLook(
+                    authorizedAimPoint,
+                    combatRange,
+                    next == BoomstickAttackState.Phase.AIM);
+        }
     }
 
     private void handleTransition(
@@ -275,10 +337,27 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             }
             return;
         }
+        if (CompatConfig.DEBUG_LOGGING.get()) {
+            // Every phase edge, so a pose that appears and vanishes can be read back against the
+            // state machine that drove it rather than guessed at from the screen.
+            LOGGER.debug(
+                    "Boomstick recruit {} [{}] phase {} becomes {}: reloading={} loaded={} reloadTicksLeft={}",
+                    crossBowman.getId(),
+                    mode,
+                    previous,
+                    next,
+                    adapter.isReloading(weapon),
+                    adapter.isLoaded(weapon),
+                    reloadTicksRemaining);
+        }
         // The wind-up is display state and belongs to the aim window alone, so it is raised on the
         // way in and dropped on every way out, including an aim the recruit never got to finish.
         if (previous == BoomstickAttackState.Phase.AIM) {
             adapter.setAiming(weapon, false);
+            if (next != BoomstickAttackState.Phase.FIRE) {
+                releasePendingShotReservation();
+                restoreFormationFacing();
+            }
         }
 
         if (next == BoomstickAttackState.Phase.RELOAD) {
@@ -289,6 +368,10 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             completeReload(weapon, ammoRequired, adapter);
         }
         if (next == BoomstickAttackState.Phase.AIM) {
+            if (previous != BoomstickAttackState.Phase.AIM
+                    && formationFacingBeforeAim == null) {
+                formationFacingBeforeAim = BoomstickShotFacing.capture(crossBowman);
+            }
             aimProgress.reset(adapter.aimTicks(weapon));
             adapter.setAiming(weapon, true);
             shotOutcome = null;
@@ -301,6 +384,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         }
         if (next == BoomstickAttackState.Phase.IDLE
                 || next == BoomstickAttackState.Phase.OUT_OF_AMMO) {
+            releasePendingShotReservation();
             stopReloadAnimation(weapon, adapter);
         }
     }
@@ -353,6 +437,8 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             BoomstickWeaponAdapter adapter
     ) {
         if (aimPoint == null) {
+            releasePendingShotReservation();
+            restoreFormationFacing();
             shotOutcome = BoomstickWeaponAdapter.ShotOutcome.INVALID_TARGET;
             return;
         }
@@ -361,16 +447,24 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             // The match belongs to the shot, so it is in the hand before the shot goes off and gone
             // again with the fire animation.
             adapter.showFiringTool(crossBowman, weapon);
-            shotOutcome = adapter.fire(crossBowman, weapon, aimPoint.shotPosition()).outcome();
+            Vec3 shotPosition = aimPoint.shotPosition();
+            BoomstickShotFacing.face(crossBowman, shotPosition);
+            shotOutcome = adapter.fire(crossBowman, weapon, shotPosition).outcome();
             if (shotOutcome == BoomstickWeaponAdapter.ShotOutcome.FIRED
                     || shotOutcome == BoomstickWeaponAdapter.ShotOutcome.MISFIRED) {
                 beginCooldown(cooldownTicks);
                 if (shotOutcome == BoomstickWeaponAdapter.ShotOutcome.FIRED) {
+                    commitShotReservation(aimPoint, profile);
+                    firingFacingPosition = shotPosition;
                     fireAnimationTicks = FIRE_ANIMATION_TICKS;
                 } else {
+                    releasePendingShotReservation();
+                    restoreFormationFacing();
                     adapter.clearFiringTool(crossBowman);
                 }
             } else if (isRejectedShot(shotOutcome)) {
+                releasePendingShotReservation();
+                restoreFormationFacing();
                 beginCooldown(REJECTED_SHOT_BACKOFF_TICKS);
                 if (CompatConfig.DEBUG_LOGGING.get()) {
                     LOGGER.debug(
@@ -379,8 +473,13 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                             shotOutcome,
                             profile.registryId());
                 }
+            } else {
+                releasePendingShotReservation();
+                restoreFormationFacing();
             }
         } catch (RuntimeException exception) {
+            releasePendingShotReservation();
+            restoreFormationFacing();
             shotOutcome = BoomstickWeaponAdapter.ShotOutcome.SPAWN_FAILED;
             LOGGER.error(
                     "Boomstick adapter failed for recruit {} with weapon {}",
@@ -477,6 +576,8 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         previous.adapter().clearTransientState(previous.weapon());
         crossBowman.stopUsingItem();
         activeSelection = null;
+        releasePendingShotReservation();
+        restoreFormationFacing();
         state.reset();
         shotOutcome = null;
         aimProgress.reset();
@@ -491,6 +592,88 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     /** Whether a native loading chain has already committed at least one step. */
     private boolean steppedReloadInProgress() {
         return reloadStepCount > 0 && reloadStepsDone > 0 && !reloadStepsAborted;
+    }
+
+    /**
+     * Claims only as much simultaneous formation fire as the target can plausibly survive.
+     * Reloading does not claim a place: a recruit joins the firing line only when its weapon is
+     * loaded and it is ready to begin or continue the actual aim window.
+     */
+    private boolean reserveFireTurnIfNeeded(
+            BoomstickAttackState.Phase phase,
+            AimPoint aimPoint,
+            ItemStack weapon,
+            BoomstickWeaponProfile profile,
+            BoomstickWeaponAdapter adapter,
+            boolean loaded
+    ) {
+        if (aimPoint == null) {
+            releasePendingShotReservation();
+            return false;
+        }
+        LivingEntity target = aimPoint.entity();
+        if (target == null) {
+            releasePendingShotReservation();
+            return true;
+        }
+        if (!loaded
+                || (phase != BoomstickAttackState.Phase.IDLE
+                && phase != BoomstickAttackState.Phase.AIM)) {
+            releasePendingShotReservation();
+            return true;
+        }
+
+        UUID targetId = target.getUUID();
+        if (reservedTargetId != null && !reservedTargetId.equals(targetId)) {
+            releasePendingShotReservation();
+        }
+        double expectedDamage;
+        try {
+            expectedDamage = adapter.estimatedVolleyDamage(weapon);
+        } catch (RuntimeException | LinkageError ignored) {
+            expectedDamage = Math.max(1, profile.projectileCount());
+        }
+        boolean reserved = BoomstickFireCoordinator.reserveShared(
+                crossBowman.getUUID(),
+                targetId,
+                target.getHealth() + target.getAbsorptionAmount(),
+                expectedDamage,
+                profile.projectileCount(),
+                crossBowman.level().getGameTime(),
+                AIM_RESERVATION_LEASE_TICKS);
+        if (reserved) {
+            reservedTargetId = targetId;
+        }
+        return reserved;
+    }
+
+    private void commitShotReservation(AimPoint aimPoint, BoomstickWeaponProfile profile) {
+        if (reservedTargetId == null || aimPoint.entity() == null) {
+            return;
+        }
+        long gameTime = crossBowman.level().getGameTime();
+        double distance = crossBowman.getEyePosition(1.0F).distanceTo(aimPoint.shotPosition());
+        double velocity = Math.max(0.1D, profile.projectileVelocity());
+        int flightTicks = (int) Math.ceil(distance / velocity) + 10;
+        flightTicks = Math.max(
+                MIN_PROJECTILE_RESERVATION_TICKS,
+                Math.min(MAX_PROJECTILE_RESERVATION_TICKS, flightTicks));
+        BoomstickFireCoordinator.commitShared(
+                crossBowman.getUUID(),
+                reservedTargetId,
+                gameTime,
+                flightTicks);
+        // The committed entry remains in the shared ledger until impact or expiry; this goal no
+        // longer owns it and therefore must not remove it during its normal cooldown teardown.
+        reservedTargetId = null;
+    }
+
+    private void releasePendingShotReservation() {
+        if (reservedTargetId == null) {
+            return;
+        }
+        BoomstickFireCoordinator.releaseShared(crossBowman.getUUID(), reservedTargetId);
+        reservedTargetId = null;
     }
 
     /** Restores a borrowed off hand when the goal ends mid-transaction. */
@@ -540,10 +723,19 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         if (fireAnimationTicks <= 0) {
             return;
         }
+        if (firingFacingPosition != null) {
+            // Hold the direction of the committed shot, not the moving target. The recruit therefore
+            // does not track or spin during recoil, then snaps back to its saved formation heading.
+            BoomstickShotFacing.face(crossBowman, firingFacingPosition);
+        }
         fireAnimationTicks--;
-        if (fireAnimationTicks == 0 && activeSelection != null) {
-            activeSelection.adapter().setFiring(activeSelection.weapon(), false);
-            activeSelection.adapter().clearFiringTool(crossBowman);
+        if (fireAnimationTicks == 0) {
+            firingFacingPosition = null;
+            restoreFormationFacing();
+            if (activeSelection != null) {
+                activeSelection.adapter().setFiring(activeSelection.weapon(), false);
+                activeSelection.adapter().clearFiringTool(crossBowman);
+            }
         }
     }
 
@@ -579,7 +771,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     }
 
     private boolean hasCombatPosition() {
-        return validTarget(crossBowman.getTarget()) || hasStrategicFirePosition();
+        return combatTarget() != null || hasStrategicFirePosition();
     }
 
     private boolean hasSupportedWeapon() {
@@ -607,9 +799,8 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     }
 
     private AimPoint findAimPoint(double combatRange) {
-        LivingEntity target = crossBowman.getTarget();
-        boolean validCombatTarget = validTarget(target);
-        if (validCombatTarget) {
+        LivingEntity target = combatTarget();
+        if (target != null) {
             if (crossBowman.hasLineOfSight(target)
                     && BoomstickCombatPolicy.isWithinCombatRange(
                             crossBowman.distanceToSqr(target),
@@ -618,10 +809,33 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             }
             return null;
         }
-        if (BoomstickCombatPolicy.shouldUseStrategicFire(validCombatTarget, hasStrategicFirePosition())) {
+        if (BoomstickCombatPolicy.shouldUseStrategicFire(false, hasStrategicFirePosition())) {
             return new AimPoint(crossBowman.getStrategicFirePos().getCenter(), null);
         }
         return null;
+    }
+
+    /**
+     * Keeps the combat decision separate from the visible look direction.
+     *
+     * <p>The boomstick goal deliberately releases LOOK and MOVE during its persistent cooldown so
+     * formation and emergency goals can run. Recruits' ordinary target goals may clear their live
+     * target in that gap. A shot must not turn that short scheduling gap into amnesia: retain the
+     * last still-valid enemy and hand it back when this goal is next queried. Dead, allied, or
+     * otherwise unattackable targets are discarded normally.</p>
+     */
+    private LivingEntity combatTarget() {
+        LivingEntity current = crossBowman.getTarget();
+        if (validTarget(current)) {
+            retainedCombatTarget = current;
+            return current;
+        }
+        if (!validTarget(retainedCombatTarget)) {
+            retainedCombatTarget = null;
+            return null;
+        }
+        crossBowman.setTarget(retainedCombatTarget);
+        return retainedCombatTarget;
     }
 
     private boolean validTarget(LivingEntity target) {
@@ -638,13 +852,13 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                 && crossBowman.getStrategicFirePos() != null;
     }
 
-    private void moveAndLook(AimPoint aimPoint, double combatRange) {
+    private void moveAndLook(AimPoint aimPoint, double combatRange, boolean trackAimPoint) {
         navigationControlled = true;
-        LivingEntity target = aimPoint == null ? crossBowman.getTarget() : aimPoint.entity();
-        if (aimPoint != null) {
+        LivingEntity target = aimPoint == null ? combatTarget() : aimPoint.entity();
+        if (trackAimPoint && aimPoint != null) {
             Vec3 position = aimPoint.position();
             crossBowman.getLookControl().setLookAt(position.x, position.y, position.z, 30.0F, 30.0F);
-        } else if (validTarget(target)) {
+        } else if (trackAimPoint && validTarget(target)) {
             crossBowman.getLookControl().setLookAt(target, 30.0F, 30.0F);
         }
         if (!validTarget(target)) {
@@ -660,6 +874,15 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         } else {
             crossBowman.getNavigation().stop();
         }
+    }
+
+    private void restoreFormationFacing() {
+        if (formationFacingBeforeAim == null) {
+            return;
+        }
+        BoomstickShotFacing.restore(crossBowman, formationFacingBeforeAim);
+        formationFacingBeforeAim = null;
+        firingFacingPosition = null;
     }
 
 

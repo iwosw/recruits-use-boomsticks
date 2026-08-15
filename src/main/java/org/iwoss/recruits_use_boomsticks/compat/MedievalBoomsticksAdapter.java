@@ -65,6 +65,20 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
     }
 
     @Override
+    public double estimatedVolleyDamage(ItemStack weapon) {
+        Optional<BoomstickWeaponProfile> profileResult = profile(weapon);
+        if (profileResult.isEmpty()) {
+            return BoomstickWeaponAdapter.super.estimatedVolleyDamage(weapon);
+        }
+        BoomstickWeaponProfile profile = profileResult.orElseThrow();
+        double nativeDamage = profile.ammoType() == BoomstickAmmoType.HEAVY_BOLT
+                ? Math.ceil(Config.heavyBoltDamage * profile.projectileVelocity())
+                : Math.floor(Config.roundBallDamage);
+        return BoomstickDamagePolicy.configuredDamage((float) nativeDamage, integration())
+                * Math.max(1, profile.projectileCount());
+    }
+
+    @Override
     public boolean isLoaded(ItemStack weapon) {
         Optional<BoomstickWeaponProfile> profileResult = profile(weapon);
         if (profileResult.isEmpty() || !RechargeItem.isCharged(weapon)) {

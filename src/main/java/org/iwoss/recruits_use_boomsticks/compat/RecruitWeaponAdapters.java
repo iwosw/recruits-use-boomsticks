@@ -112,11 +112,16 @@ public final class RecruitWeaponAdapters {
     }
 
     public boolean isSupportedEnabledProjectile(AbstractArrow projectile) {
+        return findEnabledProjectile(projectile).isPresent();
+    }
+
+    /** Resolves the active integration that owns a concrete projectile instance. */
+    public Optional<BoomstickWeaponAdapter> findEnabledProjectile(AbstractArrow projectile) {
         if (projectile == null || !CompatConfig.ENABLED.get()) {
-            return false;
+            return Optional.empty();
         }
         return findMatching(adapter -> CompatConfig.isIntegrationEnabled(adapter.integration())
-                && adapter.supportsProjectile(projectile)).isPresent();
+                && adapter.supportsProjectile(projectile));
     }
 
     /**

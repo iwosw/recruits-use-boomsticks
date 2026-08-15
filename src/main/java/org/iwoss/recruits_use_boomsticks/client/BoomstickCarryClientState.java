@@ -6,8 +6,8 @@ import java.util.Set;
 /**
  * Client-side record of which recruits are carrying their firearm on order.
  *
- * <p>Only the renderer reads this. The order itself lives on the server; this exists so the parade
- * carry can be shown for a loaded weapon, which would otherwise render in the firing pose.</p>
+ * <p>Only the renderer reads this. The order itself lives on the server; this distinguishes an
+ * ordered ready carry from the weapon's active aiming animation.</p>
  */
 public final class BoomstickCarryClientState {
     private static final Set<Integer> CARRYING = new HashSet<>();

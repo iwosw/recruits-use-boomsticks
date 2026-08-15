@@ -17,8 +17,7 @@ import java.util.function.Predicate;
  * dropped: a swap that cannot be completed leaves the recruit exactly as it stood.</p>
  *
  * <p>Recruits' own {@code switchMainHandItem} is deliberately not used. It starts its scan past both
- * hand slots, so it cannot see a weapon carried in the off hand — which is precisely where the carry
- * order parks one.</p>
+ * hand slots, so it cannot recover a weapon deliberately stowed in the shield hand.</p>
  */
 public final class RecruitHandSwap {
     private RecruitHandSwap() {
@@ -29,14 +28,7 @@ public final class RecruitHandSwap {
         return into(recruit, InteractionHand.MAIN_HAND, wanted);
     }
 
-    /**
-     * Puts the first matching stack into the off hand, storing whatever was there.
-     *
-     * <p>This is the parade carry: the recruit keeps its melee weapon in the main hand and wears the
-     * ranged weapon where a shield would go. A combat goal takes it back into the main hand through
-     * {@link #intoMainHand}, because firing and the native loading chain both need it there — the
-     * chain borrows the off hand itself, one tool at a time.</p>
-     */
+    /** Puts the first matching stack into the off hand, storing whatever was held there. */
     public static boolean intoOffHand(AbstractInventoryEntity recruit, Predicate<ItemStack> wanted) {
         return into(recruit, InteractionHand.OFF_HAND, wanted);
     }
@@ -111,7 +103,8 @@ public final class RecruitHandSwap {
     /** First empty slot that backs no equipment slot, or {@code -1} when storage is full. */
     public static int firstFreeStorageSlot(AbstractInventoryEntity recruit, SimpleContainer inventory) {
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            if (recruit.getEquipmentSlotIndex(slot) == null && inventory.getItem(slot).isEmpty()) {
+            if (RecruitInventorySafety.isStorageSlot(recruit, slot)
+                    && inventory.getItem(slot).isEmpty()) {
                 return slot;
             }
         }

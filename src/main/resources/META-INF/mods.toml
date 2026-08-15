@@ -30,41 +30,48 @@ side = "BOTH"
 [[dependencies."${mod_id}"]]
 modId = "recruits"
 mandatory = true
-versionRange = "[1.15.2,1.16)"
+versionRange = "${recruits_version_range}"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies."${mod_id}"]]
 modId = "medieval_boomsticks"
 mandatory = true
-versionRange = "[1.01,1.02)"
+versionRange = "${medieval_boomsticks_version_range}"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies."${mod_id}"]]
 modId = "geckolib"
 mandatory = true
-versionRange = "[4.8.3,4.9)"
+versionRange = "${geckolib_version_range}"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies."${mod_id}"]]
 modId = "magistuarmory"
 mandatory = true
-versionRange = "[8.2,)"
+versionRange = "${epic_knights_version_range}"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies."${mod_id}"]]
 modId = "architectury"
 mandatory = true
-versionRange = "[9.2.14,10)"
+versionRange = "${architectury_version_range}"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies."${mod_id}"]]
 modId = "cloth_config"
 mandatory = true
-versionRange = "[11.1.118,12)"
+versionRange = "${cloth_config_version_range}"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies."${mod_id}"]]
+modId = "artillery_addon"
+mandatory = false
+versionRange = "${artillery_version_range}"
 ordering = "AFTER"
 side = "BOTH"

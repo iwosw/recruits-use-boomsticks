@@ -11,8 +11,8 @@ import java.util.function.Supplier;
 /**
  * Tells the client which recruits are carrying their firearm on order.
  *
- * <p>The flag is display state: it decides whether the renderer shows the parade carry or the
- * two-handed firing pose. It is sent when the order changes and again whenever a player starts
+ * <p>The flag is display state: it distinguishes an ordered ready carry from an active aim. It is
+ * sent when the order changes and again whenever a player starts
  * tracking the recruit, so a player who walks into range sees the same pose as everyone else.</p>
  */
 public record CarryFirearmStateMessage(int entityId, boolean carrying) {

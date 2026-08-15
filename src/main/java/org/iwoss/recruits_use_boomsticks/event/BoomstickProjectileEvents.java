@@ -7,10 +7,12 @@ import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraftforge.event.entity.ProjectileImpactEvent;
-import net.minecraftforge.event.entity.ProjectileImpactEvent.ImpactResult;
+import net.minecraftforge.event.entity.living.LivingHurtEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
+import org.iwoss.recruits_use_boomsticks.ai.BoomstickFireCoordinator;
+import org.iwoss.recruits_use_boomsticks.compat.BoomstickDamagePolicy;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickProjectilePolicy;
 import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
@@ -49,12 +51,38 @@ public final class BoomstickProjectileEvents {
 
         Entity hitEntity = entityHit.getEntity();
         if (hitEntity == recruit) {
-            event.setImpactResult(ImpactResult.SKIP_ENTITY);
+            // Cancellation is the original Forge 47 contract and maps to SKIP_ENTITY on newer
+            // Forge builds, keeping the projectile alive so it can continue past an ally.
+            event.setCanceled(true);
             return;
         }
         if (hitEntity instanceof LivingEntity living
                 && (recruit.isAlliedTo(hitEntity) || !recruit.canAttack(living))) {
-            event.setImpactResult(ImpactResult.SKIP_ENTITY);
+            event.setCanceled(true);
+            return;
         }
+        if (hitEntity instanceof LivingEntity living
+                && CompatConfig.PROJECTILES_IGNORE_HURT_COOLDOWN.get()) {
+            // Multi-projectile firearms otherwise lose every hit after the first one to vanilla's
+            // short invulnerability window, even though each physical ball reaches the target.
+            living.invulnerableTime = 0;
+        }
+    }
+
+    @SubscribeEvent
+    public static void onRecruitProjectileHurt(LivingHurtEvent event) {
+        if (!(event.getSource().getDirectEntity() instanceof AbstractArrow projectile)
+                || !(projectile.getOwner() instanceof AbstractRecruitEntity recruit)) {
+            return;
+        }
+        RECRUIT_WEAPON_ADAPTERS.findEnabledProjectile(projectile).ifPresent(adapter -> {
+            event.setAmount(BoomstickDamagePolicy.configuredDamage(
+                    event.getAmount(),
+                    adapter.integration()));
+            BoomstickFireCoordinator.resolveHitShared(
+                    recruit.getUUID(),
+                    event.getEntity().getUUID(),
+                    event.getEntity().level().getGameTime());
+        });
     }
 }
