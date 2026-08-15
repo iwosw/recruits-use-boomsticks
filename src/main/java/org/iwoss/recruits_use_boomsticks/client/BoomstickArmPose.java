@@ -5,6 +5,7 @@ import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.world.item.ItemStack;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickWeaponAdapter;
 import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
+import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponIntegration;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 
 import java.util.Optional;
@@ -22,8 +23,10 @@ public final class BoomstickArmPose {
     /**
      * Returns the pose to show, or empty to leave the renderer's own choice alone.
      *
-     * <p>A loaded firearm is shouldered with both hands. A firearm mid-reload uses the charging
-     * pose, while a physical throwing weapon uses the spear-throwing pose.</p>
+     * <p>A Boomsticks gun follows the poses a player would show for it: charging while it reloads,
+     * shouldered once loaded, and the renderer's own one-handed carry while it is empty. Artillery
+     * firearms use the charging and shouldered poses, while a physical throwing weapon uses the
+     * spear-throwing pose.</p>
      */
     public static Optional<HumanoidModel.ArmPose> firearmPose(
             AbstractInventoryEntity entity,
@@ -46,26 +49,36 @@ public final class BoomstickArmPose {
                 // The raised arm is the wind-up itself, so it belongs to the aim window rather than
                 // to merely holding the weapon: a recruit walking into range carries it at its side
                 // and only cocks it back once it has a shot it can take.
+                // Active combat always wins over an earlier ready-carry order.
                 return Optional.of(selected.isAiming(held)
-                        && !BoomstickCarryClientState.isCarrying(entity.getId())
                         ? HumanoidModel.ArmPose.THROW_SPEAR
                         : HumanoidModel.ArmPose.ITEM);
+            }
+            if (selected.integration() == RecruitWeaponIntegration.MEDIEVAL_BOOMSTICKS) {
+                if (selected.isReloading(held)) {
+                    // Boomsticks guns extend CrossbowItem, so the vanilla charge animation reads
+                    // their use ticks and charge duration directly and pulls both arms in on time.
+                    return Optional.of(HumanoidModel.ArmPose.CROSSBOW_CHARGE);
+                }
+                if (selected.isLoaded(held)) {
+                    // What a player gets for a charged crossbow. Recruits' renderer only reaches this
+                    // for a vanilla crossbow and a hardcoded list of muskets, so an arquebus falls
+                    // through it and would sit one-handed while a player's is up across the chest.
+                    return Optional.of(HumanoidModel.ArmPose.CROSSBOW_HOLD);
+                }
+                // An unloaded gun is the renderer's business: its own choice already matches a
+                // player's, one-handed and level.
+                return Optional.empty();
             }
             if (selected.isReloading(held)) {
                 return Optional.of(HumanoidModel.ArmPose.CROSSBOW_CHARGE);
             }
-            // Every other firearm state is gripped with both hands, including an empty weapon and
-            // the parade carry an order puts a recruit in.
-            //
-            // ITEM was used for those two before, on the assumption it reads as an upright carry the
-            // way it does on a player. It does not: a recruit's arm hangs at its side while the item
-            // renders at the humanoid hand point, so a musket floats beside the body instead of
-            // being held. A pose the model cannot carry is worse than losing the distinction between
-            // a loaded and an empty weapon, which the reload animation and the aim already show.
+            // Non-reloading Artillery firearms keep the supported two-handed stance.
             return Optional.of(HumanoidModel.ArmPose.CROSSBOW_HOLD);
         } catch (RuntimeException | LinkageError exception) {
             // Rendering must never take the game down over a pose decision.
             return Optional.empty();
         }
     }
+
 }

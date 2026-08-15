@@ -7,5 +7,5 @@
   "chat.recruits_use_boomsticks.weapons_away": "Weapons away: %s of %s armed recruits stowed a ranged weapon.",
   "chat.recruits_use_boomsticks.carry.nobody": "The order reached nobody: none of your recruits from the selected groups are nearby.",
   "chat.recruits_use_boomsticks.carry.unarmed": "The order reached %s recruits, but none of them owns a supported ranged weapon.",
-  "chat.recruits_use_boomsticks.carry.no_replacement": "Weapons away: %s recruits own no other weapon, so they keep the ranged weapon in hand."
+  "chat.recruits_use_boomsticks.carry.no_replacement": "Weapons away: %s recruits already have the weapon in their off hand, or had no room to move it."
 }

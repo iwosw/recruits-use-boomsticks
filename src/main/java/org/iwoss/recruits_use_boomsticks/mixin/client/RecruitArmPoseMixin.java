@@ -31,12 +31,8 @@ public abstract class RecruitArmPoseMixin {
             InteractionHand hand,
             CallbackInfoReturnable<HumanoidModel.ArmPose> callback
     ) {
-        if (callback.getReturnValue() != HumanoidModel.ArmPose.ITEM
-                || entity == null
-                || hand != InteractionHand.MAIN_HAND) {
-            // Only the main hand is posed. A weapon the carry order wears in the off hand sits in the
-            // shield slot, which the renderer already places correctly; forcing a two-handed pose for
-            // it would raise both arms around a weapon the recruit is not holding.
+        if (entity == null || hand != InteractionHand.MAIN_HAND) {
+            // Only the main hand is posed. The off hand belongs to loading tools and ordinary gear.
             return;
         }
         ItemStack held = entity.getItemInHand(hand);

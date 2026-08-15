@@ -2,6 +2,63 @@
 
 All notable changes to Recruits Use Boomsticks are documented here.
 
+## 2.0.0 — 2026-08-15
+
+### Added
+
+- Added recruit support for seventeen EK: Artillery Addon firearm profiles and five native throwing weapons on the server-safe Artillery 1.11–1.13.4 line.
+- Added the native Noble Handgonne iron-ball branch alongside its Arrow branch. Recruits prefer Iron Ball when both loading paths are available.
+- Added real multi-step Artillery loading: powder, physical shot, ramming or cocking, native item state, loading sounds, visible tools, tool durability, and the eight-round Chu Ko Nu magazine.
+- Added coordinated formation fire. Recruits reserve expected volley damage per target and never commit more than ten physical projectiles to the same target at once.
+- Added global and per-integration projectile damage settings, a configurable minimum-damage floor, and a volley hurt-cooldown switch.
+- Added **Weapons out!** and **Weapons away!** company orders to the Recruits combat command screen.
+
+### Changed
+
+- Recruits now turn toward the target for the aim and shot, hold the committed firing direction through recoil, and return to their previous formation direction afterward.
+- Empty and reloading Medieval Boomsticks weapons use appropriate lowered and charging poses, including third-person GeckoLib reload playback.
+- Supported slow throwing weapons approach until their native projectile can reach the target.
+
+### Fixed
+
+- Recruits no longer forget a still-valid combat target during the post-shot scheduling gap.
+- Artillery loading tools and ammunition can no longer be returned into inventory indices used by recruit armour.
+- Noble Handgonne can be accepted into the recruit weapon slot and use ordinary Iron Ball ammunition.
+- The optional Recruits Musket Mod goal yields when a supported Boomsticks weapon should take control.
+- Carry orders preserve weapon counts, recover interrupted loading transactions, and can draw a weapon again after it was stowed.
+
+### Verification
+
+- The current release harness contains 135 unit tests and 115 required Forge GameTests.
+- Artillery 1.13.4 is the default unpatched dedicated-server test artifact and registers all seventeen supported firearm profiles.
+- Artillery 1.14 remains excluded from the release range because its upstream client-only listener crashes an unpatched dedicated server.
+
+## 1.0.4 — 2026-08-14
+
+### Changed
+
+- **Weapons out!** now draws the supported ranged weapon into the recruit's main hand. **Weapons away!** moves it into the off-hand shield slot and restores a sword, axe, or vanilla crossbow when one exists. README, tooltips, chat reports, and runtime behavior now describe the same hand layout.
+- Empty and reloading Medieval Boomsticks firearms and the Arbalest now use lowered recruit arms. Reloading adds a lowered crossbow-loading motion and enables the addon's native GeckoLib item clip in third person, which its renderers normally suppress outside first person. A completed reload raises the charged weapon into the normal two-handed EK-style hold; firing empties and lowers it again. Stowed Boomsticks use the same item orientation in the off hand as in the main hand instead of Minecraft's mirrored left-hand transform. Artillery poses are unchanged.
+- Added global and per-integration projectile-damage multipliers, a minimum-damage floor, and a volley hurt-cooldown bypass. The intended high-power defaults remain active: multipliers `1.0`, floor `10.0` (five hearts per projectile), bypass enabled.
+- Made Forge initialization, resource IDs, and projectile-impact cancellation work across the verified Forge 47.3.32–47.4.22 range.
+- Expanded verified dependency ranges: Recruits 1.15.0–1.15.2, Medieval Boomsticks 1.01–1.2, GeckoLib 4.2.4–4.8.4, Epic Knights 8.2–10.11, Architectury 9.0.8–9.2.14, and Cloth Config 11.0.99–12.0.109.
+- Added an optional Artillery metadata range of 1.11–1.13.4. Artillery 1.14 is deliberately rejected because its unpatched dedicated-server startup still crashes on a client-only class.
+
+### Fixed
+
+- A recruit that kills its target mid-reload now keeps loading with its arms up. The combat goal used to tear itself down the moment the target died, which dropped the weapon's reloading marker; the passive reload goal then opened a fresh window over the same weapon, so the loading motion fell away and the rest of the reload played with the arms at rest. A loading window now belongs to the goal that opened it until it closes, and the marker is held up for as long as that window is open.
+- Returned Artillery loading tools and ammunition can no longer occupy the inventory indices that back recruit armour. Existing invalid saved stacks are repaired into ordinary storage without losing valid armour.
+- Recruits' optional Musket Mod goal now yields when an enabled Boomsticks weapon is available, preventing equal-priority goal contention.
+- The Hand Cannon combat GameTest now fixes the recruit RNG and protects its target from neighboring concurrent tests, so a valid native random misfire or cross-test projectile cannot make the release gate alternate between `112/113` and `113/113`.
+- The Arbalest ballistic GameTest now checks the stable contract—positive upward lead—instead of a random-inaccuracy-sensitive minimum velocity.
+
+### Verification
+
+- Added reusable Gradle dependency selectors and isolated matrix run directories.
+- Verified all 113 required GameTests on the minimum and maximum supported dependency combinations.
+- Verified Artillery 1.11, 1.11.1, 1.12, 1.13, 1.13.1, 1.13.2, 1.13.3, and 1.13.4 separately on unpatched dedicated servers. The default test artifact is now 1.13.4, where all seventeen firearm profiles execute.
+- Confirmed Artillery 1.14 fails unpatched with `ClientLevel`; its 113/113 patched development run remains non-shipped verification only.
+
 ## 1.0.3 — 2026-07-14
 
 ### Added

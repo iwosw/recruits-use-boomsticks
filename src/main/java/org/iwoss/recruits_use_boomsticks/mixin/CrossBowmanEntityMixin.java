@@ -38,4 +38,17 @@ public abstract class CrossBowmanEntityMixin {
             callbackInfo.setReturnValue(true);
         }
     }
+
+    @Inject(method = "canHoldItem", at = @At("HEAD"), cancellable = true)
+    private void recruitsUseBoomsticks$allowBoomstickInWeaponSlot(
+            ItemStack stack,
+            CallbackInfoReturnable<Boolean> callbackInfo
+    ) {
+        if (!CompatConfig.ENABLED.get() || stack == null || stack.isEmpty()) {
+            return;
+        }
+        if (RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledWeapon(stack)) {
+            callbackInfo.setReturnValue(true);
+        }
+    }
 }

@@ -20,6 +20,47 @@ apply plugin: 'org.spongepowered.mixin'
 group = mod_group_id
 version = mod_version
 
+def stressProfile = (project.findProperty('stress') ?: 'baseline').toString()
+def stressProfiles = ['baseline', 'musket', 'combat', 'optimization', 'all']
+if (!stressProfiles.contains(stressProfile)) {
+    throw new GradleException("Unknown stress profile '${stressProfile}'. Expected one of ${stressProfiles}")
+}
+def stressIncludes = { String candidate -> stressProfile == candidate || stressProfile == 'all' }
+def artilleryProfile = (project.findProperty('artillery') ?: '1.13.4').toString()
+def artilleryFiles = [
+        '1.11'  : '7455014',
+        '1.11.1': '7490351',
+        '1.12'  : '7675822',
+        '1.13'  : '8021226',
+        '1.13.1': '8021524',
+        '1.13.2': '8039277',
+        '1.13.3': '8051642',
+        '1.13.4': '8252195',
+        '1.14'  : '8325660'
+]
+def artilleryProfiles = ['none'] + artilleryFiles.keySet()
+if (!artilleryProfiles.contains(artilleryProfile)) {
+    throw new GradleException("Unknown Artillery profile '${artilleryProfile}'. Expected one of ${artilleryProfiles}")
+}
+def artilleryFile = artilleryFiles[artilleryProfile]
+def artilleryDevPatch = (project.findProperty('artilleryDevPatch') ?: 'true').toString().toBoolean()
+def dependencyMatrixProfile = (project.findProperty('matrix') ?: 'default').toString()
+        .replaceAll('[^A-Za-z0-9_.-]', '_')
+def recruitsVersion = (project.findProperty('recruitsVersion') ?: '1.15.2').toString()
+def medievalBoomsticksFile = (project.findProperty('medievalBoomsticksFile') ?: '5832925').toString()
+def geckolibFile = (project.findProperty('geckolibFile') ?: '8285794').toString()
+def epicKnightsVersion = (project.findProperty('epicKnightsVersion') ?: '2kK9qUpx').toString()
+def architecturyVersion = (project.findProperty('architecturyVersion') ?: '9.2.14+forge').toString()
+def clothConfigVersion = (project.findProperty('clothConfigVersion') ?: '11.1.136+forge').toString()
+def recruitsVersionRange = (project.findProperty('recruitsVersionRange') ?: '[1.15,1.16)').toString()
+def medievalBoomsticksVersionRange = (project.findProperty('medievalBoomsticksVersionRange') ?: '[1.01,1.3)').toString()
+def geckolibVersionRange = (project.findProperty('geckolibVersionRange') ?: '[4.2.4,4.9)').toString()
+def epicKnightsVersionRange = (project.findProperty('epicKnightsVersionRange') ?: '[8.2,11)').toString()
+def architecturyVersionRange = (project.findProperty('architecturyVersionRange') ?: '[9.0.8,10)').toString()
+def clothConfigVersionRange = (project.findProperty('clothConfigVersionRange') ?: '[11.0.99,13)').toString()
+def artilleryVersionRange = (project.findProperty('artilleryVersionRange') ?: '[1.11,1.14)').toString()
+def gameTestDirectory = "run-gametest-${stressProfile}-artillery-${artilleryProfile}-matrix-${dependencyMatrixProfile}"
+
 base {
     archivesName = mod_id
 }
@@ -46,15 +87,25 @@ minecraft {
         }
 
         client {
+            if (stressProfile != 'baseline') {
+                workingDirectory project.file("run-client-${stressProfile}")
+            }
             property 'forge.enabledGameTestNamespaces', mod_id
         }
 
         server {
+            if (stressProfile != 'baseline') {
+                workingDirectory project.file("run-server-${stressProfile}")
+            }
             property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
+            if (project.hasProperty('serverPort')) {
+                args '--port', project.property('serverPort').toString()
+            }
         }
 
         gameTestServer {
+            workingDirectory project.file(gameTestDirectory)
             property 'forge.enabledGameTestNamespaces', mod_id
         }
 
@@ -69,11 +120,13 @@ mixin {
     add sourceSets.main, "${mod_id}.refmap.json"
     config "${mod_id}.mixins.json"
     // Development-only. It strips the client-only listeners that stop Artillery 1.14 from loading on
-    // a dedicated server, so runGameTestServer -Partillery=1.14 can execute the tests that the
-    // pinned 1.11 artifact leaves dependency-gated. It is deliberately absent from the release jar's
+    // a dedicated server, so runGameTestServer -Partillery=1.14 can compare it with the latest
+    // unpatched server-safe 1.13.4 artifact. It is deliberately absent from the release jar's
     // MixinConfigs manifest entry below: patching another mod's binary for players would make this
     // project answerable for Artillery's server stability.
-    config "${mod_id}.artillery-dev.mixins.json"
+    if (artilleryProfile == '1.14' && artilleryDevPatch) {
+        config "${mod_id}.artillery-dev.mixins.json"
+    }
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
@@ -83,23 +136,40 @@ repositories {
     maven { url = 'https://api.modrinth.com/maven' }
 }
 
-// Artillery Addon runtime artifact. 7455014 (1.11) is the pinned server-safe file the GameTest
-// harness is validated against; it does not register Tiller Gun, Noble Handgonne, Hackbut, or
-// Double Barrel Gonne. 8325660 (1.14.0) registers all seventeen guns but fails dedicated-server
-// loading upstream, so it is opt-in and client-only: ./gradlew runClient -Partillery=1.14
-def artilleryFile = project.findProperty('artillery') == '1.14' ? '8325660' : '7455014'
-
+// Artillery Addon runtime artifact. -Partillery=none proves the optional-dependency path.
+// 8252195 (1.13.4) is the latest dedicated-server-safe file and registers all seventeen supported
+// profiles. 8325660 (1.14.0) still fails dedicated-server loading upstream. It may run GameTests
+// only through the dev-only patch configured above; that patched run does not make 1.14 supported.
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    implementation fg.deobf('maven.modrinth:villager-recruits:1.15.2')
-    implementation fg.deobf('curse.maven:medieval-boomsticks-1123016:5832925')
-    implementation fg.deobf('curse.maven:geckolib-388172:7553267')
-    runtimeOnly fg.deobf("curse.maven:epic-knights-artillery-addon-1307540:${artilleryFile}")
-    runtimeOnly fg.deobf('maven.modrinth:epic-knights-shields-armor-and-weapons:2kK9qUpx')
-    runtimeOnly fg.deobf('maven.modrinth:architectury-api:9.2.14+forge')
-    runtimeOnly fg.deobf('maven.modrinth:cloth-config:11.1.118+forge')
+    implementation fg.deobf("maven.modrinth:villager-recruits:${recruitsVersion}")
+    implementation fg.deobf("curse.maven:medieval-boomsticks-1123016:${medievalBoomsticksFile}")
+    implementation fg.deobf("curse.maven:geckolib-388172:${geckolibFile}")
+    if (artilleryFile != null) {
+        runtimeOnly fg.deobf("curse.maven:epic-knights-artillery-addon-1307540:${artilleryFile}")
+    }
+    runtimeOnly fg.deobf("maven.modrinth:epic-knights-shields-armor-and-weapons:${epicKnightsVersion}")
+    runtimeOnly fg.deobf('maven.modrinth:epic-knights-addon:xnYQSIH7')
+    runtimeOnly fg.deobf('curse.maven:betterrecruitformations-1599988:8396882')
+    runtimeOnly fg.deobf("maven.modrinth:architectury-api:${architecturyVersion}")
+    runtimeOnly fg.deobf("maven.modrinth:cloth-config:${clothConfigVersion}")
+
+    // Opt-in compatibility stress profiles. These dependencies exercise competing combat AI,
+    // animation/combat hooks, and invasive optimization Mixins without entering the release jar.
+    if (stressIncludes('musket')) {
+        runtimeOnly fg.deobf('maven.modrinth:musket-mod:TMhHD4WK')
+    }
+    if (stressIncludes('combat')) {
+        runtimeOnly fg.deobf('maven.modrinth:better-combat:UjlaL0Fm')
+        runtimeOnly fg.deobf('maven.modrinth:playeranimator:xe2EVE6q')
+    }
+    if (stressIncludes('optimization')) {
+        runtimeOnly fg.deobf('maven.modrinth:modernfix:X5IBt7e3')
+        runtimeOnly fg.deobf('maven.modrinth:ferrite-core:DG5Fn9Sz')
+        runtimeOnly fg.deobf('maven.modrinth:ai-improvements:eJihmpNQ')
+    }
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
@@ -111,23 +181,22 @@ tasks.named('test', Test).configure {
 
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
     doFirst {
-        if (artilleryFile != '7455014') {
+        if (artilleryProfile == '1.14' && artilleryDevPatch) {
             // 1.14 needs the development-only mixin config above to load on a dedicated server at
-            // all. The release boundary is still the pinned 7455014 run; this variant exists to
-            // execute the tests that artifact cannot register.
+            // all. The release boundary is the unpatched 8252195 (1.13.4) run.
             logger.lifecycle('Running GameTests against Artillery 1.14 (8325660) with the '
                     + 'development-only dedicated-server patch. The release claim stays with the '
-                    + 'pinned 7455014 run.')
+                    + 'unpatched 8252195 (1.13.4) run.')
         }
-        delete file('run/logs/latest.log')
+        delete file("${gameTestDirectory}/logs/latest.log")
     }
     doLast {
-        def gameTestLog = file('run/logs/latest.log')
+        def gameTestLog = file("${gameTestDirectory}/logs/latest.log")
         if (!gameTestLog.exists()) {
             throw new GradleException('GameTest log was not created')
         }
         def output = gameTestLog.getText('UTF-8')
-        def requiredTests = 109
+        def requiredTests = 115
         if (output.contains('Failed to load datapacks')
                 || !output.contains("${requiredTests} tests are now running")
                 || !output.contains("All ${requiredTests} required tests passed")) {
@@ -149,7 +218,14 @@ tasks.named('processResources', ProcessResources).configure {
             mod_license            : mod_license,
             mod_version            : mod_version,
             mod_authors            : mod_authors,
-            mod_description       : mod_description
+            mod_description        : mod_description,
+            recruits_version_range : recruitsVersionRange,
+            medieval_boomsticks_version_range: medievalBoomsticksVersionRange,
+            geckolib_version_range : geckolibVersionRange,
+            epic_knights_version_range: epicKnightsVersionRange,
+            architectury_version_range: architecturyVersionRange,
+            cloth_config_version_range: clothConfigVersionRange,
+            artillery_version_range: artilleryVersionRange
     ]
 
     inputs.properties replaceProperties
@@ -160,6 +236,8 @@ tasks.named('processResources', ProcessResources).configure {
 }
 
 tasks.named('jar', Jar).configure {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
     manifest {
         attributes([
                 'Specification-Title'     : mod_id,
@@ -168,7 +246,6 @@ tasks.named('jar', Jar).configure {
                 'Implementation-Title'    : project.name,
                 'Implementation-Version'  : project.jar.archiveVersion,
                 'Implementation-Vendor'   : mod_authors,
-                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
                 'MixinConfigs'            : "${mod_id}.mixins.json"
         ])
     }

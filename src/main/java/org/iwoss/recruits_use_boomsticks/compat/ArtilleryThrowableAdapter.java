@@ -93,6 +93,15 @@ public final class ArtilleryThrowableAdapter implements BoomstickWeaponAdapter {
     }
 
     @Override
+    public double estimatedVolleyDamage(ItemStack weapon) {
+        return throwable(weapon)
+                .map(value -> (double) BoomstickDamagePolicy.configuredDamage(
+                        (float) value.baseDamage(),
+                        integration()))
+                .orElseGet(() -> BoomstickWeaponAdapter.super.estimatedVolleyDamage(weapon));
+    }
+
+    @Override
     public boolean isLoaded(ItemStack weapon) {
         // A throwing weapon has no staged payload: every item in the held stack is one ready throw.
         return supports(weapon);

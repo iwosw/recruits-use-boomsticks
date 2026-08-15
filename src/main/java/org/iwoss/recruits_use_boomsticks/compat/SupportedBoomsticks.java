@@ -110,7 +110,7 @@ public final class SupportedBoomsticks {
     private static TagKey<Item> itemTag(String path) {
         return TagKey.create(
                 Registries.ITEM,
-                ResourceLocation.fromNamespaceAndPath(RecruitsUseBoomsticks.MOD_ID, path));
+                new ResourceLocation(RecruitsUseBoomsticks.MOD_ID, path));
     }
 
     private static Map<String, BoomstickWeaponProfile> createProfiles() {

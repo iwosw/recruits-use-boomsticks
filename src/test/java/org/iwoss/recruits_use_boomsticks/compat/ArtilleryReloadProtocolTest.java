@@ -249,6 +249,31 @@ class ArtilleryReloadProtocolTest {
     }
 
     @Test
+    void nobleHandgonneIronBallBranchLoadsAndRamsSeparatelyFromItsArrowBranch() {
+        ArtilleryWeaponProfile profile = SupportedArtillery.nobleHandgonneIronBallProfile();
+        List<ArtilleryReloadStep> steps = ArtilleryReloadProtocol.stepsFor(profile);
+
+        assertEquals(3, steps.size());
+        assertEquals(
+                List.of(ComponentRequirement.item(SupportedArtillery.IRON_BALL_ID)),
+                steps.get(1).components());
+        assertEquals(1.0D, stageAfter(steps.get(1)));
+        assertEquals(0.0D, numberWrite(steps.get(1), ArtilleryNativeState.AMMO_KEY));
+        assertEquals(
+                List.of(
+                        ComponentRequirement.EMPTY_HAND,
+                        ComponentRequirement.tag(ArtilleryReloadProtocol.RAMROD_TAG)),
+                steps.get(2).components());
+        assertEquals(2.0D, stageAfter(steps.get(2)));
+        assertTrue(steps.get(2).write(ArtilleryNativeState.LOADED_KEY).orElseThrow().flag());
+
+        CompoundTag weapon = new CompoundTag();
+        steps.forEach(step -> ArtilleryNativeState.applyReloadStepTag(weapon, step));
+        assertTrue(ArtilleryNativeState.isLoadedTag(weapon, profile));
+        assertEquals(1, ArtilleryReloadProtocol.ammoConsumed(profile));
+    }
+
+    @Test
     void doubleBarrelGonneWalksItsFirstBarrelMarkersOnly() {
         List<ArtilleryReloadStep> steps =
                 ArtilleryReloadProtocol.stepsFor(SupportedArtillery.DOUBLE_BARREL_GONNE_ID);

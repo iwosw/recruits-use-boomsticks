@@ -7,5 +7,5 @@
   "chat.recruits_use_boomsticks.weapons_away": "Оружие убрать: убрали %s из %s вооружённых рекрутов.",
   "chat.recruits_use_boomsticks.carry.nobody": "Приказ никого не застал: рядом нет твоих рекрутов из выбранных отрядов.",
   "chat.recruits_use_boomsticks.carry.unarmed": "Приказ дошёл до %s рекрутов, но поддерживаемого дальнобойного оружия у них нет.",
-  "chat.recruits_use_boomsticks.carry.no_replacement": "Оружие убрать: у %s рекрутов нет другого оружия, дальнобойное оружие остаётся в руке."
+  "chat.recruits_use_boomsticks.carry.no_replacement": "Оружие убрать: у %s рекрутов оружие уже во второй руке либо для перестановки не хватило места."
 }

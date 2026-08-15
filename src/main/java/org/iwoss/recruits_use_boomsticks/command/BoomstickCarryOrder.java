@@ -15,6 +15,7 @@ import org.iwoss.recruits_use_boomsticks.compat.BoomstickTransientStateRecovery;
 import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import org.iwoss.recruits_use_boomsticks.inventory.RecruitHandSwap;
+import org.iwoss.recruits_use_boomsticks.inventory.RecruitInventorySafety;
 import org.iwoss.recruits_use_boomsticks.network.BoomstickNetwork;
 import org.iwoss.recruits_use_boomsticks.network.CarryFirearmStateMessage;
 
@@ -24,12 +25,11 @@ import java.util.UUID;
 /**
  * Server side of the command screen's carry order.
  *
- * <p>Recruits only draw a firearm when a combat goal starts, so an idle company keeps its melee
- * weapon in hand no matter what it carries. This order wears a supported ranged weapon in the off
- * hand — the slot a shield would take — on demand, and puts it back again. The main hand is left for
- * the recruit's own melee weapon, and the combat goal takes the ranged weapon across when a fight
- * starts. It walks the recruit's container directly because Recruits' own {@code switchMainHandItem}
- * skips both hand slots.</p>
+ * <p>Recruits normally draw a firearm only when a combat goal starts. This order explicitly puts a
+ * supported ranged weapon in the main hand, as its button promises. The reverse order moves it into
+ * the shield hand and restores the recruit's sword, axe, or crossbow in the main hand. It walks the
+ * recruit's container directly because Recruits' own {@code switchMainHandItem} skips both hand
+ * slots.</p>
  */
 public final class BoomstickCarryOrder {
     /** Matches the radius Recruits' own group commands use. */
@@ -57,8 +57,9 @@ public final class BoomstickCarryOrder {
             if (ownsSupportedFirearm(recruit)) {
                 armed++;
             }
-            boolean wasCarrying = isCarrying(recruit);
-            if (apply(recruit, draw) != wasCarrying) {
+            boolean wasInRequestedState = isInRequestedState(recruit, draw);
+            apply(recruit, draw);
+            if (!wasInRequestedState && isInRequestedState(recruit, draw)) {
                 changed++;
             }
         }
@@ -86,7 +87,7 @@ public final class BoomstickCarryOrder {
                 armed);
     }
 
-    /** Whether the recruit carries a supported firearm anywhere: hands, storage, or armour slots. */
+    /** Whether the recruit owns a supported firearm in a hand or ordinary storage. */
     private static boolean ownsSupportedFirearm(CrossBowmanEntity recruit) {
         RecruitWeaponAdapters adapters = RecruitWeaponAdapters.production();
         if (adapters.isSupportedWeapon(recruit.getMainHandItem())) {
@@ -97,7 +98,8 @@ public final class BoomstickCarryOrder {
             return false;
         }
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
-            if (adapters.isSupportedWeapon(inventory.getItem(slot))) {
+            if (!RecruitHandSwap.isArmourSlot(recruit, slot)
+                    && adapters.isSupportedWeapon(inventory.getItem(slot))) {
                 return true;
             }
         }
@@ -112,6 +114,7 @@ public final class BoomstickCarryOrder {
         // A firearm that is swapped out mid-reload would leave a borrowed tool in the off hand and a
         // marker no goal is driving, so any open loading chain is closed before the hands move.
         BoomstickTransientStateRecovery.recover(recruit);
+        RecruitInventorySafety.repairInvalidArmour(recruit);
 
         boolean carrying = draw ? drawFirearm(recruit) : stowFirearm(recruit);
         setCarrying(recruit, carrying);
@@ -155,51 +158,43 @@ public final class BoomstickCarryOrder {
         }
     }
 
+    private static boolean isInRequestedState(CrossBowmanEntity recruit, boolean draw) {
+        RecruitWeaponAdapters adapters = RecruitWeaponAdapters.production();
+        boolean firearmInMainHand = adapters.isSupportedEnabledWeapon(recruit.getMainHandItem());
+        boolean firearmInOffHand = adapters.isSupportedWeapon(recruit.getOffhandItem());
+        return draw ? firearmInMainHand : firearmInOffHand && !firearmInMainHand;
+    }
+
     /**
-     * Wears the ranged weapon where a shield would go.
+     * Draws the ranged weapon into the main hand.
      *
-     * <p>The off hand is the slot the order aims at, not the main hand: a drawn company keeps its
-     * melee weapons ready and still visibly carries what it will shoot with. A weapon already in the
-     * main hand is moved across, because a recruit that is not fighting has no reason to level it.</p>
+     * <p>The displaced weapon is stored in the exact slot the firearm came from, so the reverse
+     * order can put it back without duplicating or losing either stack.</p>
      */
     private static boolean drawFirearm(CrossBowmanEntity recruit) {
         RecruitWeaponAdapters adapters = RecruitWeaponAdapters.production();
-        RecruitHandSwap.intoOffHand(recruit, adapters::isSupportedEnabledWeapon);
-        if (adapters.isSupportedEnabledWeapon(recruit.getOffhandItem())
-                && adapters.isSupportedWeapon(recruit.getMainHandItem())) {
-            // Drawing moved a second weapon across, so the hand it came from is filled again with
-            // whatever the recruit fights with rather than left holding a duplicate.
-            takeBackOwnWeapon(recruit, adapters);
-        }
-        return adapters.isSupportedEnabledWeapon(recruit.getOffhandItem());
+        RecruitHandSwap.intoMainHand(recruit, adapters::isSupportedEnabledWeapon);
+        return adapters.isSupportedEnabledWeapon(recruit.getMainHandItem());
     }
 
     private static boolean stowFirearm(CrossBowmanEntity recruit) {
         RecruitWeaponAdapters adapters = RecruitWeaponAdapters.production();
         // The config switches are deliberately ignored: a weapon carried while the integration was
         // still on has to be stowable after it was switched off.
-        RecruitHandSwap.outOfOffHand(recruit, adapters::isSupportedWeapon);
-        if (adapters.isSupportedWeapon(recruit.getMainHandItem())
-                || recruit.getMainHandItem().isEmpty()) {
-            // Two cases, one answer. A recruit the combat goal already armed is stowed from the main
-            // hand too, and a recruit that was carrying in the off hand with an empty main hand must
-            // not be left standing there empty-handed: either way it takes its own weapon back.
+        RecruitHandSwap.intoOffHand(recruit, adapters::isSupportedWeapon);
+        if (adapters.isSupportedWeapon(recruit.getOffhandItem())
+                && (adapters.isSupportedWeapon(recruit.getMainHandItem())
+                || recruit.getMainHandItem().isEmpty())) {
             takeBackOwnWeapon(recruit, adapters);
         }
-        // Carrying means the weapon is still in a hand for anyone to see, whichever hand that is: a
-        // recruit that owns nothing else keeps holding it, and the report has to say so rather than
-        // claim an order it could not carry out.
-        return adapters.isSupportedWeapon(recruit.getOffhandItem())
-                || adapters.isSupportedWeapon(recruit.getMainHandItem());
+        return adapters.isSupportedWeapon(recruit.getMainHandItem());
     }
 
     /**
      * Puts the recruit's own weapon back in the main hand.
      *
      * <p>The melee test is Recruits' own: its melee goal equips a sword or an axe and nothing else,
-     * and a crossbowman may also hold its crossbow. A recruit that owns nothing else keeps holding
-     * what it has — emptying its hand would disarm a whole company to obey an order about how it
-     * carries its weapons.</p>
+     * and a crossbowman may also hold its crossbow.</p>
      */
     private static void takeBackOwnWeapon(CrossBowmanEntity recruit, RecruitWeaponAdapters adapters) {
         if (!RecruitHandSwap.intoMainHand(

@@ -56,6 +56,8 @@ public final class SupportedArtillery {
     private static final int CHU_KO_NU_MAGAZINE = ArtilleryReloadProtocol.CHU_KO_NU_CAPACITY;
 
     private static final Map<String, ArtilleryWeaponProfile> PROFILES = createProfiles();
+    private static final ArtilleryWeaponProfile NOBLE_HANDGONNE_IRON_BALL_PROFILE =
+            createNobleHandgonneIronBallProfile();
     private static final Set<String> GAMEPLAY_WEAPON_IDS = Set.of(
             HANDGONNE_ID,
             ARQUEBUS_ID,
@@ -96,6 +98,11 @@ public final class SupportedArtillery {
             return Optional.empty();
         }
         return profileFor(registryId(stack));
+    }
+
+    /** Native Noble Handgonne iron-ball branch, selected when a recruit owns an iron ball. */
+    public static ArtilleryWeaponProfile nobleHandgonneIronBallProfile() {
+        return NOBLE_HANDGONNE_IRON_BALL_PROFILE;
     }
 
     public static boolean isSupportedAmmo(ItemStack stack) {
@@ -491,5 +498,34 @@ public final class SupportedArtillery {
                 BoomstickSound.ARTILLERY_FIRE,
                 false,
                 alternateInaccuracyBranch);
+    }
+
+    private static ArtilleryWeaponProfile createNobleHandgonneIronBallProfile() {
+        return new ArtilleryWeaponProfile(
+                NOBLE_HANDGONNE_ID,
+                IRON_BALL_ID,
+                IRONBALL_PROJECTILE_ID,
+                0,
+                true,
+                LOADED_STAGE,
+                FIRED_STAGE,
+                NPC_RELOAD_TICKS,
+                NPC_COOLDOWN_TICKS,
+                1,
+                4.5D,
+                9.0F,
+                6.5F,
+                2.7D,
+                true,
+                0,
+                true,
+                BoomstickSound.ARTILLERY_HAND_CANNON_FIRE,
+                true,
+                true,
+                ArtilleryWeaponProfile.InaccuracyBranch.SHIFT,
+                false,
+                true,
+                ArtilleryWeaponProfile.NativeStateMode.STAGED,
+                new ArtilleryWeaponProfile.NativeMisfirePolicy(true, 1.0D, 210.0D, 0.0D));
     }
 }
