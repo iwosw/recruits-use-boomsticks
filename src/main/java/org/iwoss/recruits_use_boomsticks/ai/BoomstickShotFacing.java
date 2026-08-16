@@ -4,7 +4,13 @@ import com.talhanation.recruits.entities.CrossBowmanEntity;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
-/** Final server-side facing correction applied at the exact shot boundary. */
+/**
+ * Server-side facing correction that overrides whatever else steered the recruit this tick.
+ *
+ * <p>It is written at the shot boundary for every weapon, and additionally on every tick of a
+ * throwing wind-up, where the raised arm has to stay aligned with the target rather than with the
+ * formation. See {@link BoomstickThrowingAimFacing} for the second case.</p>
+ */
 final class BoomstickShotFacing {
     private BoomstickShotFacing() {
     }

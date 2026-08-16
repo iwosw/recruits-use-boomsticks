@@ -49,6 +49,17 @@ Artillery Addon 1.14 is not supported on dedicated servers. That upstream releas
 | Spiked Handgonne | Round Ball | 3 |
 | Arbalest | Heavy Bolt | 1 |
 
+### Medieval Boomsticks throwing weapons
+
+- Iron Throwing Knife
+- Iron Throwing Axe
+- Small Throwing Rock
+- Large Throwing Rock
+- War Dart
+- Javelin
+
+Each throw spends one held item and creates that weapon's native projectile at the speed and damage the mod's own configuration gives it, and leaves the thrown weapon collectible. The War Dart and the Javelin carry their durability cost on the item a player picks back up, and break in the recruit's hand instead of throwing a spent weapon.
+
 ### EK: Artillery Addon firearms
 
 | Weapon | Enabled branch and ammunition | Projectiles |
@@ -63,7 +74,8 @@ Artillery Addon 1.14 is not supported on dedicated servers. That upstream releas
 | Handgonne | Iron Ball | 1 |
 | Taccola Handgonne | Iron Ball branch | 1 |
 | Noble Handgonne | Iron Ball preferred; Arrow fallback | 1 |
-| Markmengonne | Arrow branch | 1 |
+| Markmengonne | Iron Ball preferred; Arrow fallback | 1 |
+| Bronze Handgonne | Iron Ball branch | 1 |
 | Harquebus | Iron Ball; standing and Fork Rest | 1 |
 | Hackbut | Large Iron Ball; no Fork Rest | 1 |
 | Windlass Crossbow | Arrow branch | 1 |
@@ -71,7 +83,7 @@ Artillery Addon 1.14 is not supported on dedicated servers. That upstream releas
 | Chu Ko Nu | Eight Arrow magazine | 1 per shot |
 | Double Barrel Gonne | First-barrel Iron Ball branch | 1 |
 
-Noble Handgonne prefers its native Iron Ball branch when the recruit can complete that loading chain. If no ball is available, it can use the native Arrow branch instead. Shatter Shot and Iron Bit are not enabled.
+Noble Handgonne and Markmengonne prefer their native Iron Ball branches when the recruit can complete that loading chain. If no ball is available, they can use their native Arrow branches instead. Shatter Shot and Iron Bit are not enabled. Bronze Handgonne is routed by its explicit registry ID because Artillery does not include it in `#artillery:guns`.
 
 ### EK: Artillery Addon throwing weapons
 
@@ -112,7 +124,7 @@ The Windlass Crossbow performs its cocking sequence before loading an Arrow. Chu
 The Villager Recruits combat command screen receives two additional buttons:
 
 - **Weapons out!** moves a supported ranged weapon into the main hand.
-- **Weapons away!** stows it in the off-hand shield slot and restores a Sword, Axe, or Crossbow when available.
+- **Weapons away!** stows it in the off-hand shield slot and restores a Sword, Axe, or Crossbow when available. A recruit that owns nothing else keeps the weapon in its off hand with an empty main hand, and draws it again when a fight starts.
 
 Orders affect the selected groups. With no group selected, they affect every nearby recruit owned by the player. An active loading transaction is safely closed before an order rearranges either hand.
 
@@ -146,7 +158,7 @@ Forge creates `config/recruits_use_boomsticks-common.toml` after the first launc
 
 ## Verification
 
-The release gate uses focused unit tests, real Forge dedicated-server GameTests, an optional-dependency run without Artillery, dependency-range matrix runs, and a release-JAR content check. The current harness contains 135 unit tests and 115 required GameTests.
+The release gate uses focused unit tests, real Forge dedicated-server GameTests, an optional-dependency run without Artillery, dependency-range matrix runs, and a release-JAR content check. The current harness contains 163 unit tests and 136 required GameTests.
 
 Detailed Artillery evidence and exact runtime boundaries are recorded in [the compatibility verification report](docs/compat/artillery-addon-compatibility-verification.md).
 

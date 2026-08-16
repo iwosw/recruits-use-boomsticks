@@ -264,6 +264,7 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
                 ? new HeavyBoltProjectile(level, recruit, weapon)
                 : new RoundBallProjectile(level, recruit, weapon);
         projectile.setOwner(recruit);
+        BoomstickProjectileAttribution.mark(projectile, recruit);
         projectile.pickup = profile.ammoType() == BoomstickAmmoType.HEAVY_BOLT
                 ? AbstractArrow.Pickup.ALLOWED
                 : AbstractArrow.Pickup.DISALLOWED;
@@ -435,6 +436,8 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
             // Artillery firing and loading-step sounds belong to the Artillery adapter; this
             // integration never selects them and must not borrow an unrelated vanilla sound.
             case ARTILLERY_FIRE, ARTILLERY_HAND_CANNON_FIRE -> SoundEvents.CROSSBOW_SHOOT;
+            // Throwing sounds belong to the throwing adapter; a firearm never selects them.
+            case THROW_WEAPON, TRIDENT_THROW -> SoundEvents.CROSSBOW_SHOOT;
             case NONE,
                  ARTILLERY_LOADING_POWDER,
                  ARTILLERY_LOAD_BALL,

@@ -23,6 +23,7 @@ public final class SupportedArtillery {
     public static final String TILLER_GUN_ID = MOD_ID + ":tiller_gun";
     public static final String NOBLE_HANDGONNE_ID = MOD_ID + ":noble_handgonne";
     public static final String MARKMENGONNE_ID = MOD_ID + ":markmengonne";
+    public static final String BRONZE_HANDGONNE_ID = MOD_ID + ":bronze_handgonne";
     public static final String HARQUEBUS_ID = MOD_ID + ":harquebus";
     public static final String HACKBUT_ID = MOD_ID + ":hackbut";
     public static final String WINDLASS_CROSSBOW_ID = MOD_ID + ":windlass_crossbow";
@@ -36,6 +37,7 @@ public final class SupportedArtillery {
     public static final String LARGE_IRON_BALL_ID = MOD_ID + ":large_iron_ball";
     public static final String FORK_REST_ID = MOD_ID + ":fork_rest";
     public static final String VANILLA_ARROW_ID = "minecraft:arrow";
+    public static final String VANILLA_STICK_ID = "minecraft:stick";
     public static final String IRONBALL_PROJECTILE_ID = MOD_ID + ":ironball_projectile";
     public static final String IRON_BIT_PROJECTILE_ID = MOD_ID + ":iron_bit_projectile";
 
@@ -58,6 +60,8 @@ public final class SupportedArtillery {
     private static final Map<String, ArtilleryWeaponProfile> PROFILES = createProfiles();
     private static final ArtilleryWeaponProfile NOBLE_HANDGONNE_IRON_BALL_PROFILE =
             createNobleHandgonneIronBallProfile();
+    private static final ArtilleryWeaponProfile MARKMENGONNE_IRON_BALL_PROFILE =
+            createMarkmengonneIronBallProfile();
     private static final Set<String> GAMEPLAY_WEAPON_IDS = Set.of(
             HANDGONNE_ID,
             ARQUEBUS_ID,
@@ -69,6 +73,7 @@ public final class SupportedArtillery {
             TILLER_GUN_ID,
             NOBLE_HANDGONNE_ID,
             MARKMENGONNE_ID,
+            BRONZE_HANDGONNE_ID,
             HARQUEBUS_ID,
             HACKBUT_ID,
             WINDLASS_CROSSBOW_ID,
@@ -103,6 +108,11 @@ public final class SupportedArtillery {
     /** Native Noble Handgonne iron-ball branch, selected when a recruit owns an iron ball. */
     public static ArtilleryWeaponProfile nobleHandgonneIronBallProfile() {
         return NOBLE_HANDGONNE_IRON_BALL_PROFILE;
+    }
+
+    /** Native Markmen's Handgonne iron-ball branch, preferred when a recruit owns an iron ball. */
+    public static ArtilleryWeaponProfile markmengonneIronBallProfile() {
+        return MARKMENGONNE_IRON_BALL_PROFILE;
     }
 
     public static boolean isSupportedAmmo(ItemStack stack) {
@@ -340,6 +350,34 @@ public final class SupportedArtillery {
                 true,
                 true,
                 ArtilleryWeaponProfile.InaccuracyBranch.SHIFT));
+        // BronzegunneRightclickedProcedure is not included in Artillery's own guns tag, but exposes
+        // the same confirmed staged iron-ball boundary as the handgonne family.
+        profiles.put(BRONZE_HANDGONNE_ID, new ArtilleryWeaponProfile(
+                BRONZE_HANDGONNE_ID,
+                IRON_BALL_ID,
+                IRONBALL_PROJECTILE_ID,
+                0,
+                true,
+                LOADED_STAGE,
+                FIRED_STAGE,
+                NPC_RELOAD_TICKS,
+                NPC_COOLDOWN_TICKS,
+                1,
+                4.5D,
+                9.0F,
+                4.5F,
+                1.85D,
+                false,
+                0,
+                true,
+                BoomstickSound.ARTILLERY_HAND_CANNON_FIRE,
+                true,
+                true,
+                ArtilleryWeaponProfile.InaccuracyBranch.SHIFT,
+                false,
+                true,
+                ArtilleryWeaponProfile.NativeStateMode.STAGED,
+                new ArtilleryWeaponProfile.NativeMisfirePolicy(true, 1.0D, 89.0D, 5.0D)));
         profiles.put(HARQUEBUS_ID, new ArtilleryWeaponProfile(
                 HARQUEBUS_ID,
                 IRON_BALL_ID,
@@ -527,5 +565,34 @@ public final class SupportedArtillery {
                 true,
                 ArtilleryWeaponProfile.NativeStateMode.STAGED,
                 new ArtilleryWeaponProfile.NativeMisfirePolicy(true, 1.0D, 210.0D, 0.0D));
+    }
+
+    private static ArtilleryWeaponProfile createMarkmengonneIronBallProfile() {
+        return new ArtilleryWeaponProfile(
+                MARKMENGONNE_ID,
+                IRON_BALL_ID,
+                IRONBALL_PROJECTILE_ID,
+                0,
+                false,
+                LOADED_STAGE,
+                FIRED_STAGE,
+                NPC_RELOAD_TICKS,
+                NPC_COOLDOWN_TICKS,
+                1,
+                4.5D,
+                7.0F,
+                3.3F,
+                2.9D,
+                false,
+                0,
+                true,
+                BoomstickSound.ARTILLERY_HAND_CANNON_FIRE,
+                true,
+                true,
+                ArtilleryWeaponProfile.InaccuracyBranch.SHIFT,
+                false,
+                true,
+                ArtilleryWeaponProfile.NativeStateMode.STAGED,
+                new ArtilleryWeaponProfile.NativeMisfirePolicy(true, 1.0D, 130.0D, 5.0D));
     }
 }

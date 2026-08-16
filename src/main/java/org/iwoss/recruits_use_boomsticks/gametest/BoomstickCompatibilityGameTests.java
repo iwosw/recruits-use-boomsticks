@@ -1,8 +1,10 @@
 package org.iwoss.recruits_use_boomsticks.gametest;
 
+import com.TBK.medieval_boomsticks.Config;
 import com.TBK.medieval_boomsticks.common.items.RechargeItem;
 import com.TBK.medieval_boomsticks.server.entity.HeavyBoltProjectile;
 import com.TBK.medieval_boomsticks.server.entity.RoundBallProjectile;
+import com.TBK.medieval_boomsticks.server.entity.ThrownJavelin;
 import com.talhanation.recruits.config.RecruitsServerConfig;
 import com.talhanation.recruits.entities.CrossBowmanEntity;
 import com.talhanation.recruits.entities.ai.FleeTNT;
@@ -14,6 +16,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.EntityType;
@@ -27,6 +30,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.entity.ProjectileImpactEvent;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
@@ -34,9 +38,13 @@ import net.minecraftforge.fml.ModList;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
 import org.iwoss.recruits_use_boomsticks.ai.BoomstickAttackState;
+import org.iwoss.recruits_use_boomsticks.ai.BoomstickCombatPolicy;
+import org.iwoss.recruits_use_boomsticks.ai.BoomstickFireCoordinator;
+import org.iwoss.recruits_use_boomsticks.ai.BoomstickThrowingAimFacing;
 import org.iwoss.recruits_use_boomsticks.command.BoomstickCarryOrder;
 import org.iwoss.recruits_use_boomsticks.ai.RecruitBoomstickAttackGoal;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickAmmoAccess;
+import org.iwoss.recruits_use_boomsticks.compat.BoomstickProjectileAttribution;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickTransientStateRecovery;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickWeaponAdapter;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickWeaponProfile;
@@ -50,7 +58,9 @@ import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.compat.SupportedArtillery;
 import org.iwoss.recruits_use_boomsticks.compat.SupportedArtilleryThrowables;
 import org.iwoss.recruits_use_boomsticks.compat.MedievalBoomsticksAdapter;
+import org.iwoss.recruits_use_boomsticks.compat.MedievalBoomsticksThrowableAdapter;
 import org.iwoss.recruits_use_boomsticks.compat.SupportedBoomsticks;
+import org.iwoss.recruits_use_boomsticks.compat.SupportedMedievalThrowables;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import org.iwoss.recruits_use_boomsticks.event.BoomstickProjectileEvents;
 import org.iwoss.recruits_use_boomsticks.inventory.RecruitInventorySafety;
@@ -96,6 +106,19 @@ public final class BoomstickCompatibilityGameTests {
                     "weapon must already be loaded before a combat target is assigned");
             helper.assertTrue(recruit.getInventory().countItem(ammo.getItem()) == 0,
                     "pre-combat reload must consume exactly one round ball");
+            CrossBowmanEntity fallbackRecruit = spawnCrossbowman(helper, 2);
+            ItemStack unusableBoomstick = stack(SupportedBoomsticks.ARQUEBUS_ID);
+            fallbackRecruit.setItemSlot(EquipmentSlot.MAINHAND, stack("minecraft:crossbow"));
+            fallbackRecruit.getInventory().addItem(stack("minecraft:arrow"));
+            fallbackRecruit.getInventory().addItem(unusableBoomstick);
+            fallbackRecruit.setTarget(helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 4, 2, 1));
+            fallbackRecruit.setShouldRanged(true);
+            helper.assertFalse(
+                    RecruitWeaponAdapters.production()
+                            .isUsableEnabledWeapon(fallbackRecruit, unusableBoomstick),
+                    "an empty boomstick without its ammunition must not suppress the vanilla crossbow");
+            helper.assertFalse(new RecruitBoomstickAttackGoal(fallbackRecruit, 1.0D).canUse(),
+                    "boomstick AI must yield while only the vanilla crossbow can shoot");
             helper.succeed();
         } finally {
             RecruitsServerConfig.RangedRecruitsNeedArrowsToShoot.set(previousAmmoRequirement);
@@ -344,6 +367,44 @@ public final class BoomstickCompatibilityGameTests {
     }
 
     @GameTest(template = "empty", timeoutTicks = 40)
+    public static void projectileAttributionSurvivesADeletedRecruit(GameTestHelper helper) {
+        double previousMinimum = CompatConfig.MINIMUM_PROJECTILE_DAMAGE.get();
+        CompatConfig.MINIMUM_PROJECTILE_DAMAGE.set(10.0D);
+        try {
+            CrossBowmanEntity shooter = spawnCrossbowman(helper, 1);
+            CrossBowmanEntity ally = spawnCrossbowman(helper, 2);
+            Player player = helper.makeMockPlayer();
+            shooter.setOwnerUUID(Optional.of(player.getUUID()));
+            ally.setOwnerUUID(Optional.of(player.getUUID()));
+            shooter.setIsOwned(true);
+            ally.setIsOwned(true);
+
+            ItemStack weapon = stack(SupportedBoomsticks.HANDGONNE_ID);
+            AbstractArrow projectile = new RoundBallProjectile(helper.getLevel(), shooter, weapon);
+            projectile.setOwner(shooter);
+            BoomstickProjectileAttribution.mark(projectile, shooter);
+            shooter.discard();
+
+            helper.assertTrue(projectile.getOwner() == null,
+                    "the test must remove the projectile's live recruit owner");
+            helper.assertFalse(canHitEntity(projectile, ally),
+                    "a projectile must still skip its recruit owner's allies after that owner is gone");
+
+            LivingEntity enemy = helper.spawn(EntityType.SKELETON, 4, 2, 1);
+            enemy.setHealth(20.0F);
+            helper.assertTrue(enemy.hurt(
+                            helper.getLevel().damageSources().arrow(projectile, shooter),
+                            4.0F),
+                    "the attributed projectile must still hurt an enemy");
+            helper.assertTrue(Math.abs(enemy.getHealth() - 10.0F) < 1.0E-6F,
+                    "the configured damage floor must survive owner deletion, got " + enemy.getHealth());
+            helper.succeed();
+        } finally {
+            CompatConfig.MINIMUM_PROJECTILE_DAMAGE.set(previousMinimum);
+        }
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 40)
     public static void expiredRecruitProjectilesAreRemovedWithoutChangingPlayerProjectiles(GameTestHelper helper) {
         CrossBowmanEntity shooter = spawnCrossbowman(helper);
         Player player = helper.makeMockPlayer();
@@ -501,6 +562,37 @@ public final class BoomstickCompatibilityGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void passiveOrderStopsCombatAndIsNotWrittenBackOver(GameTestHelper helper) {
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        ItemStack weapon = stack(SupportedBoomsticks.HANDGONNE_ID);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        MedievalBoomsticksAdapter.INSTANCE.setLoaded(weapon, true);
+        LivingEntity target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 5, 2, 1);
+        recruit.setTarget(target);
+        recruit.setShouldRanged(true);
+
+        RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
+        helper.assertTrue(goal.canUse(),
+                "fixture must be able to fight before the passive order is given");
+
+        // Recruits clears the target itself as the order lands; the goal must not hand it back.
+        recruit.setAggroState(BoomstickCombatPolicy.PASSIVE_AGGRO_STATE);
+        helper.assertFalse(goal.canUse(), "a passive recruit must not open the combat goal");
+
+        goal.start();
+        for (int tick = 0; tick < 10; tick++) {
+            goal.tick();
+        }
+
+        helper.assertTrue(recruit.getTarget() == null,
+                "a passive recruit must not have a target restored, it holds " + recruit.getTarget());
+        helper.assertFalse(RechargeItem.isFire(weapon), "a passive recruit must not fire");
+        helper.assertTrue(goal.phase() == BoomstickAttackState.Phase.IDLE,
+                "a passive recruit must not enter an aim or fire phase, it is in " + goal.phase());
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void boomstickTakesPrecedenceOverInstalledMusketModWeapon(GameTestHelper helper) {
         if (!ModList.get().isLoaded("musketmod")) {
@@ -648,6 +740,30 @@ public final class BoomstickCompatibilityGameTests {
 
         helper.assertTrue(recruit.getTarget() == target,
                 "restoring formation facing must not make a live combat target disappear");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void firingPoseKeepsTrackingTheTargetsEyes(GameTestHelper helper) {
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        LivingEntity target = helper.spawn(EntityType.ZOMBIE, 5, 2, 1);
+        ItemStack weapon = stack(SupportedBoomsticks.HANDGONNE_ID);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        MedievalBoomsticksAdapter.INSTANCE.setLoaded(weapon, true);
+        recruit.setTarget(target);
+
+        RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
+        goal.start();
+        for (int tick = 0; tick < 40 && goal.phase() != BoomstickAttackState.Phase.FIRE; tick++) {
+            goal.tick();
+        }
+        helper.assertTrue(goal.phase() == BoomstickAttackState.Phase.FIRE,
+                "fixture must reach the committed firing phase");
+
+        Vec3 look = target.getEyePosition(1.0F).subtract(recruit.getEyePosition(1.0F));
+        float expectedPitch = (float) (-(Mth.atan2(look.y, look.horizontalDistance()) * Mth.RAD_TO_DEG));
+        helper.assertTrue(Math.abs(Mth.wrapDegrees(recruit.getXRot() - expectedPitch)) < 2.0F,
+                "the firing pose must stay on the target's eyes instead of snapping to the low ballistic point");
         helper.succeed();
     }
 
@@ -877,6 +993,7 @@ public final class BoomstickCompatibilityGameTests {
 
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void artilleryThrowableWindsUpOnlyWhileAiming(GameTestHelper helper) {
+        BoomstickFireCoordinator.clearShared();
         SupportedArtilleryThrowables.ArtilleryThrowable nativeThrowable =
                 SupportedArtilleryThrowables.throwableFor(SupportedArtilleryThrowables.HURLBAT_ID)
                         .orElseThrow();
@@ -889,10 +1006,14 @@ public final class BoomstickCompatibilityGameTests {
 
         CrossBowmanEntity recruit = spawnCrossbowman(helper);
         LivingEntity target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 5, 2, 1);
+        target.setHealth(1.0F);
         ItemStack held = stack(SupportedArtilleryThrowables.HURLBAT_ID, 2);
         recruit.setItemSlot(EquipmentSlot.MAINHAND, held);
         recruit.setTarget(target);
         recruit.setShouldRanged(true);
+        recruit.setYRot(0.0F);
+        recruit.setYHeadRot(0.0F);
+        recruit.setYBodyRot(0.0F);
 
         helper.assertFalse(ArtilleryThrowableAdapter.INSTANCE.isAiming(held),
                 "an idle throwing weapon must not be held in its wind-up");
@@ -903,6 +1024,27 @@ public final class BoomstickCompatibilityGameTests {
         goal.tick();
         helper.assertTrue(ArtilleryThrowableAdapter.INSTANCE.isAiming(held),
                 "entering the aim window must raise the throwing weapon");
+        float targetYaw = (float) (Mth.atan2(
+                target.getZ() - recruit.getZ(),
+                target.getX() - recruit.getX()) * Mth.RAD_TO_DEG) - 90.0F;
+        // BetterRecruitFormations may steer the recruit and its mount first. The late server-tick
+        // correction restores only the recruit's authorized aim without changing formation travel.
+        applyBetterFormationHeading(recruit, 90.0F);
+        BoomstickThrowingAimFacing.applyAfterFormations();
+        helper.assertTrue(Math.abs(Mth.wrapDegrees(recruit.yBodyRot - targetYaw)) < 0.1F,
+                "a throwing recruit must still face its target after late formation steering");
+
+        CrossBowmanEntity deniedRecruit = spawnCrossbowman(helper, 2);
+        ItemStack deniedHeld = stack(SupportedArtilleryThrowables.HURLBAT_ID, 2);
+        deniedRecruit.setItemSlot(EquipmentSlot.MAINHAND, deniedHeld);
+        deniedRecruit.setTarget(target);
+        deniedRecruit.setShouldRanged(true);
+        RecruitBoomstickAttackGoal deniedGoal = new RecruitBoomstickAttackGoal(deniedRecruit, 1.0D);
+        deniedGoal.start();
+        deniedGoal.tick();
+        helper.assertFalse(ArtilleryThrowableAdapter.INSTANCE.isAiming(deniedHeld),
+                "a recruit denied a firing reservation must keep its throwing arm down");
+        deniedGoal.stop();
 
         for (int tick = 1; tick <= nativeThrowable.useDurationTicks(); tick++) {
             goal.tick();
@@ -912,9 +1054,17 @@ public final class BoomstickCompatibilityGameTests {
         helper.assertFalse(ArtilleryThrowableAdapter.INSTANCE.isAiming(held),
                 "the throw must drop the wind-up instead of leaving the arm cocked");
 
+        goal.tick();
+        recruit.getPersistentData().remove(
+                "recruits_use_boomsticks:boomstick_cooldown_until");
+        goal.tick();
+        helper.assertFalse(ArtilleryThrowableAdapter.INSTANCE.isAiming(held),
+                "a covered target must not start another wind-up when cooldown ends");
+
         goal.stop();
         helper.assertFalse(ArtilleryThrowableAdapter.INSTANCE.isAiming(recruit.getMainHandItem()),
                 "a goal that ends mid-aim must not leave a wind-up marker behind");
+        BoomstickFireCoordinator.clearShared();
         helper.succeed();
     }
 
@@ -1098,6 +1248,363 @@ public final class BoomstickCompatibilityGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void medievalThrowingKnifeSpendsOneItemForItsNativeProjectile(
+            GameTestHelper helper
+    ) {
+        assertMedievalThrowableSpendsOneItemForItsNativeProjectile(
+                helper, SupportedMedievalThrowables.THROWING_KNIFE_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void medievalThrowingAxeSpendsOneItemForItsNativeProjectile(
+            GameTestHelper helper
+    ) {
+        assertMedievalThrowableSpendsOneItemForItsNativeProjectile(
+                helper, SupportedMedievalThrowables.THROWING_AXE_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void medievalSmallThrowingRockSpendsOneItemForItsNativeProjectile(
+            GameTestHelper helper
+    ) {
+        assertMedievalThrowableSpendsOneItemForItsNativeProjectile(
+                helper, SupportedMedievalThrowables.SMALL_ROCK_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void medievalLargeThrowingRockSpendsOneItemForItsNativeProjectile(
+            GameTestHelper helper
+    ) {
+        assertMedievalThrowableSpendsOneItemForItsNativeProjectile(
+                helper, SupportedMedievalThrowables.LARGE_ROCK_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void medievalWarDartSpendsOneItemForItsNativeProjectile(GameTestHelper helper) {
+        assertMedievalThrowableSpendsOneItemForItsNativeProjectile(
+                helper, SupportedMedievalThrowables.WAR_DART_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void medievalJavelinSpendsOneItemForItsNativeProjectile(GameTestHelper helper) {
+        assertMedievalThrowableSpendsOneItemForItsNativeProjectile(
+                helper, SupportedMedievalThrowables.JAVELIN_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void medievalThrowingKnifeRunsThroughTheRecruitCombatGoal(GameTestHelper helper) {
+        assertMedievalThrowableRunsThroughTheRecruitCombatGoal(
+                helper, SupportedMedievalThrowables.THROWING_KNIFE_ID);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void medievalJavelinRunsThroughTheRecruitCombatGoal(GameTestHelper helper) {
+        assertMedievalThrowableRunsThroughTheRecruitCombatGoal(
+                helper, SupportedMedievalThrowables.JAVELIN_ID);
+    }
+
+    /**
+     * A durable throwing weapon spends its last durability point in the recruit's hand.
+     *
+     * <p>The native branch damages the held stack and then removes it, which on the final point
+     * leaves the throw holding an emptied stack. A recruit breaks the weapon instead and takes no
+     * shot, so nothing is launched carrying an item that no longer exists.</p>
+     */
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void medievalDurableThrowableBreaksInsteadOfThrowingAnEmptiedStack(
+            GameTestHelper helper
+    ) {
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        ItemStack javelin = stack(SupportedMedievalThrowables.JAVELIN_ID);
+        javelin.setDamageValue(javelin.getMaxDamage() - 1);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, javelin);
+
+        BoomstickWeaponAdapter.ShotResult result = MedievalBoomsticksThrowableAdapter.INSTANCE.fire(
+                recruit,
+                javelin,
+                recruit.position().add(8.0D, 1.0D, 0.0D));
+
+        helper.assertTrue(result.outcome() == BoomstickWeaponAdapter.ShotOutcome.INVALID_WEAPON,
+                "a javelin whose last durability point is due must refuse the throw");
+        helper.assertTrue(result.projectilesSpawned() == 0,
+                "a refused throw must not spawn a projectile");
+        helper.assertTrue(recruit.getMainHandItem().isEmpty(),
+                "the spent javelin must break in the recruit's hand");
+        helper.assertTrue(helper.getLevel()
+                        .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
+                        .stream()
+                        .noneMatch(projectile -> projectile.getOwner() == recruit),
+                "a broken javelin must leave nothing in the air");
+        helper.succeed();
+    }
+
+    /**
+     * The launch a recruit produces must be the launch the native player branch produces.
+     *
+     * <p>Both paths end in {@code Projectile.shoot}, which derives the projectile's own rotation from
+     * its motion, and every Medieval Boomsticks projectile renderer draws the model from exactly that
+     * rotation. Comparing the two side by side is therefore the whole visible contract: a thrown
+     * weapon that points the wrong way is a projectile whose rotation does not match its flight.</p>
+     */
+    @GameTest(template = "empty", timeoutTicks = 60)
+    public static void medievalJavelinLaunchMatchesTheNativePlayerBranch(GameTestHelper helper) {
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        Vec3 target = recruit.position().add(8.0D, 1.0D, 0.0D);
+        ItemStack held = stack(SupportedMedievalThrowables.JAVELIN_ID, 2);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, held);
+
+        BoomstickWeaponAdapter.ShotResult result = MedievalBoomsticksThrowableAdapter.INSTANCE.fire(
+                recruit, held, target);
+        helper.assertTrue(result.outcome() == BoomstickWeaponAdapter.ShotOutcome.FIRED,
+                "the javelin parity check must actually throw");
+
+        AbstractArrow thrown = helper.getLevel()
+                .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
+                .stream()
+                .filter(candidate -> candidate.getOwner() == recruit
+                        && candidate instanceof ThrownJavelin)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("the javelin projectile was not spawned"));
+
+        // The reference is the native branch itself: aim the recruit at the same point and launch a
+        // second javelin exactly the way JavelinItem.releaseUsing does, without inaccuracy.
+        Vec3 look = target.subtract(recruit.getX(), recruit.getEyeY() - 0.1D, recruit.getZ());
+        recruit.setYRot((float) (Mth.atan2(look.z, look.x) * Mth.RAD_TO_DEG) - 90.0F);
+        recruit.setXRot((float) (-Mth.atan2(look.y, look.horizontalDistance()) * Mth.RAD_TO_DEG));
+        ThrownJavelin reference = new ThrownJavelin(helper.getLevel(), recruit, stack(
+                SupportedMedievalThrowables.JAVELIN_ID));
+        reference.shootFromRotation(
+                recruit,
+                recruit.getXRot(),
+                recruit.getYRot(),
+                0.0F,
+                (float) Config.javelinSpeed,
+                0.0F);
+
+        // The javelin points along its motion, so the two must agree on the direction of flight.
+        helper.assertTrue(
+                thrown.getDeltaMovement().normalize()
+                        .dot(reference.getDeltaMovement().normalize()) > 0.95D,
+                "a recruit's javelin must fly the way the native player branch throws it");
+        helper.assertTrue(Math.abs(Mth.wrapDegrees(thrown.getYRot() - reference.getYRot())) < 5.0F,
+                "a recruit's javelin must carry the native yaw its renderer draws the model from");
+        helper.assertTrue(Math.abs(Mth.wrapDegrees(thrown.getXRot() - reference.getXRot())) < 15.0F,
+                "a recruit's javelin must carry the native pitch, give or take its aim arc");
+        helper.assertTrue(thrown.getYRot() == thrown.yRotO && thrown.getXRot() == thrown.xRotO,
+                "the launch rotation must be settled before the renderer can interpolate from it");
+        reference.discard();
+        helper.succeed();
+    }
+
+    /**
+     * The javelin's wind-up must reach the native item-use state its own model swap reads.
+     *
+     * <p>Medieval Boomsticks selects the javelin's throwing model through a predicate that is only
+     * true while the holder is using the stack, and that model is pitched a hundred and seventy
+     * degrees away from the carried one. A raised arm without the use state therefore shows a
+     * javelin pointing backwards.</p>
+     */
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void medievalJavelinWindUpEntersTheNativeItemUseState(GameTestHelper helper) {
+        BoomstickFireCoordinator.clearShared();
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        LivingEntity target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 5, 2, 1);
+        ItemStack held = stack(SupportedMedievalThrowables.JAVELIN_ID, 2);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, held);
+        recruit.setTarget(target);
+        recruit.setShouldRanged(true);
+
+        int aimTicks = MedievalBoomsticksThrowableAdapter.INSTANCE.aimTicks(held);
+        helper.assertTrue(
+                MedievalBoomsticksThrowableAdapter.INSTANCE.windUpUsesNativeItemState(held),
+                "the javelin must draw its wind-up from the native item-use state");
+        helper.assertTrue(held.getUseDuration() > aimTicks,
+                "the javelin's vanilla use must never complete inside the wind-up");
+        helper.assertFalse(recruit.isUsingItem(),
+                "an idle recruit must not be holding a use state");
+
+        RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
+        helper.assertTrue(goal.canUse(), "the combat goal must claim an equipped javelin");
+        goal.start();
+        goal.tick();
+
+        helper.assertTrue(recruit.isUsingItem(),
+                "entering the aim window must put the recruit into the native use state");
+        // This identity test is the predicate Medieval Boomsticks itself evaluates for the model.
+        helper.assertTrue(recruit.getUseItem() == recruit.getMainHandItem(),
+                "the use state must name the held javelin the aim model predicate looks for");
+
+        for (int tick = 1; tick <= aimTicks; tick++) {
+            goal.tick();
+        }
+        helper.assertTrue(recruit.getMainHandItem().getCount() == 1,
+                "the wind-up test must actually complete one throw");
+        helper.assertFalse(recruit.isUsingItem(),
+                "the throw must release the use state instead of leaving the arm cocked");
+
+        // The instantly thrown family has no native use at all and must never enter one.
+        CrossBowmanEntity knifeRecruit = spawnCrossbowman(helper, 2);
+        ItemStack knife = stack(SupportedMedievalThrowables.THROWING_KNIFE_ID, 2);
+        knifeRecruit.setItemSlot(EquipmentSlot.MAINHAND, knife);
+        knifeRecruit.setTarget(target);
+        knifeRecruit.setShouldRanged(true);
+        helper.assertFalse(
+                MedievalBoomsticksThrowableAdapter.INSTANCE.windUpUsesNativeItemState(knife),
+                "an instantly thrown knife declares no use duration to render a wind-up from");
+        RecruitBoomstickAttackGoal knifeGoal = new RecruitBoomstickAttackGoal(knifeRecruit, 1.0D);
+        knifeGoal.start();
+        knifeGoal.tick();
+        helper.assertFalse(knifeRecruit.isUsingItem(),
+                "a knife wind-up must not open a vanilla use a native finish path could complete");
+        knifeGoal.stop();
+
+        goal.stop();
+        helper.assertFalse(recruit.isUsingItem(),
+                "a goal that ends must not leave the recruit stuck in a use state");
+        BoomstickFireCoordinator.clearShared();
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void medievalThrowableReachMatchesItsOwnProjectileSpeed(GameTestHelper helper) {
+        double sharedRange = 45.0D;
+        double largeRockReach = MedievalBoomsticksThrowableAdapter.INSTANCE.effectiveRange(
+                stack(SupportedMedievalThrowables.LARGE_ROCK_ID), sharedRange);
+        double javelinReach = MedievalBoomsticksThrowableAdapter.INSTANCE.effectiveRange(
+                stack(SupportedMedievalThrowables.JAVELIN_ID), sharedRange);
+
+        helper.assertTrue(largeRockReach > 0.0D && largeRockReach < sharedRange,
+                "a large throwing rock must report a shorter reach than the shared combat range");
+        helper.assertTrue(javelinReach > largeRockReach && javelinReach < sharedRange,
+                "a javelin must outrange a large rock and still fall inside the shared range");
+        helper.assertTrue(
+                MedievalBoomsticksThrowableAdapter.INSTANCE.effectiveRange(
+                        stack(SupportedBoomsticks.HANDGONNE_ID), sharedRange) == sharedRange,
+                "a stack this adapter does not own must keep the shared combat range");
+        helper.succeed();
+    }
+
+    /**
+     * Every Medieval Boomsticks throwing weapon reproduces the same native shape — one physical item
+     * for one native projectile launched at its own speed — so one body covers them all.
+     */
+    private static void assertMedievalThrowableSpendsOneItemForItsNativeProjectile(
+            GameTestHelper helper,
+            String weaponId
+    ) {
+        SupportedMedievalThrowables.MedievalThrowable nativeThrowable =
+                SupportedMedievalThrowables.throwableFor(weaponId).orElseThrow();
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper, 1);
+        CrossBowmanEntity ally = spawnCrossbowman(helper, 2);
+        Player owner = helper.makeMockPlayer();
+        recruit.setOwnerUUID(Optional.of(owner.getUUID()));
+        ally.setOwnerUUID(Optional.of(owner.getUUID()));
+        recruit.setIsOwned(true);
+        ally.setIsOwned(true);
+
+        ItemStack held = stack(weaponId, 2);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, held);
+
+        helper.assertTrue(recruit.wantsToPickUp(stack(weaponId)),
+                "the crossbowman pickup hook must accept " + weaponId);
+        helper.assertTrue(RecruitWeaponAdapters.production().find(held).orElseThrow()
+                        == MedievalBoomsticksThrowableAdapter.INSTANCE,
+                "the throwing adapter must uniquely own the " + weaponId + " stack");
+        helper.assertTrue(MedievalBoomsticksThrowableAdapter.INSTANCE.isLoaded(held),
+                "each held " + weaponId + " must be ready without an invented loaded marker");
+
+        BoomstickWeaponAdapter.ShotResult result = MedievalBoomsticksThrowableAdapter.INSTANCE.fire(
+                recruit,
+                held,
+                recruit.position().add(8.0D, 1.0D, 0.0D));
+
+        helper.assertTrue(result.outcome() == BoomstickWeaponAdapter.ShotOutcome.FIRED,
+                weaponId + " must throw from the logical server without the player-only item path");
+        helper.assertTrue(result.projectilesSpawned() == 1,
+                "one physical " + weaponId + " must create one native projectile");
+        helper.assertTrue(recruit.getMainHandItem().getCount() == 1,
+                "a successful throw must spend exactly one held " + weaponId);
+
+        AbstractArrow projectile = helper.getLevel()
+                .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
+                .stream()
+                .filter(candidate -> candidate.getOwner() == recruit
+                        && candidate.getClass().getName()
+                        .equals(nativeThrowable.projectileClassName()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "the native " + weaponId + " projectile was not spawned"));
+        helper.assertTrue(projectile.pickup == AbstractArrow.Pickup.ALLOWED,
+                "the native " + weaponId + " branch leaves a thrown weapon collectible");
+        helper.assertTrue(
+                Math.abs(projectile.getDeltaMovement().length()
+                        - nativeThrowable.defaultVelocity()) < 0.15D,
+                "the " + weaponId + " launch speed must stay near its native velocity");
+        helper.assertFalse(canHitEntity(projectile, ally),
+                "a recruit-owned " + weaponId + " must pass through allied recruits");
+
+        // The item a player recovers is the copy the projectile carries, and a durable weapon pays
+        // its native durability point on that copy rather than on the stack left in the hand.
+        ItemStack carried = ItemStack.of(
+                projectile.saveWithoutId(new CompoundTag()).getCompound("Trident"));
+        helper.assertFalse(carried.isEmpty(),
+                "the native " + weaponId + " projectile must carry the item it was thrown as");
+        helper.assertTrue(carried.is(held.getItem()),
+                "the carried " + weaponId + " must be the weapon that was thrown");
+        int expectedDamageValue = held.isDamageableItem() ? 1 : 0;
+        helper.assertTrue(carried.getDamageValue() == expectedDamageValue,
+                "a thrown " + weaponId + " must carry exactly the native durability cost");
+        helper.succeed();
+    }
+
+    private static void assertMedievalThrowableRunsThroughTheRecruitCombatGoal(
+            GameTestHelper helper,
+            String weaponId
+    ) {
+        SupportedMedievalThrowables.MedievalThrowable nativeThrowable =
+                SupportedMedievalThrowables.throwableFor(weaponId).orElseThrow();
+        BoomstickFireCoordinator.clearShared();
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        LivingEntity target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 5, 2, 1);
+        ItemStack held = stack(weaponId, 3);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, held);
+        recruit.setTarget(target);
+        recruit.setShouldRanged(true);
+
+        helper.assertFalse(RecruitBoomstickAttackGoal.passiveReload(recruit).canUse(),
+                "a physical throwing stack must never enter the firearm reload state");
+
+        RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
+        helper.assertTrue(goal.canUse(),
+                "the recruit combat goal must claim an equipped " + weaponId);
+        int aimTicks = MedievalBoomsticksThrowableAdapter.INSTANCE.aimTicks(held);
+        helper.assertTrue(aimTicks >= nativeThrowable.windUpTicks(),
+                "the aim window must outlast the native wind-up of " + weaponId);
+        goal.start();
+        for (int tick = 0; tick < aimTicks; tick++) {
+            goal.tick();
+        }
+        helper.assertTrue(recruit.getMainHandItem().getCount() == 3,
+                "the combat goal must not throw before the full aim window elapses");
+        goal.tick();
+
+        helper.assertTrue(recruit.getMainHandItem().getCount() == 2,
+                "the combat goal must complete one throw and spend one physical " + weaponId);
+        helper.assertTrue(helper.getLevel()
+                        .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
+                        .stream()
+                        .anyMatch(projectile -> projectile.getOwner() == recruit
+                                && projectile.getClass().getName()
+                                .equals(nativeThrowable.projectileClassName())),
+                "the combat goal must hand off to the native " + weaponId + " projectile boundary");
+        goal.stop();
+        BoomstickFireCoordinator.clearShared();
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 120)
     public static void artilleryArquebusSteppedReloadWalksTheNativeChain(GameTestHelper helper) {
         if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()
@@ -1199,6 +1706,127 @@ public final class BoomstickCompatibilityGameTests {
                 "an unsatisfied chain must leave the weapon unloaded");
         helper.assertTrue(recruit.getOffhandItem().isEmpty(),
                 "a refused chain must not borrow the off hand");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void artilleryReloadIgnoresAnOffhandOnlyComponent(GameTestHelper helper) {
+        if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()
+                || !artilleryItemRegistered(POWDER_FLASK_ID)
+                || !artilleryItemRegistered(RAMROD_ID)) {
+            helper.succeed();
+            return;
+        }
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        ItemStack weapon = stack(SupportedArtillery.ARQUEBUS_ID);
+        ItemStack flask = stack(POWDER_FLASK_ID);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        recruit.setItemSlot(EquipmentSlot.OFFHAND, flask);
+        recruit.getInventory().addItem(stack(SupportedArtillery.IRON_BALL_ID));
+        recruit.getInventory().addItem(stack(RAMROD_ID));
+        for (int slot = 0; slot < recruit.getInventory().getContainerSize(); slot++) {
+            if (RecruitInventorySafety.isStorageSlot(recruit, slot)
+                    && recruit.getInventory().getItem(slot).isEmpty()) {
+                recruit.getInventory().setItem(slot, stack("minecraft:cobblestone"));
+            }
+        }
+
+        helper.assertFalse(ArtilleryAddonAdapter.INSTANCE.hasReloadComponents(recruit, weapon),
+                "an off-hand component with no safe storage slot must not pass reload preflight");
+        helper.assertFalse(ArtilleryAddonAdapter.INSTANCE.hasAmmo(recruit, weapon, true),
+                "the recruit must not start a transaction that cannot borrow its off hand");
+        helper.assertTrue(recruit.getOffhandItem().is(flask.getItem()),
+                "a refused reload must leave the off-hand component untouched");
+        helper.assertTrue(recruit.getInventory().countItem(flask.getItem()) == 1,
+                "a refused reload must neither drop nor duplicate the off-hand component");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void artilleryInterruptedReloadResumesAfterItsCommittedSteps(GameTestHelper helper) {
+        if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()
+                || !artilleryItemRegistered(POWDER_FLASK_ID)
+                || !artilleryItemRegistered(RAMROD_ID)) {
+            helper.succeed();
+            return;
+        }
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        ItemStack weapon = stack(SupportedArtillery.ARQUEBUS_ID);
+        ItemStack flask = stack(POWDER_FLASK_ID);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        recruit.getInventory().addItem(stack(SupportedArtillery.IRON_BALL_ID));
+        recruit.getInventory().addItem(flask);
+        recruit.getInventory().addItem(stack(RAMROD_ID));
+
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.applyReloadStep(recruit, weapon, 0),
+                "the interrupted transaction must commit its powder step");
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.applyReloadStep(recruit, weapon, 1),
+                "the interrupted transaction must commit and spend its ball step");
+        ArtilleryAddonAdapter.INSTANCE.endSteppedReload(recruit, weapon);
+        int flaskDamage = findInInventory(recruit, flask).getDamageValue();
+
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.completedReloadSteps(weapon) == 2,
+                "the native stage-one payload must identify two completed steps");
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.hasAmmo(recruit, weapon, true),
+                "the remaining ram step must not demand a second iron ball");
+
+        RecruitBoomstickAttackGoal reloadGoal = RecruitBoomstickAttackGoal.passiveReload(recruit);
+        helper.assertTrue(reloadGoal.canUse(), "the partial native transaction must be resumable");
+        reloadGoal.start();
+        for (int tick = 0; tick <= ArtilleryAddonAdapter.INSTANCE.reloadTicks(weapon); tick++) {
+            reloadGoal.tick();
+        }
+
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.isLoaded(weapon),
+                "the resumed transaction must finish the remaining native ram step");
+        helper.assertTrue(findInInventory(recruit, flask).getDamageValue() == flaskDamage,
+                "resuming after the ball step must not damage the powder flask twice");
+        helper.assertTrue(recruit.getInventory().countItem(stack(SupportedArtillery.IRON_BALL_ID).getItem()) == 0,
+                "resuming must not require or create another iron ball");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 80)
+    public static void artilleryNobleReloadKeepsItsIronBallBranch(GameTestHelper helper) {
+        if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()
+                || !artilleryItemRegistered(SupportedArtillery.NOBLE_HANDGONNE_ID)
+                || !artilleryItemRegistered(POWDER_FLASK_ID)) {
+            helper.succeed();
+            return;
+        }
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        ItemStack weapon = stack(SupportedArtillery.NOBLE_HANDGONNE_ID);
+        ItemStack arrow = stack(SupportedArtillery.VANILLA_ARROW_ID);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        recruit.getInventory().addItem(stack(SupportedArtillery.IRON_BALL_ID));
+        recruit.getInventory().addItem(arrow);
+        giveNativeReloadTools(recruit);
+
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.hasAmmo(recruit, weapon, true),
+                "the Noble Handgonne must select its preferred iron-ball branch");
+        ArtilleryAddonAdapter.INSTANCE.setReloading(weapon, true);
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.applyReloadStep(recruit, weapon, 0),
+                "the selected iron-ball branch must load powder");
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.applyReloadStep(recruit, weapon, 1),
+                "the selected iron-ball branch must spend its only ball");
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.hasAmmo(recruit, weapon, true),
+                "the branch must remain locked after its ball leaves the inventory");
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.reloadStepCount(weapon) == 3,
+                "the transaction must retain the three-step iron-ball chain");
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.applyReloadStep(recruit, weapon, 2),
+                "the locked iron-ball branch must finish its ramming step");
+        ArtilleryAddonAdapter.INSTANCE.endSteppedReload(recruit, weapon);
+        ArtilleryAddonAdapter.INSTANCE.setReloading(weapon, false);
+
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.isLoaded(weapon),
+                "the Noble Handgonne must finish with its native loaded iron-ball payload");
+        helper.assertTrue(weapon.getOrCreateTag().getDouble(ArtilleryNativeState.AMMO_KEY) == 0.0D,
+                "the finished branch must keep native ammo zero instead of switching to Arrow ammo two");
+        helper.assertTrue(recruit.getInventory().countItem(arrow.getItem()) == 1,
+                "locking the iron-ball branch must leave the fallback arrow untouched");
         helper.succeed();
     }
 
@@ -1783,6 +2411,7 @@ public final class BoomstickCompatibilityGameTests {
                 "Matchlock Carbine reload must consume exactly one iron ball");
         helper.assertTrue(weapon.getOrCreateTag().getTagType(ArtilleryNativeState.STAGE_KEY) == Tag.TAG_DOUBLE,
                 "Matchlock Carbine stage must retain the native double NBT type");
+        reloadGoal.stop();
 
         BoomstickWeaponAdapter.ShotResult result = ArtilleryAddonAdapter.INSTANCE.fire(
                 recruit,
@@ -1813,6 +2442,20 @@ public final class BoomstickCompatibilityGameTests {
                 "Matchlock Carbine must preserve the native non-critical projectile flag");
         helper.assertTrue(projectile.pickup == AbstractArrow.Pickup.DISALLOWED,
                 "Matchlock Carbine projectile must not be collectible");
+
+        recruit.getInventory().addItem(stack(SupportedArtillery.IRON_BALL_ID));
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.completedReloadSteps(weapon) == 0,
+                "the fired stage-three payload must not look like a completed reload");
+        RecruitBoomstickAttackGoal secondReload = RecruitBoomstickAttackGoal.passiveReload(recruit);
+        helper.assertTrue(secondReload.canUse(),
+                "a fired Matchlock Carbine with fresh supplies must start another reload");
+        secondReload.start();
+        for (int tick = 0; tick <= ArtilleryAddonAdapter.INSTANCE.reloadTicks(weapon); tick++) {
+            secondReload.tick();
+        }
+        secondReload.stop();
+        helper.assertTrue(ArtilleryAddonAdapter.INSTANCE.isLoaded(weapon),
+                "the Matchlock Carbine must complete its second reload after firing");
         helper.succeed();
     }
 
@@ -2867,6 +3510,53 @@ public final class BoomstickCompatibilityGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void artilleryBronzeHandgonneRunsThroughTheCombatGoal(GameTestHelper helper) {
+        if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()
+                || !artilleryItemRegistered(SupportedArtillery.BRONZE_HANDGONNE_ID)) {
+            helper.succeed();
+            return;
+        }
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        LivingEntity target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 4, 2, 1);
+        ItemStack weapon = stack(SupportedArtillery.BRONZE_HANDGONNE_ID);
+        ItemStack ammo = stack(SupportedArtillery.IRON_BALL_ID);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        recruit.getInventory().addItem(ammo);
+        giveNativeReloadTools(recruit);
+        recruit.setTarget(target);
+        recruit.setShouldRanged(true);
+
+        helper.assertTrue(recruit.wantsToPickUp(stack(SupportedArtillery.BRONZE_HANDGONNE_ID)),
+                "the crossbowman pickup hook must accept Bronze Handgonne outside Artillery's guns tag");
+        RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
+        helper.assertTrue(goal.canUse(), "the combat goal must claim an equipped Bronze Handgonne");
+        goal.start();
+        for (int tick = 0; tick < 70; tick++) {
+            recruit.getRandom().setSeed(0L);
+            goal.tick();
+        }
+
+        helper.assertTrue(recruit.getInventory().countItem(ammo.getItem()) == 0,
+                "Bronze Handgonne must consume one physical iron ball");
+        helper.assertTrue(weapon.getOrCreateTag().getDouble(ArtilleryNativeState.AMMO_KEY) == 0.0D,
+                "Bronze Handgonne must preserve native ammo zero");
+        helper.assertFalse(weapon.getOrCreateTag().getBoolean(ArtilleryNativeState.LOADED_KEY),
+                "fired Bronze Handgonne must clear its native loaded flag");
+        AbstractArrow projectile = helper.getLevel()
+                .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
+                .stream()
+                .filter(candidate -> candidate.getOwner() == recruit
+                        && candidate.getClass().getName()
+                        .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Bronze Handgonne native projectile was not spawned"));
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 1.85D) < 1.0E-6D,
+                "Bronze Handgonne must preserve its confirmed projectile damage");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty", timeoutTicks = 80)
     public static void artilleryNobleHandgonneArrowBranchReloadsAndFires(GameTestHelper helper) {
         // Noble Handgonne is absent from the pinned 1.11 server-safe artifact; run when the item exists.
@@ -3172,6 +3862,53 @@ public final class BoomstickCompatibilityGameTests {
                                 && projectile.getPersistentData()
                                 .getBoolean(ArtilleryAddonAdapter.COMPATIBILITY_MARKER_KEY)),
                 "the Markmengonne combat goal must spawn its marked vanilla Arrow projectile");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void artilleryMarkmengonneIronBallBranchRunsThroughTheCombatGoal(GameTestHelper helper) {
+        if (!ArtilleryAddonAdapter.INSTANCE.isAvailable()
+                || !artilleryItemRegistered(SupportedArtillery.MARKMENGONNE_ID)) {
+            helper.succeed();
+            return;
+        }
+
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        LivingEntity target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 4, 2, 1);
+        ItemStack weapon = stack(SupportedArtillery.MARKMENGONNE_ID);
+        ItemStack ammo = stack(SupportedArtillery.IRON_BALL_ID);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        recruit.getInventory().addItem(ammo);
+        giveNativeReloadTools(recruit);
+        recruit.setTarget(target);
+        recruit.setShouldRanged(true);
+
+        RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
+        helper.assertTrue(goal.canUse(),
+                "a Markmen's Handgonne with an iron ball must select its native ball branch");
+        goal.start();
+        for (int tick = 0; tick < 70; tick++) {
+            recruit.getRandom().setSeed(0L);
+            goal.tick();
+        }
+
+        helper.assertTrue(recruit.getInventory().countItem(ammo.getItem()) == 0,
+                "Markmen's Handgonne ball branch must consume one physical iron ball");
+        helper.assertTrue(weapon.getOrCreateTag().getDouble(ArtilleryNativeState.AMMO_KEY) == 0.0D,
+                "Markmen's Handgonne ball branch must preserve native ammo zero");
+        helper.assertFalse(weapon.getOrCreateTag().contains(ArtilleryNativeState.LOADED_KEY),
+                "Markmen's Handgonne ball branch must not invent a loaded flag");
+        AbstractArrow projectile = helper.getLevel()
+                .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
+                .stream()
+                .filter(candidate -> candidate.getOwner() == recruit
+                        && candidate.getClass().getName()
+                        .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Markmen's Handgonne native Ironball projectile was not spawned"));
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 2.9D) < 1.0E-6D,
+                "Markmen's Handgonne must preserve its confirmed iron-ball damage");
         helper.succeed();
     }
 
@@ -3967,7 +4704,8 @@ public final class BoomstickCompatibilityGameTests {
         }
 
         CrossBowmanEntity recruit = spawnCrossbowman(helper);
-        recruit.setItemSlot(EquipmentSlot.MAINHAND, stack(SupportedArtillery.ARQUEBUS_ID));
+        ItemStack weapon = stack(SupportedArtillery.ARQUEBUS_ID);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
         recruit.getInventory().addItem(stack(SupportedArtillery.IRON_BALL_ID));
         giveNativeReloadTools(recruit);
         ItemStack ownOffhand = stack("minecraft:shield");
@@ -3991,6 +4729,8 @@ public final class BoomstickCompatibilityGameTests {
 
         helper.assertTrue(carriedOrDropped(helper, recruit, ownOffhand),
                 "death must put the parked off-hand item back where the drop can find it");
+        helper.assertFalse(ArtilleryAddonAdapter.INSTANCE.isReloading(weapon),
+                "a dropped weapon must not retain a reload marker owned by the dead recruit");
         helper.succeed();
     }
 
@@ -4388,6 +5128,20 @@ public final class BoomstickCompatibilityGameTests {
         helper.assertTrue(matchlockRecruit.getOffhandItem().isEmpty(),
                 "a matchlock must not borrow a match, its off hand holds "
                         + matchlockRecruit.getOffhandItem());
+
+        CrossBowmanEntity noMatchRecruit = spawnCrossbowman(helper, 3);
+        ItemStack noMatchWeapon = stack(SupportedArtillery.HANDGONNE_ID);
+        ItemStack shield = stack("minecraft:shield");
+        noMatchRecruit.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, noMatchWeapon);
+        noMatchRecruit.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, shield);
+
+        ArtilleryAddonAdapter.INSTANCE.showFiringTool(noMatchRecruit, noMatchWeapon);
+        ArtilleryAddonAdapter.INSTANCE.clearFiringTool(noMatchRecruit);
+
+        helper.assertTrue(noMatchRecruit.getOffhandItem().is(shield.getItem()),
+                "a missing match must leave the original off-hand item in place");
+        helper.assertTrue(noMatchRecruit.getInventory().countItem(shield.getItem()) == 1,
+                "a failed match display must not duplicate the off-hand item");
         helper.succeed();
     }
 
@@ -4481,30 +5235,101 @@ public final class BoomstickCompatibilityGameTests {
         helper.assertTrue(fullRecruit.getMainHandItem().is(stack("minecraft:iron_sword").getItem()),
                 "the blocked stow must not disturb the main hand, it holds "
                         + fullRecruit.getMainHandItem());
+
+        CrossBowmanEntity rotatedRecruit = spawnCrossbowman(helper, 3);
+        rotatedRecruit.setItemInHand(
+                net.minecraft.world.InteractionHand.MAIN_HAND,
+                stack(SupportedBoomsticks.ARQUEBUS_ID));
+        rotatedRecruit.setItemInHand(
+                net.minecraft.world.InteractionHand.OFF_HAND,
+                stack("minecraft:shield"));
+        int replacementSlot = -1;
+        for (int slot = 0; slot < rotatedRecruit.getInventory().getContainerSize(); slot++) {
+            if (!RecruitInventorySafety.isStorageSlot(rotatedRecruit, slot)) {
+                continue;
+            }
+            if (replacementSlot < 0) {
+                replacementSlot = slot;
+            }
+            rotatedRecruit.getInventory().setItem(slot, stack("minecraft:cobblestone"));
+        }
+        helper.assertTrue(replacementSlot >= 0, "fixture needs one ordinary storage slot");
+        rotatedRecruit.getInventory().setItem(replacementSlot, stack("minecraft:iron_sword"));
+
+        boolean rotatedCarrying = BoomstickCarryOrder.apply(rotatedRecruit, false);
+
+        helper.assertFalse(rotatedCarrying,
+                "a full inventory must still stow through a lossless three-stack rotation");
+        helper.assertTrue(rotatedRecruit.getMainHandItem().is(stack("minecraft:iron_sword").getItem()),
+                "the replacement sword must move into the main hand");
+        helper.assertTrue(
+                RecruitWeaponAdapters.production().isSupportedWeapon(rotatedRecruit.getOffhandItem()),
+                "the firearm must move into the off hand even when storage is full");
+        helper.assertTrue(rotatedRecruit.getInventory().countItem(stack("minecraft:shield").getItem()) == 1,
+                "the displaced shield must occupy the sword's old slot without being lost");
+        helper.assertTrue(
+                rotatedRecruit.getInventory().countItem(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()) == 1,
+                "the full-inventory rotation must neither lose nor duplicate the firearm");
         helper.succeed();
     }
 
     /**
-     * A recruit the combat goal already armed is stowed from the main hand too.
+     * A recruit that owns nothing else still puts its only firearm away.
      *
-     * <p>The order still moves the firearm into the shield hand when the recruit owns no melee
-     * weapon or crossbow; in that case the main hand is intentionally empty.</p>
+     * <p>The weapon goes over the shield hand the way a player's off hand carries one and the main
+     * hand is left empty. The combat goal draws it back out of the off hand when a fight starts, so
+     * an empty hand costs the recruit nothing.</p>
      */
     @GameTest(template = "empty", timeoutTicks = 40)
-    public static void carryOrderStowsTheOnlyFirearmInTheShieldHand(GameTestHelper helper) {
+    public static void carryOrderStowsTheOnlyFirearmIntoTheShieldHand(GameTestHelper helper) {
         CrossBowmanEntity recruit = spawnCrossbowman(helper);
         recruit.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
                 stack(SupportedBoomsticks.ARQUEBUS_ID));
 
         boolean carrying = BoomstickCarryOrder.apply(recruit, false);
 
-        helper.assertFalse(carrying, "a firearm in the shield hand is stowed, not combat-ready");
-        helper.assertTrue(recruit.getMainHandItem().isEmpty(),
-                "without a replacement the main hand must be empty, it holds "
-                        + recruit.getMainHandItem());
+        helper.assertFalse(carrying, "the order must report the stowed firearm");
         helper.assertTrue(
                 RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getOffhandItem()),
                 "the only firearm must move into the shield hand, which holds "
+                        + recruit.getOffhandItem());
+        helper.assertTrue(recruit.getMainHandItem().isEmpty(),
+                "with nothing to take instead the main hand must be left empty, it holds "
+                        + recruit.getMainHandItem());
+        helper.assertTrue(
+                recruit.getInventory().countItem(stack(SupportedBoomsticks.ARQUEBUS_ID).getItem()) == 1,
+                "stowing must neither lose nor duplicate the firearm");
+        helper.assertFalse(BoomstickCarryOrder.isCarrying(recruit),
+                "the carry flag must clear once the weapon is off the main hand");
+        helper.succeed();
+    }
+
+    /**
+     * A stow that would have to drop something leaves the recruit exactly as it stood.
+     *
+     * <p>The shield hand is occupied and storage is full, so the firearm has nowhere to go.</p>
+     */
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void carryOrderKeepsTheFirearmWhenNothingCanMove(GameTestHelper helper) {
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        recruit.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND,
+                stack(SupportedBoomsticks.ARQUEBUS_ID));
+        recruit.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, stack("minecraft:shield"));
+        for (int slot = 0; slot < recruit.getInventory().getContainerSize(); slot++) {
+            if (RecruitInventorySafety.isStorageSlot(recruit, slot)) {
+                recruit.getInventory().setItem(slot, stack("minecraft:cobblestone"));
+            }
+        }
+
+        boolean carrying = BoomstickCarryOrder.apply(recruit, false);
+
+        helper.assertTrue(carrying, "a blocked stow must report the weapon as still carried");
+        helper.assertTrue(
+                RecruitWeaponAdapters.production().isSupportedWeapon(recruit.getMainHandItem()),
+                "the blocked stow must leave the firearm in the main hand, which holds "
+                        + recruit.getMainHandItem());
+        helper.assertTrue(recruit.getOffhandItem().is(stack("minecraft:shield").getItem()),
+                "the blocked stow must not disturb the shield hand, it holds "
                         + recruit.getOffhandItem());
         helper.succeed();
     }
@@ -4668,6 +5493,25 @@ public final class BoomstickCompatibilityGameTests {
 
     private static boolean artilleryEntityRegistered(String registryId) {
         return ForgeRegistries.ENTITY_TYPES.getValue(id(registryId)) != null;
+    }
+
+    /** Calls the optional formation mod's final heading write after Mixins have transformed it. */
+    private static boolean applyBetterFormationHeading(CrossBowmanEntity recruit, float heading) {
+        try {
+            Class<?> controller = Class.forName(
+                    "me.puredoom.betterformations.manager.FormationController");
+            Method faceHeading = controller.getDeclaredMethod(
+                    "faceHeading",
+                    Class.forName("com.talhanation.recruits.entities.AbstractRecruitEntity"),
+                    float.class);
+            faceHeading.setAccessible(true);
+            faceHeading.invoke(null, recruit, heading);
+            return true;
+        } catch (ClassNotFoundException exception) {
+            return false;
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("could not exercise BetterRecruitFormations heading", exception);
+        }
     }
 
     private static ResourceLocation id(String value) {

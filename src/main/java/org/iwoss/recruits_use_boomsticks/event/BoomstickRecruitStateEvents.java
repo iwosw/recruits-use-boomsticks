@@ -3,11 +3,14 @@ package org.iwoss.recruits_use_boomsticks.event;
 import com.talhanation.recruits.entities.CrossBowmanEntity;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
 import org.iwoss.recruits_use_boomsticks.ai.BoomstickFireCoordinator;
+import org.iwoss.recruits_use_boomsticks.ai.BoomstickThrowingAimFacing;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickTransientStateRecovery;
 import org.iwoss.recruits_use_boomsticks.inventory.RecruitInventorySafety;
 
@@ -41,6 +44,7 @@ public final class BoomstickRecruitStateEvents {
             return;
         }
         BoomstickFireCoordinator.clearTargetShared(event.getEntity().getUUID());
+        BoomstickThrowingAimFacing.clearTarget(event.getEntity().getUUID());
         if (event.getEntity() instanceof CrossBowmanEntity recruit) {
             // This fires at the top of the death sequence, before the recruit's inventory is
             // dropped, so an off-hand item parked by an open loading chain still drops with it.
@@ -48,8 +52,18 @@ public final class BoomstickRecruitStateEvents {
         }
     }
 
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase == TickEvent.Phase.END) {
+            // BetterRecruitFormations writes its formation heading at the same phase with normal
+            // priority. Run last so an authorized throwing wind-up still faces its actual target.
+            BoomstickThrowingAimFacing.applyAfterFormations();
+        }
+    }
+
     @SubscribeEvent
     public static void onServerStopped(ServerStoppedEvent event) {
         BoomstickFireCoordinator.clearShared();
+        BoomstickThrowingAimFacing.clear();
     }
 }

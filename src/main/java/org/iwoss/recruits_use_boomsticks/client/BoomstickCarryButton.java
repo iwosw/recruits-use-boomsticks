@@ -3,6 +3,7 @@ package org.iwoss.recruits_use_boomsticks.client;
 import com.talhanation.recruits.client.gui.CommandScreen;
 import com.talhanation.recruits.client.gui.group.RecruitsCommandButton;
 import com.talhanation.recruits.world.RecruitsGroup;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.network.chat.Component;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
@@ -10,7 +11,9 @@ import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import org.iwoss.recruits_use_boomsticks.network.BoomstickNetwork;
 import org.iwoss.recruits_use_boomsticks.network.CarryFirearmCommandMessage;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * The firearm carry orders in Recruits' combat command tab.
@@ -32,6 +35,8 @@ public final class BoomstickCarryButton {
             Component.translatable("gui.recruits_use_boomsticks.command.tooltip.weapons_out");
     private static final Component TOOLTIP_STOW =
             Component.translatable("gui.recruits_use_boomsticks.command.tooltip.weapons_away");
+    private static final Component TOOLTIP_UNAVAILABLE =
+            Component.translatable("gui.recruits_use_boomsticks.command.tooltip.unavailable");
 
     private BoomstickCarryButton() {
     }
@@ -51,28 +56,66 @@ public final class BoomstickCarryButton {
             Component tooltip
     ) {
         RecruitsCommandButton button = new RecruitsCommandButton(x, y, text, pressed -> send(groups, draw));
-        button.setTooltip(Tooltip.create(tooltip));
+        boolean available = remoteSupportsOrders();
+        // A dead button with the ordinary tooltip reads as a bug. Say which server it is instead.
+        button.setTooltip(Tooltip.create(available ? tooltip : TOOLTIP_UNAVAILABLE));
+        button.active = available;
         screen.addRenderableWidget(button);
         RecruitsUseBoomsticks.LOGGER.debug("Added carry order button draw={} at {},{}", draw, x, y);
     }
 
     private static void send(List<RecruitsGroup> groups, boolean draw) {
-        int sent = 0;
+        if (!remoteSupportsOrders()) {
+            return;
+        }
+        List<UUID> selected = new ArrayList<>();
         for (RecruitsGroup group : groups) {
             if (!group.isDisabled()) {
-                BoomstickNetwork.CHANNEL.sendToServer(new CarryFirearmCommandMessage(group.getUUID(), draw));
-                sent++;
+                selected.add(group.getUUID());
             }
         }
-        if (sent == 0) {
+        if (selected.isEmpty()) {
             // No group selected is Recruits' "everyone" case: the order still has to reach the
             // player's own recruits instead of quietly doing nothing.
-            BoomstickNetwork.CHANNEL.sendToServer(
-                    new CarryFirearmCommandMessage(CarryFirearmCommandMessage.EVERYONE, draw));
-            sent = 1;
+            selected.add(CarryFirearmCommandMessage.EVERYONE);
         }
+        int dropped = selected.size() - CarryFirearmCommandMessage.MAX_GROUPS;
+        if (dropped > 0) {
+            // Recruits sets no upper bound on how many groups a player may create, so a selection
+            // can outgrow what one bounded packet carries. Cutting it is the only honest option:
+            // the message would otherwise be rejected out of hand, and Recruits' "everyone" is not
+            // an equivalent — it also reaches recruits that belong to no group at all.
+            selected = selected.subList(0, CarryFirearmCommandMessage.MAX_GROUPS);
+            reportTruncatedOrder(dropped);
+        }
+        BoomstickNetwork.CHANNEL.sendToServer(new CarryFirearmCommandMessage(selected, draw));
         if (CompatConfig.DEBUG_LOGGING.get()) {
-            RecruitsUseBoomsticks.LOGGER.info("Sent {} carry order packets, draw={}", sent, draw);
+            RecruitsUseBoomsticks.LOGGER.info(
+                    "Sent one carry order packet for {} groups, draw={}",
+                    selected.size(),
+                    draw);
         }
+    }
+
+    private static void reportTruncatedOrder(int dropped) {
+        RecruitsUseBoomsticks.LOGGER.warn(
+                "Carry order selection exceeded {} groups; {} were not sent",
+                CarryFirearmCommandMessage.MAX_GROUPS,
+                dropped);
+        var player = Minecraft.getInstance().player;
+        if (player != null) {
+            player.displayClientMessage(
+                    Component.translatable(
+                            "chat.recruits_use_boomsticks.carry.too_many_groups",
+                            CarryFirearmCommandMessage.MAX_GROUPS,
+                            dropped),
+                    false);
+        }
+    }
+
+    private static boolean remoteSupportsOrders() {
+        var connection = Minecraft.getInstance().getConnection();
+        return connection != null
+                && BoomstickNetwork.CHANNEL.isRemotePresent(connection.getConnection());
     }
 }

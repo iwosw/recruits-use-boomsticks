@@ -41,6 +41,72 @@ class BoomstickFireCoordinatorTest {
     }
 
     @Test
+    void defenderShootsBackEvenWhenTheFormationAlreadyReservedLethalDamage() {
+        BoomstickFireCoordinator coordinator = new BoomstickFireCoordinator();
+
+        assertTrue(coordinator.reserve(SHOOTER_ONE, TARGET, 20.0D, 24.0D, 1, 100L, 5));
+        assertFalse(coordinator.reserve(SHOOTER_TWO, TARGET, 20.0D, 24.0D, 1, 100L, 5));
+
+        UUID defender = UUID.fromString("00000000-0000-0000-0000-000000000003");
+        assertTrue(coordinator.reserve(defender, TARGET, 20.0D, 24.0D, 1, 100L, 5, true));
+        assertEquals(2, coordinator.reservationCount(TARGET, 100L));
+    }
+
+    @Test
+    void selfDefenseStillRespectsTheProjectileCeiling() {
+        BoomstickFireCoordinator coordinator = new BoomstickFireCoordinator();
+        for (int index = 0; index < 10; index++) {
+            assertTrue(coordinator.reserve(
+                    new UUID(0L, index + 1L),
+                    TARGET,
+                    1_000.0D,
+                    1.0D,
+                    1,
+                    100L,
+                    5));
+        }
+        assertFalse(coordinator.reserve(new UUID(0L, 11L), TARGET, 1_000.0D, 1.0D, 1, 100L, 5, true));
+    }
+
+    @Test
+    void capacityQueryReportsWhenATargetStillNeedsShooting() {
+        BoomstickFireCoordinator coordinator = new BoomstickFireCoordinator();
+        UUID uncovered = UUID.fromString("00000000-0000-0000-0000-000000000200");
+
+        assertTrue(coordinator.hasFireTurnCapacity(TARGET, 20.0D, 1, 100L));
+        assertTrue(coordinator.reserve(SHOOTER_ONE, TARGET, 20.0D, 24.0D, 1, 100L, 5));
+
+        assertFalse(coordinator.hasFireTurnCapacity(TARGET, 20.0D, 1, 100L));
+        assertTrue(coordinator.hasFireTurnCapacity(uncovered, 20.0D, 1, 100L));
+    }
+
+    @Test
+    void capacityQueryDoesNotClaimAPlace() {
+        BoomstickFireCoordinator coordinator = new BoomstickFireCoordinator();
+
+        assertTrue(coordinator.hasFireTurnCapacity(TARGET, 20.0D, 1, 100L));
+        assertEquals(0, coordinator.reservationCount(TARGET, 100L));
+        assertTrue(coordinator.reserve(SHOOTER_TWO, TARGET, 20.0D, 8.0D, 1, 100L, 5));
+        assertEquals(1, coordinator.reservationCount(TARGET, 100L));
+    }
+
+    @Test
+    void capacityQueryHonoursTheProjectileCeiling() {
+        BoomstickFireCoordinator coordinator = new BoomstickFireCoordinator();
+        for (int index = 0; index < 10; index++) {
+            assertTrue(coordinator.reserve(
+                    new UUID(0L, index + 1L),
+                    TARGET,
+                    1_000.0D,
+                    1.0D,
+                    1,
+                    100L,
+                    5));
+        }
+        assertFalse(coordinator.hasFireTurnCapacity(TARGET, 1_000.0D, 1, 100L));
+    }
+
+    @Test
     void formationNeverCommitsMoreThanTenPhysicalProjectiles() {
         BoomstickFireCoordinator coordinator = new BoomstickFireCoordinator();
         for (int index = 0; index < 10; index++) {

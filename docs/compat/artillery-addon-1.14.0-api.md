@@ -2,15 +2,16 @@
 
 This report records the compatibility boundary inspected for Recruits Use Boomsticks. It is based on the exact resolved binary artifact and `javap`; it does not contain decompiled upstream source.
 
-> Runtime update (2026-08-14): the same seventeen enabled firearm profiles and five throwing weapons now execute on the unpatched Artillery 1.13.4 dedicated server. Artillery 1.11 through 1.13.4 passed the 113-test matrix; the statements below about four profiles being gated on the old pinned 1.11 run are retained only as binary-audit history. Artillery 1.14 itself remains server-unsafe upstream.
+> Runtime update (2026-08-16): eighteen enabled firearm profiles and five throwing weapons execute on the unpatched Artillery 1.13.4 dedicated server. Bronze Handgonne is the eighteenth explicit profile; upstream registers it but omits it from `#artillery:guns`. Artillery 1.14 itself remains server-unsafe upstream.
 
 ## Compatibility status
 
-- [x] The Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branches, Matchlock Pistol, Toradar Rifle, Mini Pistola, Handgonne, Taccola Handgonne iron-ball branch, Markmengonne Arrow-branch, Harquebus standing and `fork_rest` branches, Windlass Crossbow Arrow-branch, Chu Ko Nu eight-round repeater, and Double Barrel Gonne first-barrel iron-ball executable slices are implemented with their documented ammunition and confirmed native/vanilla projectile paths through Recruits crossbowman AI.
+- [x] The Arquebus, Matchlock Musket, Matchlock Carbine standing and `fork_rest` branches, Matchlock Pistol, Toradar Rifle, Mini Pistola, Handgonne, Bronze Handgonne, Taccola Handgonne iron-ball branch, Markmengonne iron-ball/Arrow branches, Harquebus standing and `fork_rest` branches, Windlass Crossbow Arrow-branch, Chu Ko Nu eight-round repeater, and Double Barrel Gonne first-barrel iron-ball executable slices are implemented with their documented ammunition and confirmed native/vanilla projectile paths through Recruits crossbowman AI.
 - [x] The Chu Ko Nu repeater branch is implemented and runtime-verified against the pinned server-safe artifact: one physical `minecraft:arrow` per magazine round up to the native eight, the counter walked back down with one marked vanilla `Arrow` per round, and no reload between rounds of the same magazine.
 - [x] The Tiller Gun profile/state/AI slice is implemented and binary-confirmed against this 1.14.0 artifact; dedicated-server runtime proof remains pending because the pinned server-safe 1.11 artifact predates Tiller and this 1.14.0 artifact has an upstream client-only server-load failure.
 - [x] The Handgonne profile/state/AI slice is implemented against the pinned artifact: physical `iron_ball`, native `IronballProjectileEntity`, stage-two `loaded=true` state, and the confirmed normal/shift launch branches.
-- [x] The Markmengonne Arrow-branch slice is implemented and runtime-verified against the pinned server-safe artifact: physical `minecraft:arrow`, native double `ammo=2.0`, stage-two load without inventing a `loaded` flag, marked vanilla `Arrow` projectile, and the confirmed normal/shift launch branches.
+- [x] Markmengonne supports both confirmed single-projectile branches used by recruits. Its preferred iron-ball branch uses physical `iron_ball`, native double `ammo=0.0`, stage-two state without a `loaded` flag, and a native `IronballProjectileEntity`; its Arrow fallback preserves the existing physical `minecraft:arrow`, `ammo=2.0`, and marked vanilla `Arrow` path.
+- [x] Bronze Handgonne is explicitly supported despite its omission from the upstream guns tag: physical `iron_ball`, native double `ammo=0.0`, stage-two `loaded=true`, and one native `IronballProjectileEntity`.
 - [x] Noble Handgonne supports both confirmed single-projectile branches used by recruits. Its Arrow branch uses a physical `minecraft:arrow`, native stage-two `ammo=2.0` state without a `loaded` flag, and a marked vanilla `Arrow`. Its iron-ball branch uses a physical `iron_ball`, the native powder/ball/ramming chain with `ammo=0.0` and `loaded=true`, and the native `IronballProjectileEntity`. A recruit selects the iron-ball branch when both ammunition types are present; the Arrow branch remains available when no ball is present.
 - [x] The Harquebus standing and `fork_rest` branches are implemented and runtime-verified against the pinned server-safe artifact: physical `iron_ball`, the native stage-three load its own chain reaches (`stage=1.0`, `2.0`, `3.0`) without inventing a `loaded` flag, one native `IronballProjectileEntity`, normal inaccuracy `6.0`, rest inaccuracy `3.5`, and native stage-zero fired cleanup. Other Harquebus branches remain disabled.
 - [x] The Hackbut ordinary/no-`fork_rest` branch is implemented and binary-confirmed against this 1.14.0 artifact: physical `large_iron_ball`, native stage-two load without inventing a `loaded` flag, and one native `IronballProjectileEntity`. Runtime proof remains gated because the pinned server-safe 1.11 artifact does not register Hackbut.
@@ -62,7 +63,7 @@ The Artillery shapeless recipe `throwing_francisca_recipe` references
 required if that native conversion recipe should load and be craftable. The original
 `steel_francisca_axe` is a normal `MedievalWeaponItem`; it is not itself claimed as throwable.
 
-The project does not link Artillery classes at compile time. The isolated adapter is exercised in the Forge runtime with the current server-safe 1.13.4 file (`8252195`), whose registry/NBT contract matches this report and which registers all seventeen enabled firearm profiles. Earlier 1.11 runs gated Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne because those items did not yet exist in that artifact; 1.13.4 now executes them on an unpatched dedicated server. The 1.14 artifact still fails dedicated-server loading because its automatic subscriber attempts to load the client-only `ClientLevel` class, so 1.14 is not advertised as a supported server dependency.
+The project does not link Artillery classes at compile time. The isolated adapter is exercised in the Forge runtime with the current server-safe 1.13.4 file (`8252195`), whose registry/NBT contract matches this report and which registers all eighteen enabled firearm profiles. The upstream tag still lists only seventeen because it omits `bronze_handgonne`. Earlier 1.11 runs gated Tiller Gun, Noble Handgonne, Hackbut, and Double Barrel Gonne because those items did not yet exist in that artifact; 1.13.4 now executes them on an unpatched dedicated server. The 1.14 artifact still fails dedicated-server loading because its automatic subscriber attempts to load the client-only `ClientLevel` class, so 1.14 is not advertised as a supported server dependency.
 
 ## Gun tags
 
@@ -87,6 +88,7 @@ The project does not link Artillery classes at compile time. The isolated adapte
 17. `artillery_addon:markmengonne`
 
 The tag mixes single-shot, repeating, multi-projectile, and mounted/rest-dependent transaction families. It is evidence for discovery, not a safe support allowlist.
+`artillery_addon:bronze_handgonne` is registered and craftable but absent from this tag; compatibility therefore routes it by explicit registry ID.
 
 ## Executable profile class map
 
@@ -104,14 +106,15 @@ The tag mixes single-shot, repeating, multi-projectile, and mounted/rest-depende
 | `artillery_addon:toradar_rifle` | `item.ToradarRifleItem` | `procedures.ToradarRightclickProcedure` | `IronballProjectileEntity` |
 | `artillery_addon:mini_pistola` | `item.MiniPistolaItem` | `procedures.MinipistolaRightclickedProcedure` | `IronballProjectileEntity` |
 | `artillery_addon:tiller_gun` | `item.TillerGunItem` | `procedures.TillergunRightclickedProcedure` | `IronballProjectileEntity` |
-| `artillery_addon:markmengonne` | `item.MarkmengonneItem` | `procedures.MarkmenRightclickProcedure` | vanilla `Arrow` |
+| `artillery_addon:markmengonne` | `item.MarkmengonneItem` | `procedures.MarkmenRightclickProcedure` | native `IronballProjectileEntity` for `ammo=0.0`; vanilla `Arrow` for `ammo=2.0` |
+| `artillery_addon:bronze_handgonne` | `item.BronzeHandgonneItem` | `procedures.BronzegunneRightclickedProcedure` | native `IronballProjectileEntity` for the enabled iron-ball branch |
 | `artillery_addon:windlass_crossbow` | `item.WindlassCrossbowItem` | `procedures.Windlass3RightclickedProcedure` | vanilla `Arrow` |
 | `artillery_addon:chu_ko_nu` | `item.ChuKoNuItem` | `procedures.ChuKoNuShootProcedure` | vanilla `Arrow` |
 | `artillery_addon:double_barrel_gonne` | `item.DoubleBarrelGonneItem` | `procedures.DoubleBarrelGonneRightclickedProcedure` / `procedures.DbIronballProcedure` | native `IronballProjectileEntity` for the first-barrel iron-ball branch |
 
 All class names above are under `net.mcreator.artilleryaddon`. Registration access is exposed through:
 
-- `init.ArtilleryAddonModItems`: `HANDGONNE`, `TACCOLA_HANDGONNE`, `ARQUEBUS`, `HARQUEBUS`, `HACKBUT`, `MATCHLOCK_MUSKET`, `MATCHLOCK_PISTOL`, `TORADAR_RIFLE`, `MINI_PISTOLA`, `TILLER_GUN`, `MARKMENGONNE`, `WINDLASS_CROSSBOW`, `FRANCISCA`, `IRON_BALL`, `SMALL_IRON_BALL`, `LARGE_IRON_BALL`, and `FORK_REST`;
+- `init.ArtilleryAddonModItems`: `HANDGONNE`, `BRONZE_HANDGONNE`, `TACCOLA_HANDGONNE`, `ARQUEBUS`, `HARQUEBUS`, `HACKBUT`, `MATCHLOCK_MUSKET`, `MATCHLOCK_PISTOL`, `TORADAR_RIFLE`, `MINI_PISTOLA`, `TILLER_GUN`, `MARKMENGONNE`, `WINDLASS_CROSSBOW`, `FRANCISCA`, `IRON_BALL`, `SMALL_IRON_BALL`, `LARGE_IRON_BALL`, and `FORK_REST`;
 - `init.ArtilleryAddonModEntities`: `IRONBALL_PROJECTILE`, `IRON_BIT_PROJECTILE`, and `FRANCISCA_PRO`;
 - `init.ArtilleryAddonModSounds`: loading/firing/impact sound registry objects including `HAND_CANNON_LOAD_BALL`, `HAND_CANNON_LOADING_POWDER`, `HAND_CANNON_FIREING`, `ARQUEBUS_BALL`, `ARQUEBUS_RAMMING`, `ARQUEBUS_FIRING`, `BALL_IMPACT`, and `BALL_HITS`;
 - `init.ArtilleryAddonModParticleTypes`: `GUNSMOKE`.
@@ -224,9 +227,13 @@ The procedures mutate flask and weapon NBT, inventory, durability, lore, sounds,
 
 `NobleGonneRightclickedProcedure` has multiple native ammunition branches. The iron-ball branch consumes one physical `iron_ball`, walks powder at stage `0.0`, ball at stage `1.0` with double `ammo=0.0`, and bare-hand/ramrod ramming at stage `2.0` with `loaded=true`. It fires one native `IronballProjectileEntity`, finishes at stage `3.0` with `loaded=false`, and preserves base damage `2.7`, critical `true`, velocity `4.5`, and inaccuracy `9.0` normally or `6.5` while shifting. Its native misfire roll is `1.0..210.0` against item damage. The Arrow branch consumes one `minecraft:arrow` and jumps straight to `stage=2.0`, `ammo=2.0` without a `loaded` flag; it fires the existing marked vanilla `Arrow` profile. When both ammunition types are available, recruits prefer the ordinary iron ball. Shatter Shot and Iron Bit remain disabled.
 
-### Markmengonne executable Arrow branch
+### Markmengonne executable iron-ball and Arrow branches
 
-`MarkmenRightclickProcedure` has multiple ammunition/transaction branches. This compatibility slice enables only the confirmed physical-Arrow branch: one `minecraft:arrow` is consumed and the recruit weapon is committed at native `stage=2.0` with native double `ammo=2.0`; the adapter does not invent a `loaded` Boolean for this branch. Firing creates one marked vanilla `Arrow`, finishes at `stage=3.0` while preserving `ammo=2.0`, and uses base damage `1.5`, knockback `1`, silent `false`, pickup disallowed, no critical/fire flag, velocity `4.5`, and inaccuracy `6.5` normally or `4.0` while shifting. Markmengonne's other ammunition branches remain disabled.
+`MarkmenRightclickProcedure` has multiple ammunition/transaction branches. The iron-ball branch consumes one physical `iron_ball`, walks powder at stage zero, ball at stage one with native double `ammo=0.0`, and vanilla-stick/ramrod ramming to stage two without writing a `loaded` flag. It fires one native `IronballProjectileEntity` with base damage `2.9`, knockback `1`, silent `true`, pickup disallowed, velocity `4.5`, and inaccuracy `7.0` normally or `3.3` while shifting; its native misfire roll is `1.0..130.0` against item damage plus `5`. The Arrow fallback consumes one `minecraft:arrow`, jumps directly to `stage=2.0` with `ammo=2.0`, and fires the existing marked vanilla `Arrow` profile. Recruits prefer Iron Ball when both paths are available. Shatter Shot and Iron Bit remain disabled.
+
+### Bronze Handgonne executable iron-ball branch
+
+`BronzegunneRightclickedProcedure` is registered separately from `handgonne` and is omitted from the upstream guns tag. Its enabled branch consumes one physical `iron_ball`, writes native double `ammo=0.0`, and reaches `stage=2.0` with `loaded=true` through powder, ball, and vanilla-stick/ramrod steps. Firing creates one native `IronballProjectileEntity`, leaves `stage=3.0`, `powder=0.0`, and `loaded=false`, and preserves base damage `1.85`, knockback `1`, silent `true`, pickup disallowed, velocity `4.5`, and inaccuracy `9.0` normally or `4.5` while shifting. Its native misfire roll is `1.0..89.0` against item damage plus `5`. Shatter Shot, Iron Bit, and Arrow branches remain disabled.
 
 ### Windlass Crossbow executable Arrow branch
 
@@ -281,6 +288,8 @@ identical there, only jump offsets differ. `ArtilleryReloadProtocol` reproduces 
 | `noble_handgonne` (Iron Ball) | flask → `stage=0.0`, `powder=1.0` | `iron_ball` → `stage=1.0`, `ammo=0.0` | bare hand or ramrod → `stage=2.0`, `loaded=true` | `stage=2.0`, `loaded=true` |
 | `noble_handgonne` (Arrow) | flask → `stage=0.0`, `powder=1.0` | `minecraft:arrow` → `stage=2.0`, `ammo=2.0` | — (the Arrow branch skips ramming) | `stage=2.0` |
 | `markmengonne` | flask → `stage=0.0`, `powder=1.0` | `minecraft:arrow` → `stage=2.0`, `ammo=2.0` | — (the Arrow branch skips ramming) | `stage=2.0` |
+| `markmengonne` (Iron Ball) | flask → `stage=0.0`, `powder=1.0` | `iron_ball` → `stage=1.0`, `ammo=0.0` | vanilla stick or ramrod → `stage=2.0` | `stage=2.0`, `ammo=0.0` |
+| `bronze_handgonne` | flask → `stage=0.0`, `powder=1.0` | `iron_ball` → `stage=1.0`, `ammo=0.0` | vanilla stick or ramrod → `stage=2.0`, `loaded=true` | `stage=2.0`, `loaded=true` |
 | `double_barrel_gonne` | flask → `barrel_one=1.0`, `rammed_one=0.0` | `iron_ball` → `barrel_one=2.0` | bare hand or ramrod → `rammed_one=1.0`, `loaded=1.0` | `barrel_one=2.0`, `rammed_one=1.0`, `loaded=1.0` |
 | `windlass_crossbow` | bare hand → `stage=1.0`, `crossbow.loading_start` | bare hand → `stage=2.0`, `crossbow.loading_middle` | bare hand → `stage=3.0`, then `minecraft:arrow` → `stage=4.0`, `crossbow.loading_end` | `stage=4.0` |
 | `chu_ko_nu` | `minecraft:arrow` → `ammo=1.0` | … one arrow per round … | `minecraft:arrow` → `ammo=8.0` | `ammo>=1.0`, capacity `8.0` |

@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import com.talhanation.recruits.entities.CrossBowmanEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.item.ItemStack;
@@ -18,6 +19,7 @@ import org.iwoss.recruits_use_boomsticks.inventory.RecruitHandSwap;
 import org.slf4j.Logger;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,6 +42,18 @@ public final class RecruitBoomstickAttackGoal extends Goal {
      */
     private static final int REJECTED_SHOT_BACKOFF_TICKS = 40;
     private static final int AIM_RESERVATION_LEASE_TICKS = 5;
+    /**
+     * Pacing and reach of the search for an enemy the formation has not covered.
+     *
+     * <p>The interval and stagger keep a whole firing line from sweeping the area in the same tick.
+     * The range deliberately stops short of {@link #MAX_COMBAT_RANGE}: a long musket may aim further
+     * than this, but a forty-five block search box is a far more expensive lookup than the extra
+     * reach is worth for a recruit that is only choosing between enemies.</p>
+     */
+    private static final int TARGET_SCAN_INTERVAL_TICKS = 20;
+    private static final int TARGET_SCAN_STAGGER_TICKS = 7;
+    private static final int MAX_TARGET_SCAN_LINE_OF_SIGHT_CHECKS = 4;
+    private static final double MAX_TARGET_SCAN_RANGE = 32.0D;
     private static final int MIN_PROJECTILE_RESERVATION_TICKS = 20;
     private static final int MAX_PROJECTILE_RESERVATION_TICKS = 100;
     private static final double MAX_COMBAT_RANGE = 45.0D;
@@ -59,12 +73,14 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     private int reloadTicksRemaining;
     private int reloadTicksTotal;
     private int reloadStepCount;
+    private int reloadStepsStarted;
     private int reloadStepsDone;
     private boolean reloadStepsAborted;
     private int fireAnimationTicks;
     private BoomstickWeaponAdapter.ShotOutcome shotOutcome;
     private boolean navigationControlled;
     private UUID reservedTargetId;
+    private long nextTargetScanTick;
     private BoomstickShotFacing.Snapshot formationFacingBeforeAim;
     private Vec3 firingFacingPosition;
     private LivingEntity retainedCombatTarget;
@@ -113,7 +129,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     public boolean canUse() {
         if (!isOperational()
                 || mustYieldToEmergencyMovement()
-                || !hasSupportedWeapon()) {
+                || !hasUsableWeapon()) {
             return false;
         }
         // GoalSelector still polls this goal while its persistent cooldown keeps it stopped. Use
@@ -140,9 +156,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     @Override
     public boolean canContinueToUse() {
         if (!isOperational()
-                || mustYieldToEmergencyMovement()
-                || (!adapters.isSupportedEnabledWeapon(crossBowman.getMainHandItem())
-                && !hasSupportedWeaponInInventory())) {
+                || mustYieldToEmergencyMovement()) {
             return false;
         }
         if (fireAnimationTicks > 0) {
@@ -157,6 +171,10 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         if (state.phase() == BoomstickAttackState.Phase.RELOAD
                 && (mode == Mode.PASSIVE_RELOAD || commandAllowsCombat())) {
             return true;
+        }
+        if (!adapters.isUsableEnabledWeapon(crossBowman, crossBowman.getMainHandItem())
+                && !hasUsableWeaponInInventory()) {
+            return false;
         }
         // Do not short-circuit target retention on cooldown: the visual facing can return to the
         // formation while the entity continues to remember whom it is fighting.
@@ -178,6 +196,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         reloadTicksRemaining = 0;
         reloadTicksTotal = 0;
         reloadStepCount = 0;
+        reloadStepsStarted = 0;
         reloadStepsDone = 0;
         reloadStepsAborted = false;
         aimProgress.reset();
@@ -217,6 +236,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         reloadTicksRemaining = 0;
         reloadTicksTotal = 0;
         reloadStepCount = 0;
+        reloadStepsStarted = 0;
         reloadStepsDone = 0;
         reloadStepsAborted = false;
         aimProgress.reset();
@@ -281,6 +301,14 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         if (state.phase() == BoomstickAttackState.Phase.RELOAD && !adapter.isReloading(weapon)) {
             adapter.setReloading(weapon, true);
         }
+        // The same argument applies to a wind-up that renders from the native use state: it is the
+        // only thing a client can see that pose through, so it is held up for as long as the aim
+        // window is open rather than left to whatever last touched the recruit.
+        if (state.phase() == BoomstickAttackState.Phase.AIM
+                && adapter.windUpUsesNativeItemState(weapon)
+                && !crossBowman.isUsingItem()) {
+            crossBowman.startUsingItem(net.minecraft.world.InteractionHand.MAIN_HAND);
+        }
 
         BoomstickAttackState.Phase previous = state.phase();
         boolean ammoRequired = BoomstickAmmoAccess.isAmmoRequired();
@@ -290,16 +318,18 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                 || steppedReloadInProgress();
         boolean loaded = adapter.isLoaded(weapon);
         boolean reloadComplete = advanceReloadTimer(previous);
+        boolean cooldownComplete = !isCooldownActive();
         boolean fireTurnAvailable = reserveFireTurnIfNeeded(
                 previous,
                 aimPoint,
                 weapon,
                 profile,
                 adapter,
-                loaded);
+                loaded,
+                reloadComplete,
+                cooldownComplete);
         AimPoint authorizedAimPoint = fireTurnAvailable ? aimPoint : null;
         boolean aimComplete = advanceAimTimer(previous, authorizedAimPoint);
-        boolean cooldownComplete = !isCooldownActive();
 
         BoomstickAttackState.Signals signals = new BoomstickAttackState.Signals(
                 isOperational(),
@@ -314,11 +344,15 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         );
         BoomstickAttackState.Phase next = state.advance(signals);
         handleTransition(previous, next, weapon, profile, authorizedAimPoint, ammoRequired, adapter);
+        if (next != BoomstickAttackState.Phase.AIM) {
+            BoomstickThrowingAimFacing.untrack(crossBowman);
+        }
         if (authorizedAimPoint != null || (combatAllowed && validTarget(crossBowman.getTarget()))) {
             moveAndLook(
                     authorizedAimPoint,
                     combatRange,
-                    next == BoomstickAttackState.Phase.AIM);
+                    next == BoomstickAttackState.Phase.AIM,
+                    next == BoomstickAttackState.Phase.AIM && adapter.isThrowable(weapon));
         }
     }
 
@@ -354,6 +388,13 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         // way in and dropped on every way out, including an aim the recruit never got to finish.
         if (previous == BoomstickAttackState.Phase.AIM) {
             adapter.setAiming(weapon, false);
+            if (adapter.windUpUsesNativeItemState(weapon)) {
+                // Dropped with the arm, including into the shot itself. This must stay
+                // stopUsingItem: it clears the use state without running the item's own release
+                // path, so no native throw can be reached. LivingEntity#releaseUsingItem is the
+                // method that does run it and is not interchangeable here.
+                crossBowman.stopUsingItem();
+            }
             if (next != BoomstickAttackState.Phase.FIRE) {
                 releasePendingShotReservation();
                 restoreFormationFacing();
@@ -374,6 +415,9 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             }
             aimProgress.reset(adapter.aimTicks(weapon));
             adapter.setAiming(weapon, true);
+            if (adapter.windUpUsesNativeItemState(weapon)) {
+                crossBowman.startUsingItem(net.minecraft.world.InteractionHand.MAIN_HAND);
+            }
             shotOutcome = null;
         }
         if (next == BoomstickAttackState.Phase.FIRE) {
@@ -394,13 +438,19 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             BoomstickWeaponProfile profile,
             BoomstickWeaponAdapter adapter
     ) {
-        reloadTicksRemaining = BoomstickCombatPolicy.reloadTicks(
+        int fullReloadTicks = BoomstickCombatPolicy.reloadTicks(
                 adapter.reloadTicks(weapon),
                 crossBowman.isPassenger(),
                 SupportedBoomsticks.ARBALEST_ID.equals(profile.registryId()));
-        reloadTicksTotal = reloadTicksRemaining;
         reloadStepCount = adapter.reloadStepCount(weapon);
-        reloadStepsDone = 0;
+        reloadStepsDone = Math.min(reloadStepCount, Math.max(0, adapter.completedReloadSteps(weapon)));
+        reloadStepsStarted = reloadStepsDone;
+        int remainingSteps = reloadStepCount - reloadStepsDone;
+        reloadTicksRemaining = reloadStepCount > 0 && reloadStepsDone > 0
+                ? Math.max(1, (int) Math.ceil(
+                (double) fullReloadTicks * remainingSteps / reloadStepCount))
+                : fullReloadTicks;
+        reloadTicksTotal = reloadTicksRemaining;
         reloadStepsAborted = false;
         adapter.setReloading(weapon, true);
         adapter.setFiring(weapon, false);
@@ -421,6 +471,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             // The native chain already spent its components and wrote the loaded state step by step.
             adapter.endSteppedReload(crossBowman, weapon);
             reloadStepCount = 0;
+            reloadStepsStarted = 0;
             reloadStepsDone = 0;
             reloadStepsAborted = false;
             return;
@@ -448,14 +499,19 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             // again with the fire animation.
             adapter.showFiringTool(crossBowman, weapon);
             Vec3 shotPosition = aimPoint.shotPosition();
-            BoomstickShotFacing.face(crossBowman, shotPosition);
+            // Keep the visible weapon on the point tracked throughout the aim window. The
+            // projectile deliberately targets lower on a living entity, but CROSSBOW_HOLD derives
+            // both arm angles from the recruit's pitch; facing that low ballistic point here makes
+            // a long firearm snap toward the ground for the shot and recoil.
+            Vec3 facingPosition = aimPoint.position();
+            BoomstickShotFacing.face(crossBowman, facingPosition);
             shotOutcome = adapter.fire(crossBowman, weapon, shotPosition).outcome();
             if (shotOutcome == BoomstickWeaponAdapter.ShotOutcome.FIRED
                     || shotOutcome == BoomstickWeaponAdapter.ShotOutcome.MISFIRED) {
                 beginCooldown(cooldownTicks);
                 if (shotOutcome == BoomstickWeaponAdapter.ShotOutcome.FIRED) {
                     commitShotReservation(aimPoint, profile);
-                    firingFacingPosition = shotPosition;
+                    firingFacingPosition = facingPosition;
                     fireAnimationTicks = FIRE_ANIMATION_TICKS;
                 } else {
                     releasePendingShotReservation();
@@ -528,9 +584,12 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             return;
         }
         int elapsed = reloadTicksTotal - reloadTicksRemaining;
+        int remainingSteps = reloadStepCount - reloadStepsStarted;
         int due = reloadTicksTotal <= 0
                 ? reloadStepCount
-                : Math.min(reloadStepCount, (elapsed * reloadStepCount) / reloadTicksTotal + 1);
+                : Math.min(
+                        reloadStepCount,
+                        reloadStepsStarted + (elapsed * remainingSteps) / reloadTicksTotal + 1);
         BoomstickWeaponAdapter adapter = activeSelection.adapter();
         ItemStack weapon = activeSelection.weapon();
         while (reloadStepsDone < due) {
@@ -559,13 +618,15 @@ public final class RecruitBoomstickAttackGoal extends Goal {
 
 
     private void switchToSupportedWeapon() {
-        if (!hasSupportedWeaponInInventory()) {
+        if (!hasUsableWeaponInInventory()) {
             return;
         }
         // Not Recruits' own switchMainHandItem: it starts its scan past both hand slots, so it cannot
         // see a weapon the carry order parked in the off hand. Firing and the native loading chain
         // both need the weapon in the main hand — the chain borrows the off hand for its own tools.
-        RecruitHandSwap.intoMainHand(crossBowman, adapters::isSupportedEnabledWeapon);
+        RecruitHandSwap.intoMainHand(
+                crossBowman,
+                stack -> adapters.isUsableEnabledWeapon(crossBowman, stack));
         state.reset();
         activeSelection = null;
         switchDelay = 1;
@@ -584,6 +645,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         reloadTicksRemaining = 0;
         reloadTicksTotal = 0;
         reloadStepCount = 0;
+        reloadStepsStarted = 0;
         reloadStepsDone = 0;
         reloadStepsAborted = false;
         fireAnimationTicks = 0;
@@ -605,7 +667,9 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             ItemStack weapon,
             BoomstickWeaponProfile profile,
             BoomstickWeaponAdapter adapter,
-            boolean loaded
+            boolean loaded,
+            boolean reloadComplete,
+            boolean cooldownComplete
     ) {
         if (aimPoint == null) {
             releasePendingShotReservation();
@@ -616,9 +680,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
             releasePendingShotReservation();
             return true;
         }
-        if (!loaded
-                || (phase != BoomstickAttackState.Phase.IDLE
-                && phase != BoomstickAttackState.Phase.AIM)) {
+        if (!needsFireTurnBeforeAim(phase, loaded, reloadComplete, cooldownComplete)) {
             releasePendingShotReservation();
             return true;
         }
@@ -633,6 +695,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         } catch (RuntimeException | LinkageError ignored) {
             expectedDamage = Math.max(1, profile.projectileCount());
         }
+        boolean selfDefense = isDefendingAgainst(target);
         boolean reserved = BoomstickFireCoordinator.reserveShared(
                 crossBowman.getUUID(),
                 targetId,
@@ -640,11 +703,99 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                 expectedDamage,
                 profile.projectileCount(),
                 crossBowman.level().getGameTime(),
-                AIM_RESERVATION_LEASE_TICKS);
+                AIM_RESERVATION_LEASE_TICKS,
+                selfDefense);
         if (reserved) {
             reservedTargetId = targetId;
+        } else if (!selfDefense) {
+            // Comrades already own this kill. Look for an enemy nobody has covered rather than
+            // waiting out their reload behind a target that is dead in all but name.
+            retargetAwayFromCoveredEnemy(
+                    target,
+                    effectiveCombatRange(adapter, weapon),
+                    profile.projectileCount());
         }
         return reserved;
+    }
+
+    /**
+     * Moves a recruit the formation has no shot left for onto the nearest enemy that still needs one.
+     *
+     * <p>The reservation ledger only prevents overkill; on its own it leaves the surplus rank idle
+     * until Recruits' own target goals happen to hand it something else. This closes that gap, and
+     * pays for it carefully: it runs only after a refused reservation, on a staggered interval, over
+     * a range capped below the shared combat maximum, and it spends a line-of-sight ray only on a
+     * candidate that is both closer than the current best and still has reservation capacity.</p>
+     */
+    private void retargetAwayFromCoveredEnemy(
+            LivingEntity coveredTarget,
+            double combatRange,
+            int projectileCount
+    ) {
+        long gameTime = crossBowman.level().getGameTime();
+        if (gameTime < nextTargetScanTick) {
+            return;
+        }
+        nextTargetScanTick = BoomstickCombatPolicy.nextTargetScanTick(
+                gameTime,
+                TARGET_SCAN_INTERVAL_TICKS,
+                TARGET_SCAN_STAGGER_TICKS,
+                crossBowman.getId());
+
+        double searchRange = Math.min(combatRange, MAX_TARGET_SCAN_RANGE);
+        if (searchRange <= 0.0D) {
+            return;
+        }
+        List<LivingEntity> candidates = crossBowman.level().getEntitiesOfClass(
+                LivingEntity.class,
+                crossBowman.getBoundingBox().inflate(searchRange),
+                candidate -> candidate != coveredTarget && validTarget(candidate));
+
+        LivingEntity best = null;
+        double bestDistanceSq = searchRange * searchRange;
+        int lineOfSightChecks = 0;
+        for (LivingEntity candidate : candidates) {
+            double distanceSq = crossBowman.distanceToSqr(candidate);
+            if (distanceSq >= bestDistanceSq) {
+                continue;
+            }
+            if (!BoomstickFireCoordinator.hasFireTurnCapacityShared(
+                    candidate.getUUID(),
+                    candidate.getHealth() + candidate.getAbsorptionAmount(),
+                    projectileCount,
+                    gameTime)) {
+                continue;
+            }
+            if (lineOfSightChecks >= MAX_TARGET_SCAN_LINE_OF_SIGHT_CHECKS) {
+                break;
+            }
+            lineOfSightChecks++;
+            if (!crossBowman.hasLineOfSight(candidate)) {
+                continue;
+            }
+            best = candidate;
+            bestDistanceSq = distanceSq;
+        }
+        if (best != null) {
+            retainedCombatTarget = best;
+            crossBowman.setTarget(best);
+        }
+    }
+
+    /** Prevents any transition into the visible aim window before formation fire authorizes it. */
+    private static boolean needsFireTurnBeforeAim(
+            BoomstickAttackState.Phase phase,
+            boolean loaded,
+            boolean reloadComplete,
+            boolean cooldownComplete
+    ) {
+        return switch (phase) {
+            case AIM -> true;
+            case IDLE, ACQUIRE_WEAPON, OUT_OF_AMMO -> loaded;
+            case RELOAD -> reloadComplete;
+            case COOLDOWN -> loaded && cooldownComplete;
+            case FIRE -> false;
+        };
     }
 
     private void commitShotReservation(AimPoint aimPoint, BoomstickWeaponProfile profile) {
@@ -774,12 +925,14 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         return combatTarget() != null || hasStrategicFirePosition();
     }
 
-    private boolean hasSupportedWeapon() {
-        return adapters.isSupportedEnabledWeapon(crossBowman.getMainHandItem()) || hasSupportedWeaponInInventory();
+    private boolean hasUsableWeapon() {
+        return adapters.isUsableEnabledWeapon(crossBowman, crossBowman.getMainHandItem())
+                || hasUsableWeaponInInventory();
     }
 
-    private boolean hasSupportedWeaponInInventory() {
-        ItemStack matching = crossBowman.getMatchingItem(adapters::isSupportedEnabledWeapon);
+    private boolean hasUsableWeaponInInventory() {
+        ItemStack matching = crossBowman.getMatchingItem(
+                stack -> adapters.isUsableEnabledWeapon(crossBowman, stack));
         return matching != null && !matching.isEmpty();
     }
 
@@ -838,11 +991,35 @@ public final class RecruitBoomstickAttackGoal extends Goal {
         return retainedCombatTarget;
     }
 
+    /**
+     * Whether the target is fighting this recruit rather than the other way round.
+     *
+     * <p>A mob that has aggroed on this recruit, or that has hit it recently, counts. Vanilla clears
+     * the last hurt entry a hundred ticks after the blow, so the window closes on its own once the
+     * enemy walks away.</p>
+     */
+    private boolean isDefendingAgainst(LivingEntity target) {
+        boolean aggroed = target instanceof Mob mob && mob.getTarget() == crossBowman;
+        return BoomstickCombatPolicy.allowsSelfDefenseFire(
+                aggroed,
+                target.getLastHurtMob() == crossBowman);
+    }
+
+    /**
+     * Whether this recruit may fight the given enemy at all.
+     *
+     * <p>The aggro state is checked here rather than at the goal's entry points because the goal
+     * hands targets back to the entity — it restores a retained enemy across its own cooldown and
+     * picks a fresh one when the formation has already covered the current one. A passive recruit
+     * whose target Recruits just cleared would have that target written straight back on the next
+     * tick, so the order has to hold at the point where a target is accepted.</p>
+     */
     private boolean validTarget(LivingEntity target) {
         return target != null
                 && target.isAlive()
                 && target != crossBowman
                 && !crossBowman.isAlliedTo(target)
+                && BoomstickCombatPolicy.allowsEntityCombat(crossBowman.getState())
                 && crossBowman.canAttack(target);
     }
 
@@ -852,10 +1029,25 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                 && crossBowman.getStrategicFirePos() != null;
     }
 
-    private void moveAndLook(AimPoint aimPoint, double combatRange, boolean trackAimPoint) {
+    private void moveAndLook(
+            AimPoint aimPoint,
+            double combatRange,
+            boolean trackAimPoint,
+            boolean lockBodyToAim
+    ) {
         navigationControlled = true;
         LivingEntity target = aimPoint == null ? combatTarget() : aimPoint.entity();
-        if (trackAimPoint && aimPoint != null) {
+        if (trackAimPoint && aimPoint != null && lockBodyToAim) {
+            // Formation steering can overwrite LookControl's body yaw. A raised throwing arm must
+            // remain visibly aligned with the reserved target for the full wind-up, not only when
+            // the projectile leaves the recruit's hand.
+            Vec3 shotPosition = aimPoint.shotPosition();
+            BoomstickShotFacing.face(crossBowman, shotPosition);
+            BoomstickThrowingAimFacing.track(
+                    crossBowman,
+                    shotPosition,
+                    aimPoint.entity() == null ? null : aimPoint.entity().getUUID());
+        } else if (trackAimPoint && aimPoint != null) {
             Vec3 position = aimPoint.position();
             crossBowman.getLookControl().setLookAt(position.x, position.y, position.z, 30.0F, 30.0F);
         } else if (trackAimPoint && validTarget(target)) {
@@ -877,6 +1069,7 @@ public final class RecruitBoomstickAttackGoal extends Goal {
     }
 
     private void restoreFormationFacing() {
+        BoomstickThrowingAimFacing.untrack(crossBowman);
         if (formationFacingBeforeAim == null) {
             return;
         }

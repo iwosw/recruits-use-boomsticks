@@ -326,6 +326,44 @@ class ArtilleryNativeStateTest {
     }
 
     @Test
+    void markmengonneIronBallBranchUsesAmmoZeroWithoutLoadedFlag() {
+        ArtilleryWeaponProfile profile = SupportedArtillery.markmengonneIronBallProfile();
+        CompoundTag weapon = new CompoundTag();
+
+        ArtilleryNativeState.markLoadedTag(weapon, profile);
+        assertTrue(ArtilleryNativeState.isLoadedTag(weapon, profile));
+        assertEquals(2.0D, weapon.getDouble(ArtilleryNativeState.STAGE_KEY));
+        assertEquals(Tag.TAG_DOUBLE, weapon.getTagType(ArtilleryNativeState.AMMO_KEY));
+        assertEquals(0.0D, weapon.getDouble(ArtilleryNativeState.AMMO_KEY));
+        assertFalse(weapon.contains(ArtilleryNativeState.LOADED_KEY));
+
+        ArtilleryNativeState.markFiredTag(weapon, profile);
+        assertFalse(ArtilleryNativeState.isLoadedTag(weapon, profile));
+        assertEquals(3.0D, weapon.getDouble(ArtilleryNativeState.STAGE_KEY));
+        assertEquals(0.0D, weapon.getDouble(ArtilleryNativeState.AMMO_KEY));
+    }
+
+    @Test
+    void bronzeHandgonneUsesItsNativeLoadedFlagAndAmmoZero() {
+        ArtilleryWeaponProfile profile = SupportedArtillery
+                .profileFor(SupportedArtillery.BRONZE_HANDGONNE_ID)
+                .orElseThrow();
+        CompoundTag weapon = new CompoundTag();
+
+        ArtilleryNativeState.markLoadedTag(weapon, profile);
+        assertTrue(ArtilleryNativeState.isLoadedTag(weapon, profile));
+        assertEquals(2.0D, weapon.getDouble(ArtilleryNativeState.STAGE_KEY));
+        assertEquals(Tag.TAG_DOUBLE, weapon.getTagType(ArtilleryNativeState.AMMO_KEY));
+        assertEquals(0.0D, weapon.getDouble(ArtilleryNativeState.AMMO_KEY));
+        assertTrue(weapon.getBoolean(ArtilleryNativeState.LOADED_KEY));
+
+        ArtilleryNativeState.markFiredTag(weapon, profile);
+        assertFalse(ArtilleryNativeState.isLoadedTag(weapon, profile));
+        assertEquals(3.0D, weapon.getDouble(ArtilleryNativeState.STAGE_KEY));
+        assertFalse(weapon.getBoolean(ArtilleryNativeState.LOADED_KEY));
+    }
+
+    @Test
     void harquebusUsesTheStagedDoubleProtocolForStandingAndForkRestBranches() {
         ArtilleryWeaponProfile profile = SupportedArtillery
                 .profileFor(SupportedArtillery.HARQUEBUS_ID)

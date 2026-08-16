@@ -8,6 +8,31 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BoomstickCombatPolicyTest {
     @Test
+    void targetScanIsThrottledAndStaggeredPerRecruit() {
+        assertEquals(120L, BoomstickCombatPolicy.nextTargetScanTick(100L, 20, 7, 0));
+        assertEquals(123L, BoomstickCombatPolicy.nextTargetScanTick(100L, 20, 7, 3));
+        assertEquals(120L, BoomstickCombatPolicy.nextTargetScanTick(100L, 20, 7, 7));
+        assertEquals(123L, BoomstickCombatPolicy.nextTargetScanTick(100L, 20, 7, -4));
+        assertEquals(101L, BoomstickCombatPolicy.nextTargetScanTick(100L, 0, 0, 5));
+        assertEquals(Long.MAX_VALUE, BoomstickCombatPolicy.nextTargetScanTick(Long.MAX_VALUE, 20, 7, 1));
+    }
+
+    @Test
+    void selfDefenseFireOpensOnAggroOrOnBeingHit() {
+        assertTrue(BoomstickCombatPolicy.allowsSelfDefenseFire(true, false));
+        assertTrue(BoomstickCombatPolicy.allowsSelfDefenseFire(false, true));
+        assertFalse(BoomstickCombatPolicy.allowsSelfDefenseFire(false, false));
+    }
+
+    @Test
+    void passiveRecruitsAcceptNoEnemyAndEveryOtherOrderDoes() {
+        assertFalse(BoomstickCombatPolicy.allowsEntityCombat(BoomstickCombatPolicy.PASSIVE_AGGRO_STATE));
+        assertTrue(BoomstickCombatPolicy.allowsEntityCombat(0));
+        assertTrue(BoomstickCombatPolicy.allowsEntityCombat(1));
+        assertTrue(BoomstickCombatPolicy.allowsEntityCombat(2));
+    }
+
+    @Test
     void disabledCompatibilityYieldsForHeldAndInventoryWeapons() {
         assertFalse(BoomstickCombatPolicy.shouldSuppressOriginalGoal(false, true, false));
         assertFalse(BoomstickCombatPolicy.shouldSuppressOriginalGoal(false, false, true));

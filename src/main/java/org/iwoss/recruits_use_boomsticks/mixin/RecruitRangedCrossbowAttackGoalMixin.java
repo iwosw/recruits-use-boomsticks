@@ -23,11 +23,7 @@ public abstract class RecruitRangedCrossbowAttackGoalMixin {
     private void recruitsUseBoomsticks$disableForBoomsticks(
             CallbackInfoReturnable<Boolean> callbackInfo
     ) {
-        if (CompatConfig.ENABLED.get()
-                && BoomstickCombatPolicy.shouldSuppressOriginalGoal(
-                true,
-                hasSupportedHeldWeapon(),
-                hasSupportedInventoryWeapon())) {
+        if (shouldYieldToBoomstick()) {
             callbackInfo.setReturnValue(false);
         }
     }
@@ -36,21 +32,35 @@ public abstract class RecruitRangedCrossbowAttackGoalMixin {
     private void recruitsUseBoomsticks$stopForBoomsticks(
             CallbackInfoReturnable<Boolean> callbackInfo
     ) {
-        if (CompatConfig.ENABLED.get()
-                && BoomstickCombatPolicy.shouldSuppressOriginalGoal(
-                true,
-                hasSupportedHeldWeapon(),
-                hasSupportedInventoryWeapon())) {
+        if (shouldYieldToBoomstick()) {
             callbackInfo.setReturnValue(false);
         }
     }
 
+    /**
+     * The inventory scan is deliberately reached only when the held weapon cannot answer: it walks
+     * every slot, and each slot now runs a full ammunition and loading-component preflight.
+     */
+    private boolean shouldYieldToBoomstick() {
+        if (!CompatConfig.ENABLED.get()) {
+            return false;
+        }
+        boolean heldWeapon = hasSupportedHeldWeapon();
+        return BoomstickCombatPolicy.shouldSuppressOriginalGoal(
+                true,
+                heldWeapon,
+                !heldWeapon && hasSupportedInventoryWeapon());
+    }
+
     private boolean hasSupportedHeldWeapon() {
-        return RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledWeapon(crossBowman.getMainHandItem());
+        return RECRUIT_WEAPON_ADAPTERS.isUsableEnabledWeapon(
+                crossBowman,
+                crossBowman.getMainHandItem());
     }
 
     private boolean hasSupportedInventoryWeapon() {
-        ItemStack inventoryWeapon = crossBowman.getMatchingItem(RECRUIT_WEAPON_ADAPTERS::isSupportedEnabledWeapon);
+        ItemStack inventoryWeapon = crossBowman.getMatchingItem(
+                stack -> RECRUIT_WEAPON_ADAPTERS.isUsableEnabledWeapon(crossBowman, stack));
         return inventoryWeapon != null && !inventoryWeapon.isEmpty();
     }
 }

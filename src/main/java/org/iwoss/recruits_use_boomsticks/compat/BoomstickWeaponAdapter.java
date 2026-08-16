@@ -76,6 +76,23 @@ public interface BoomstickWeaponAdapter {
     }
 
     /**
+     * Whether the recruit should be held in the vanilla item-use state for this wind-up.
+     *
+     * <p>Some throwing weapons swap their own item model while their holder is using them — Medieval
+     * Boomsticks' javelin registers exactly that predicate — so a raised arm alone shows the carried
+     * model in a throwing pose, which points the weapon the wrong way. Entering the use state makes
+     * the recruit show what a player shows.</p>
+     *
+     * <p>It stays off by default because the use state is not free: a vanilla use that runs to
+     * completion calls the item's own finish path, and for a throwing weapon that means a second
+     * native throw at no cost. Only adapters that have confirmed their items cannot complete a use
+     * inside the wind-up, and refuse a non-player on release, may turn it on.</p>
+     */
+    default boolean windUpUsesNativeItemState(ItemStack weapon) {
+        return false;
+    }
+
+    /**
      * Farthest distance at which a shot from this weapon can still reach its target.
      *
      * <p>Weapons whose projectiles are fast enough to cross the whole combat range keep the shared
@@ -112,6 +129,11 @@ public interface BoomstickWeaponAdapter {
      * them exactly as before.</p>
      */
     default int reloadStepCount(ItemStack weapon) {
+        return 0;
+    }
+
+    /** Number of native loading steps already present on a partially loaded weapon. */
+    default int completedReloadSteps(ItemStack weapon) {
         return 0;
     }
 

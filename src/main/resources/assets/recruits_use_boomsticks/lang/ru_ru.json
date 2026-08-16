@@ -2,10 +2,12 @@
   "gui.recruits_use_boomsticks.command.text.weapons_out": "Оружие к бою!",
   "gui.recruits_use_boomsticks.command.text.weapons_away": "Оружие убрать!",
   "gui.recruits_use_boomsticks.command.tooltip.weapons_out": "Рекруты достают поддерживаемое дальнобойное оружие в правую руку и несут его.",
-  "gui.recruits_use_boomsticks.command.tooltip.weapons_away": "Рекруты убирают оружие и берут другое своё оружие.",
+  "gui.recruits_use_boomsticks.command.tooltip.weapons_away": "Рекруты перекладывают оружие в левую руку и берут другое своё оружие или остаются с пустой правой рукой.",
   "chat.recruits_use_boomsticks.weapons_out": "Оружие к бою: достали %s из %s вооружённых рекрутов.",
   "chat.recruits_use_boomsticks.weapons_away": "Оружие убрать: убрали %s из %s вооружённых рекрутов.",
   "chat.recruits_use_boomsticks.carry.nobody": "Приказ никого не застал: рядом нет твоих рекрутов из выбранных отрядов.",
   "chat.recruits_use_boomsticks.carry.unarmed": "Приказ дошёл до %s рекрутов, но поддерживаемого дальнобойного оружия у них нет.",
-  "chat.recruits_use_boomsticks.carry.no_replacement": "Оружие убрать: у %s рекрутов оружие уже во второй руке либо для перестановки не хватило места."
+  "chat.recruits_use_boomsticks.carry.blocked": "Оружие убрать: ни у кого из %s вооружённых рекрутов нет места, чтобы убрать оружие и ничего не выбросить.",
+  "gui.recruits_use_boomsticks.command.tooltip.unavailable": "На этом сервере нет Recruits Use Boomsticks, поэтому приказ до него не дойдёт.",
+  "chat.recruits_use_boomsticks.carry.too_many_groups": "Один приказ вмещает не более %s отрядов; до %s выбранных отрядов он не дошёл."
 }

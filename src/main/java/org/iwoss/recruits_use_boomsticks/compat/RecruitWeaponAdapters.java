@@ -1,5 +1,6 @@
 package org.iwoss.recruits_use_boomsticks.compat;
 
+import com.talhanation.recruits.entities.CrossBowmanEntity;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
@@ -15,6 +16,7 @@ public final class RecruitWeaponAdapters {
     private static final RecruitWeaponAdapters PRODUCTION = new RecruitWeaponAdapters(
             List.of(
                     MedievalBoomsticksAdapter.INSTANCE,
+                    MedievalBoomsticksThrowableAdapter.INSTANCE,
                     ArtilleryAddonAdapter.INSTANCE,
                     ArtilleryThrowableAdapter.INSTANCE));
 
@@ -73,6 +75,17 @@ public final class RecruitWeaponAdapters {
         return findEnabled(weapon).isPresent();
     }
 
+    /** Whether the active AI can fire this weapon now or finish loading it from carried supplies. */
+    public boolean isUsableEnabledWeapon(CrossBowmanEntity recruit, ItemStack weapon) {
+        if (recruit == null) {
+            return false;
+        }
+        return findEnabled(weapon)
+                .map(adapter -> adapter.isLoaded(weapon)
+                        || adapter.hasAmmo(recruit, weapon, BoomstickAmmoAccess.isAmmoRequired()))
+                .orElse(false);
+    }
+
     public Optional<BoomstickWeaponAdapter> findAmmo(ItemStack ammo) {
         if (ammo == null || ammo.isEmpty()) {
             return Optional.empty();
@@ -101,14 +114,6 @@ public final class RecruitWeaponAdapters {
 
     public boolean isSupportedProjectile(Class<?> projectileType) {
         return findProjectileType(projectileType).isPresent();
-    }
-
-    public boolean isSupportedEnabledProjectile(Class<?> projectileType) {
-        if (projectileType == null || !CompatConfig.ENABLED.get()) {
-            return false;
-        }
-        return findMatching(adapter -> CompatConfig.isIntegrationEnabled(adapter.integration())
-                && adapter.supportsProjectile(projectileType)).isPresent();
     }
 
     public boolean isSupportedEnabledProjectile(AbstractArrow projectile) {

@@ -53,6 +53,86 @@ public final class RecruitHandSwap {
         return true;
     }
 
+    /**
+     * Moves a matching main-hand stack into the off hand and leaves the main hand empty.
+     *
+     * <p>This is the shoulder-slung look a player gets from its own off hand, and it is what an
+     * order to put the weapon away means for a recruit that owns nothing to take instead. Whatever
+     * the off hand held moves to storage, and when storage is full the recruit is left exactly as it
+     * stood rather than having anything dropped.</p>
+     */
+    public static boolean stowMainHandInOffHand(
+            AbstractInventoryEntity recruit,
+            Predicate<ItemStack> wanted
+    ) {
+        SimpleContainer inventory = recruit == null ? null : recruit.getInventory();
+        if (inventory == null) {
+            return false;
+        }
+        ItemStack mainHand = recruit.getMainHandItem().copy();
+        if (mainHand.isEmpty() || !wanted.test(mainHand)) {
+            return false;
+        }
+        ItemStack offHand = recruit.getOffhandItem().copy();
+        if (!offHand.isEmpty()) {
+            int storage = firstFreeStorageSlot(recruit, inventory);
+            if (storage < 0) {
+                return false;
+            }
+            recruit.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+            inventory.setItem(storage, offHand);
+        }
+        recruit.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        recruit.setItemInHand(InteractionHand.OFF_HAND, mainHand);
+        return true;
+    }
+
+    /**
+     * Stows the main hand in the off hand while moving a replacement into the main hand.
+     *
+     * <p>The displaced off-hand stack occupies the replacement's old storage slot, so this rotation
+     * remains lossless when every storage slot is full. A replacement already in the off hand is a
+     * direct hand-to-hand swap.</p>
+     */
+    public static boolean rotateMainHandIntoOffHand(
+            AbstractInventoryEntity recruit,
+            Predicate<ItemStack> replacement
+    ) {
+        SimpleContainer inventory = recruit == null ? null : recruit.getInventory();
+        if (inventory == null) {
+            return false;
+        }
+        int mainSlot = recruit.getInventorySlotIndex(EquipmentSlot.MAINHAND);
+        ItemStack mainHand = recruit.getMainHandItem().copy();
+        if (mainHand.isEmpty()) {
+            return false;
+        }
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            if (slot == mainSlot || isArmourSlot(recruit, slot)) {
+                continue;
+            }
+            ItemStack candidate = inventory.getItem(slot);
+            if (candidate.isEmpty() || !replacement.test(candidate)) {
+                continue;
+            }
+            ItemStack replacementStack = candidate.copy();
+            EquipmentSlot sourceEquipment = recruit.getEquipmentSlotIndex(slot);
+            if (sourceEquipment == EquipmentSlot.OFFHAND) {
+                recruit.setItemInHand(InteractionHand.MAIN_HAND, replacementStack);
+                recruit.setItemInHand(InteractionHand.OFF_HAND, mainHand);
+                return true;
+            }
+            if (sourceEquipment != null) {
+                continue;
+            }
+            inventory.setItem(slot, recruit.getOffhandItem().copy());
+            recruit.setItemInHand(InteractionHand.MAIN_HAND, replacementStack);
+            recruit.setItemInHand(InteractionHand.OFF_HAND, mainHand);
+            return true;
+        }
+        return false;
+    }
+
     private static boolean into(
             AbstractInventoryEntity recruit,
             InteractionHand destination,

@@ -1,9 +1,9 @@
 package org.iwoss.recruits_use_boomsticks.mixin;
 
-import com.talhanation.recruits.entities.AbstractRecruitEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.AbstractArrow;
+import org.iwoss.recruits_use_boomsticks.compat.BoomstickProjectileAttribution;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickProjectilePolicy;
 import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
@@ -28,9 +28,8 @@ public abstract class AbstractArrowMixin {
             CallbackInfoReturnable<Boolean> callbackInfo
     ) {
         AbstractArrow projectile = (AbstractArrow) (Object) this;
-        Entity owner = projectile.getOwner();
-        if (!(owner instanceof AbstractRecruitEntity recruitOwner)
-                || !(target instanceof LivingEntity livingTarget)) {
+        if (!BoomstickProjectileAttribution.isRecruitOwned(projectile)
+                || !(target instanceof LivingEntity)) {
             return;
         }
         if (!CompatConfig.ENABLED.get()
@@ -40,9 +39,7 @@ public abstract class AbstractArrowMixin {
                 true)) {
             return;
         }
-        if (owner == target
-                || recruitOwner.isAlliedTo(target)
-                || !recruitOwner.canAttack(livingTarget)) {
+        if (BoomstickProjectileAttribution.isFriendly(projectile, target)) {
             callbackInfo.setReturnValue(false);
         }
     }
@@ -53,7 +50,7 @@ public abstract class AbstractArrowMixin {
         // The owner test comes first on purpose: it is the cheapest filter and it keeps the adapter
         // lookup — which reads an entity's persistent data — off every unrelated arrow in the world.
         if (projectile.level().isClientSide
-                || !(projectile.getOwner() instanceof AbstractRecruitEntity)
+                || !BoomstickProjectileAttribution.isRecruitOwned(projectile)
                 || !CompatConfig.ENABLED.get()
                 || !BoomstickProjectilePolicy.shouldApply(
                         true,

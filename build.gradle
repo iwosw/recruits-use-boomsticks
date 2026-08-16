@@ -52,6 +52,8 @@ def geckolibFile = (project.findProperty('geckolibFile') ?: '8285794').toString(
 def epicKnightsVersion = (project.findProperty('epicKnightsVersion') ?: '2kK9qUpx').toString()
 def architecturyVersion = (project.findProperty('architecturyVersion') ?: '9.2.14+forge').toString()
 def clothConfigVersion = (project.findProperty('clothConfigVersion') ?: '11.1.136+forge').toString()
+def includeEpicKnightsAddon = (project.findProperty('includeEpicKnightsAddon') ?: 'true').toString().toBoolean()
+def includeBetterFormations = (project.findProperty('includeBetterFormations') ?: 'true').toString().toBoolean()
 def recruitsVersionRange = (project.findProperty('recruitsVersionRange') ?: '[1.15,1.16)').toString()
 def medievalBoomsticksVersionRange = (project.findProperty('medievalBoomsticksVersionRange') ?: '[1.01,1.3)').toString()
 def geckolibVersionRange = (project.findProperty('geckolibVersionRange') ?: '[4.2.4,4.9)').toString()
@@ -137,7 +139,7 @@ repositories {
 }
 
 // Artillery Addon runtime artifact. -Partillery=none proves the optional-dependency path.
-// 8252195 (1.13.4) is the latest dedicated-server-safe file and registers all seventeen supported
+// 8252195 (1.13.4) is the latest dedicated-server-safe file and registers all eighteen supported
 // profiles. 8325660 (1.14.0) still fails dedicated-server loading upstream. It may run GameTests
 // only through the dev-only patch configured above; that patched run does not make 1.14 supported.
 dependencies {
@@ -151,8 +153,12 @@ dependencies {
         runtimeOnly fg.deobf("curse.maven:epic-knights-artillery-addon-1307540:${artilleryFile}")
     }
     runtimeOnly fg.deobf("maven.modrinth:epic-knights-shields-armor-and-weapons:${epicKnightsVersion}")
-    runtimeOnly fg.deobf('maven.modrinth:epic-knights-addon:xnYQSIH7')
-    runtimeOnly fg.deobf('curse.maven:betterrecruitformations-1599988:8396882')
+    if (includeEpicKnightsAddon) {
+        runtimeOnly fg.deobf('maven.modrinth:epic-knights-addon:xnYQSIH7')
+    }
+    if (includeBetterFormations) {
+        runtimeOnly fg.deobf('curse.maven:betterrecruitformations-1599988:8396882')
+    }
     runtimeOnly fg.deobf("maven.modrinth:architectury-api:${architecturyVersion}")
     runtimeOnly fg.deobf("maven.modrinth:cloth-config:${clothConfigVersion}")
 
@@ -196,7 +202,7 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
             throw new GradleException('GameTest log was not created')
         }
         def output = gameTestLog.getText('UTF-8')
-        def requiredTests = 115
+        def requiredTests = 136
         if (output.contains('Failed to load datapacks')
                 || !output.contains("${requiredTests} tests are now running")
                 || !output.contains("All ${requiredTests} required tests passed")) {

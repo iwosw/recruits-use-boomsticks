@@ -23,8 +23,6 @@ public final class ArtilleryThrowableAdapter implements BoomstickWeaponAdapter {
     public static final ArtilleryThrowableAdapter INSTANCE = new ArtilleryThrowableAdapter(
             () -> ModList.get().isLoaded(SupportedArtillery.MOD_ID));
 
-    private static final String AIMING_KEY = "recruits_use_boomsticks:throwable_aiming";
-
     /** Cached artifact shape probe; see {@link #artifactUsesVanillaGroundPickup(ClassLoader)}. */
     private static volatile Boolean vanillaGroundPickupArtifact;
     /** Weapons whose projectile could not be built; reported once each instead of per shot. */
@@ -124,37 +122,15 @@ public final class ArtilleryThrowableAdapter implements BoomstickWeaponAdapter {
     public void setFiring(ItemStack weapon, boolean firing) {
     }
 
-    /**
-     * The wind-up marker lives on the weapon stack rather than on the recruit, because the client
-     * renders the pose from the held item and equipment stacks are already tracked to it.
-     *
-     * <p>Vanilla would drive this through {@code startUsingItem}, but a recruit must not enter the
-     * native item use path: these items implement `finishUsingItem`, so a completed vanilla use
-     * would run the native throw procedure a second time and spend another item.</p>
-     */
+    /** @see BoomstickAimMarker */
     @Override
     public void setAiming(ItemStack weapon, boolean aiming) {
-        if (weapon == null || weapon.isEmpty()) {
-            return;
-        }
-        if (aiming) {
-            weapon.getOrCreateTag().putBoolean(AIMING_KEY, true);
-            return;
-        }
-        if (weapon.hasTag()) {
-            weapon.getTag().remove(AIMING_KEY);
-            if (weapon.getTag().isEmpty()) {
-                weapon.setTag(null);
-            }
-        }
+        BoomstickAimMarker.set(weapon, aiming);
     }
 
     @Override
     public boolean isAiming(ItemStack weapon) {
-        return weapon != null
-                && !weapon.isEmpty()
-                && weapon.hasTag()
-                && weapon.getTag().getBoolean(AIMING_KEY);
+        return BoomstickAimMarker.isSet(weapon);
     }
 
     /**
@@ -324,6 +300,7 @@ public final class ArtilleryThrowableAdapter implements BoomstickWeaponAdapter {
             SupportedArtilleryThrowables.ArtilleryThrowable nativeThrowable
     ) {
         projectile.setOwner(recruit);
+        BoomstickProjectileAttribution.mark(projectile, recruit);
         projectile.setBaseDamage(nativeThrowable.baseDamage());
         projectile.setKnockback(SupportedArtilleryThrowables.KNOCKBACK);
         projectile.setPierceLevel((byte) 0);
