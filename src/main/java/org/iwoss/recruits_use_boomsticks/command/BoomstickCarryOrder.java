@@ -9,15 +9,13 @@ import net.minecraft.world.item.AxeItem;
 import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SwordItem;
-import net.minecraftforge.network.PacketDistributor;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickTransientStateRecovery;
 import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import org.iwoss.recruits_use_boomsticks.inventory.RecruitHandSwap;
 import org.iwoss.recruits_use_boomsticks.inventory.RecruitInventorySafety;
-import org.iwoss.recruits_use_boomsticks.network.BoomstickNetwork;
-import org.iwoss.recruits_use_boomsticks.network.CarryFirearmStateMessage;
+import org.iwoss.recruits_use_boomsticks.network.CarryFirearmCommandMessage;
 
 import java.util.List;
 import java.util.UUID;
@@ -27,9 +25,9 @@ import java.util.UUID;
  *
  * <p>Recruits normally draw a firearm only when a combat goal starts. This order explicitly puts a
  * supported ranged weapon in the main hand, as its button promises. The reverse order moves it into
- * the shield hand and restores the recruit's sword, axe, or crossbow in the main hand. It walks the
- * recruit's container directly because Recruits' own {@code switchMainHandItem} skips both hand
- * slots.</p>
+ * the shield hand and restores the recruit's sword, axe, or crossbow in the main hand, or leaves the
+ * main hand empty when the recruit owns nothing else to hold. It walks the recruit's container
+ * directly because Recruits' own {@code switchMainHandItem} skips both hand slots.</p>
  */
 public final class BoomstickCarryOrder {
     /** Matches the radius Recruits' own group commands use. */
@@ -41,23 +39,32 @@ public final class BoomstickCarryOrder {
     }
 
     /** Applies the order to every commanded recruit of the sending player. */
-    public static void apply(ServerPlayer sender, UUID group, boolean draw) {
-        if (sender == null || !CompatConfig.ENABLED.get()) {
+    public static void apply(ServerPlayer sender, List<UUID> groups, boolean draw) {
+        if (sender == null || groups == null || groups.isEmpty() || !CompatConfig.ENABLED.get()) {
             return;
         }
         UUID owner = sender.getUUID();
+        List<UUID> selectedGroups = groups.stream().distinct().toList();
+        boolean everyone = selectedGroups.contains(CarryFirearmCommandMessage.EVERYONE);
         List<CrossBowmanEntity> commanded = sender.level()
                 .getEntitiesOfClass(
                         CrossBowmanEntity.class,
                         sender.getBoundingBox().inflate(COMMAND_RANGE),
-                        recruit -> recruit.isEffectedByCommand(owner, group));
+                        recruit -> everyone
+                                ? recruit.isEffectedByCommand(owner, null)
+                                : selectedGroups.stream()
+                                .anyMatch(group -> recruit.isEffectedByCommand(owner, group)));
         int changed = 0;
         int armed = 0;
+        int alreadyStood = 0;
         for (CrossBowmanEntity recruit : commanded) {
             if (ownsSupportedFirearm(recruit)) {
                 armed++;
             }
             boolean wasInRequestedState = isInRequestedState(recruit, draw);
+            if (wasInRequestedState) {
+                alreadyStood++;
+            }
             apply(recruit, draw);
             if (!wasInRequestedState && isInRequestedState(recruit, draw)) {
                 changed++;
@@ -65,19 +72,28 @@ public final class BoomstickCarryOrder {
         }
         // Without a report the order is invisible, and its three failure modes look identical in game:
         // nobody was commanded, nobody owns a firearm, or everyone already stood the way it asked.
-        sender.sendSystemMessage(report(draw, changed, armed, commanded.size()));
+        sender.sendSystemMessage(report(draw, changed, armed, commanded.size(), alreadyStood));
     }
 
     /** Names what the order actually did, including the reason it did nothing. */
-    private static Component report(boolean draw, int changed, int armed, int commanded) {
+    private static Component report(
+            boolean draw,
+            int changed,
+            int armed,
+            int commanded,
+            int alreadyStood
+    ) {
         if (commanded == 0) {
             return Component.translatable("chat.recruits_use_boomsticks.carry.nobody");
         }
         if (armed == 0) {
             return Component.translatable("chat.recruits_use_boomsticks.carry.unarmed", commanded);
         }
-        if (!draw && changed == 0) {
-            return Component.translatable("chat.recruits_use_boomsticks.carry.no_replacement", armed);
+        // A stow order only fails now when the off hand is occupied and storage has no room for what
+        // is in it, so nothing can move without dropping a stack. A formation that was already
+        // standing the way the order asked has to fall through to the ordinary count instead.
+        if (!draw && changed == 0 && alreadyStood == 0) {
+            return Component.translatable("chat.recruits_use_boomsticks.carry.blocked", armed);
         }
         return Component.translatable(
                 draw
@@ -118,7 +134,6 @@ public final class BoomstickCarryOrder {
 
         boolean carrying = draw ? drawFirearm(recruit) : stowFirearm(recruit);
         setCarrying(recruit, carrying);
-        sync(recruit);
         if (CompatConfig.DEBUG_LOGGING.get()) {
             RecruitsUseBoomsticks.LOGGER.info(
                     "Carry order draw={} for recruit {}: main hand {}, off hand {}, carrying={}",
@@ -131,22 +146,9 @@ public final class BoomstickCarryOrder {
         return carrying;
     }
 
-    /** Sends the current flag to a single player that just started tracking the recruit. */
-    public static void sync(CrossBowmanEntity recruit, ServerPlayer target) {
-        BoomstickNetwork.CHANNEL.send(
-                PacketDistributor.PLAYER.with(() -> target),
-                new CarryFirearmStateMessage(recruit.getId(), isCarrying(recruit)));
-    }
-
     public static boolean isCarrying(CrossBowmanEntity recruit) {
         CompoundTag data = recruit.getPersistentData();
         return data.getBoolean(CARRY_TAG);
-    }
-
-    private static void sync(CrossBowmanEntity recruit) {
-        BoomstickNetwork.CHANNEL.send(
-                PacketDistributor.TRACKING_ENTITY.with(() -> recruit),
-                new CarryFirearmStateMessage(recruit.getId(), isCarrying(recruit)));
     }
 
     private static void setCarrying(CrossBowmanEntity recruit, boolean carrying) {
@@ -181,6 +183,21 @@ public final class BoomstickCarryOrder {
         RecruitWeaponAdapters adapters = RecruitWeaponAdapters.production();
         // The config switches are deliberately ignored: a weapon carried while the integration was
         // still on has to be stowable after it was switched off.
+        if (adapters.isSupportedWeapon(recruit.getMainHandItem())) {
+            if (hasReplacementWeapon(recruit, adapters)
+                    && RecruitHandSwap.rotateMainHandIntoOffHand(
+                    recruit,
+                    stack -> !adapters.isSupportedWeapon(stack)
+                            && (isMeleeWeapon(stack) || stack.getItem() instanceof CrossbowItem))) {
+                return false;
+            }
+            // Nothing to take instead is not a reason to keep the weapon raised: the order slings it
+            // over the shoulder the way a player's off hand does and leaves the main hand empty. The
+            // combat goal draws it back out of the off hand as soon as a fight starts.
+            if (RecruitHandSwap.stowMainHandInOffHand(recruit, adapters::isSupportedWeapon)) {
+                return false;
+            }
+        }
         RecruitHandSwap.intoOffHand(recruit, adapters::isSupportedWeapon);
         if (adapters.isSupportedWeapon(recruit.getOffhandItem())
                 && (adapters.isSupportedWeapon(recruit.getMainHandItem())
@@ -188,6 +205,27 @@ public final class BoomstickCarryOrder {
             takeBackOwnWeapon(recruit, adapters);
         }
         return adapters.isSupportedWeapon(recruit.getMainHandItem());
+    }
+
+    private static boolean hasReplacementWeapon(
+            CrossBowmanEntity recruit,
+            RecruitWeaponAdapters adapters
+    ) {
+        SimpleContainer inventory = recruit.getInventory();
+        if (inventory == null) {
+            return false;
+        }
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            if (RecruitHandSwap.isArmourSlot(recruit, slot)) {
+                continue;
+            }
+            ItemStack stack = inventory.getItem(slot);
+            if (!adapters.isSupportedWeapon(stack)
+                    && (isMeleeWeapon(stack) || stack.getItem() instanceof CrossbowItem)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

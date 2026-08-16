@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ArtilleryWeaponProfileTest {
     @Test
     void exposesOnlyTheConfirmedGameplayProfilesAndReconnaissanceEntries() {
-        assertEquals(17, SupportedArtillery.profiles().size());
+        assertEquals(18, SupportedArtillery.profiles().size());
         assertTrue(SupportedArtillery.profileFor(SupportedArtillery.HANDGONNE_ID).isPresent());
         assertTrue(SupportedArtillery.profileFor(SupportedArtillery.ARQUEBUS_ID).isPresent());
         assertTrue(SupportedArtillery.profileFor(SupportedArtillery.MATCHLOCK_MUSKET_ID).isPresent());
@@ -18,6 +18,7 @@ class ArtilleryWeaponProfileTest {
         assertTrue(SupportedArtillery.profileFor(SupportedArtillery.TILLER_GUN_ID).isPresent());
         assertTrue(SupportedArtillery.profileFor(SupportedArtillery.NOBLE_HANDGONNE_ID).isPresent());
         assertTrue(SupportedArtillery.profileFor(SupportedArtillery.MARKMENGONNE_ID).isPresent());
+        assertTrue(SupportedArtillery.profileFor(SupportedArtillery.BRONZE_HANDGONNE_ID).isPresent());
         assertTrue(SupportedArtillery.profileFor(SupportedArtillery.MINI_PISTOLA_ID).isPresent());
         assertTrue(SupportedArtillery.profileFor(SupportedArtillery.HARQUEBUS_ID).isPresent());
         assertTrue(SupportedArtillery.profileFor(SupportedArtillery.HACKBUT_ID).isPresent());
@@ -154,6 +155,7 @@ class ArtilleryWeaponProfileTest {
                         SupportedArtillery.TILLER_GUN_ID,
                         SupportedArtillery.NOBLE_HANDGONNE_ID,
                         SupportedArtillery.MARKMENGONNE_ID,
+                        SupportedArtillery.BRONZE_HANDGONNE_ID,
                         SupportedArtillery.HARQUEBUS_ID,
                         SupportedArtillery.HACKBUT_ID,
                         SupportedArtillery.WINDLASS_CROSSBOW_ID,
@@ -216,6 +218,7 @@ class ArtilleryWeaponProfileTest {
                         SupportedArtillery.TILLER_GUN_ID,
                         SupportedArtillery.NOBLE_HANDGONNE_ID,
                         SupportedArtillery.MARKMENGONNE_ID,
+                        SupportedArtillery.BRONZE_HANDGONNE_ID,
                         SupportedArtillery.HARQUEBUS_ID,
                         SupportedArtillery.HACKBUT_ID,
                         SupportedArtillery.WINDLASS_CROSSBOW_ID,
@@ -253,6 +256,7 @@ class ArtilleryWeaponProfileTest {
                         SupportedArtillery.TILLER_GUN_ID,
                         SupportedArtillery.NOBLE_HANDGONNE_ID,
                         SupportedArtillery.MARKMENGONNE_ID,
+                        SupportedArtillery.BRONZE_HANDGONNE_ID,
                         SupportedArtillery.HARQUEBUS_ID,
                         SupportedArtillery.HACKBUT_ID,
                         SupportedArtillery.WINDLASS_CROSSBOW_ID,
@@ -396,6 +400,56 @@ class ArtilleryWeaponProfileTest {
         assertEquals(1.5D, profile.baseDamage());
         assertFalse(profile.critical());
         assertEquals(BoomstickSound.ARTILLERY_HAND_CANNON_FIRE, profile.firingSound());
+    }
+
+    @Test
+    void exposesMarkmengonneConfirmedIronBallBranch() {
+        ArtilleryWeaponProfile profile = SupportedArtillery.markmengonneIronBallProfile();
+
+        assertEquals(SupportedArtillery.MARKMENGONNE_ID, profile.registryId());
+        assertEquals(SupportedArtillery.IRON_BALL_ID, profile.ammoId());
+        assertEquals(SupportedArtillery.IRONBALL_PROJECTILE_ID, profile.projectileEntityId());
+        assertEquals(0, profile.nativeAmmoCode());
+        assertTrue(profile.usesNativeAmmoCode());
+        assertTrue(profile.nativeAmmoCodeIsDouble());
+        assertFalse(profile.usesNativeLoadedFlag());
+        assertEquals(2, profile.loadedStage());
+        assertEquals(3, profile.firedStage());
+        assertEquals(4.5D, profile.projectileVelocity());
+        assertEquals(7.0F, profile.inaccuracy());
+        assertEquals(3.3F, profile.alternateInaccuracy());
+        assertEquals(2.9D, profile.baseDamage());
+        assertFalse(profile.critical());
+        assertTrue(profile.silent());
+        assertEquals(ArtilleryWeaponProfile.InaccuracyBranch.SHIFT, profile.alternateInaccuracyBranch());
+        assertEquals(new ArtilleryWeaponProfile.NativeMisfirePolicy(true, 1.0D, 130.0D, 5.0D),
+                profile.nativeMisfirePolicy());
+    }
+
+    @Test
+    void enablesBronzeHandgonneForItsConfirmedIronBallBranch() {
+        ArtilleryWeaponProfile profile = SupportedArtillery
+                .profileFor(SupportedArtillery.BRONZE_HANDGONNE_ID)
+                .orElseThrow();
+
+        assertTrue(SupportedArtillery.isGameplayWeapon(SupportedArtillery.BRONZE_HANDGONNE_ID));
+        assertEquals(SupportedArtillery.IRON_BALL_ID, profile.ammoId());
+        assertEquals(SupportedArtillery.IRONBALL_PROJECTILE_ID, profile.projectileEntityId());
+        assertEquals(0, profile.nativeAmmoCode());
+        assertTrue(profile.usesNativeAmmoCode());
+        assertTrue(profile.nativeAmmoCodeIsDouble());
+        assertTrue(profile.usesNativeLoadedFlag());
+        assertEquals(2, profile.loadedStage());
+        assertEquals(3, profile.firedStage());
+        assertEquals(4.5D, profile.projectileVelocity());
+        assertEquals(9.0F, profile.inaccuracy());
+        assertEquals(4.5F, profile.alternateInaccuracy());
+        assertEquals(1.85D, profile.baseDamage());
+        assertFalse(profile.critical());
+        assertTrue(profile.silent());
+        assertEquals(ArtilleryWeaponProfile.InaccuracyBranch.SHIFT, profile.alternateInaccuracyBranch());
+        assertEquals(new ArtilleryWeaponProfile.NativeMisfirePolicy(true, 1.0D, 89.0D, 5.0D),
+                profile.nativeMisfirePolicy());
     }
 
     @Test

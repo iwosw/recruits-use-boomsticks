@@ -33,12 +33,27 @@ public abstract class RecruitRangedMusketAttackGoalMixin {
         }
     }
 
+    /**
+     * The inventory scan is deliberately reached only when the configuration is on and the held
+     * weapon cannot answer: it walks every slot, and each slot now runs a full ammunition and
+     * loading-component preflight.
+     */
     private boolean shouldYieldToBoomstick() {
-        ItemStack inventoryWeapon = crossBowman.getMatchingItem(RECRUIT_WEAPON_ADAPTERS::isSupportedEnabledWeapon);
-        return CompatConfig.ENABLED.get()
-                && BoomstickCombatPolicy.shouldSuppressOriginalGoal(
+        if (!CompatConfig.ENABLED.get()) {
+            return false;
+        }
+        boolean heldWeapon = RECRUIT_WEAPON_ADAPTERS.isUsableEnabledWeapon(
+                crossBowman,
+                crossBowman.getMainHandItem());
+        return BoomstickCombatPolicy.shouldSuppressOriginalGoal(
                 true,
-                RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledWeapon(crossBowman.getMainHandItem()),
-                inventoryWeapon != null && !inventoryWeapon.isEmpty());
+                heldWeapon,
+                !heldWeapon && hasSupportedInventoryWeapon());
+    }
+
+    private boolean hasSupportedInventoryWeapon() {
+        ItemStack inventoryWeapon = crossBowman.getMatchingItem(
+                stack -> RECRUIT_WEAPON_ADAPTERS.isUsableEnabledWeapon(crossBowman, stack));
+        return inventoryWeapon != null && !inventoryWeapon.isEmpty();
     }
 }

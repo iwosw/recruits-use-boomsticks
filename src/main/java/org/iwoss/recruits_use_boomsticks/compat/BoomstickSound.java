@@ -5,6 +5,10 @@ public enum BoomstickSound {
     HANDGONNE_SHOOT,
     ARQUEBUS_SHOOT,
     CROSSBOW_SHOOT,
+    /** Medieval Boomsticks' own {@code throw_weapon} event, played by its instant-throw items. */
+    THROW_WEAPON,
+    /** Vanilla trident throw, played by the Medieval Boomsticks trident-shaped throwing items. */
+    TRIDENT_THROW,
     ARTILLERY_FIRE,
     ARTILLERY_HAND_CANNON_FIRE,
     /** No native sound is played for this step. */

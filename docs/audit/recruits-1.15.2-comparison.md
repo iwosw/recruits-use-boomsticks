@@ -19,9 +19,10 @@
 
 ## 2. Краткий вывод
 
-Аддон не переписывает весь `CrossBowmanEntity`. Он добавляет отдельный server-side goal и три adapter boundary, каждый из которых работает по явному списку registry ID:
+Аддон не переписывает весь `CrossBowmanEntity`. Он добавляет отдельный server-side goal и четыре adapter boundary, каждый из которых работает по явному списку registry ID:
 
 - `MedievalBoomsticksAdapter` — `medieval_boomsticks:handgonne`, `spikedhandgonne`, `arquebus`, `arbalest`;
+- `MedievalBoomsticksThrowableAdapter` — 6 метательных Medieval Boomsticks (`iron_throwing_knife`, `iron_throwing_axe`, `small_throwing_rock`, `large_throwing_rock`, `war_dart`, `javelin`), все подтверждены в рантайме;
 - `ArtilleryAddonAdapter` — 17 профилей огнестрела Artillery Addon: 13 подтверждены в рантайме на закреплённом 1.11, остальные 4 (`tiller_gun`, `noble_handgonne`, `hackbut`, `double_barrel_gonne`) — на 1.14.0, где эти предметы зарегистрированы;
 - `ArtilleryThrowableAdapter` — 5 метательных Artillery (`francisca`, `hurlbat`, `throwing_cross`, `javelin`, `throwable_cobblestone`), все подтверждены в рантайме.
 

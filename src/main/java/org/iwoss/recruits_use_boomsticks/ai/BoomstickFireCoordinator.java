@@ -13,6 +13,10 @@ import java.util.UUID;
  * may commit more than ten physical projectiles at once. A committed reservation stays alive while
  * its projectile is in flight, so a second rank does not fire into a target that is already dead in
  * practice but has not received the first projectile yet.</p>
+ *
+ * <p>Self defence overrides the overkill limit. A recruit the target is itself fighting always gets
+ * a firing place, even when the formation has already reserved lethal damage, so a recruit is never
+ * left standing still while the enemy chews on it. The ten-projectile ceiling still applies.</p>
  */
 public final class BoomstickFireCoordinator {
     static final int MAX_COMMITTED_PROJECTILES = 10;
@@ -29,6 +33,27 @@ public final class BoomstickFireCoordinator {
             long gameTime,
             int leaseTicks
     ) {
+        return reserveShared(
+                shooterId,
+                targetId,
+                targetSurvivableHealth,
+                expectedDamage,
+                projectileCount,
+                gameTime,
+                leaseTicks,
+                false);
+    }
+
+    public static boolean reserveShared(
+            UUID shooterId,
+            UUID targetId,
+            double targetSurvivableHealth,
+            double expectedDamage,
+            int projectileCount,
+            long gameTime,
+            int leaseTicks,
+            boolean selfDefense
+    ) {
         return SHARED.reserve(
                 shooterId,
                 targetId,
@@ -36,7 +61,17 @@ public final class BoomstickFireCoordinator {
                 expectedDamage,
                 projectileCount,
                 gameTime,
-                leaseTicks);
+                leaseTicks,
+                selfDefense);
+    }
+
+    public static boolean hasFireTurnCapacityShared(
+            UUID targetId,
+            double targetSurvivableHealth,
+            int projectileCount,
+            long gameTime
+    ) {
+        return SHARED.hasFireTurnCapacity(targetId, targetSurvivableHealth, projectileCount, gameTime);
     }
 
     public static void commitShared(UUID shooterId, UUID targetId, long gameTime, int flightTicks) {
@@ -68,6 +103,27 @@ public final class BoomstickFireCoordinator {
             long gameTime,
             int leaseTicks
     ) {
+        return reserve(
+                shooterId,
+                targetId,
+                targetSurvivableHealth,
+                expectedDamage,
+                projectileCount,
+                gameTime,
+                leaseTicks,
+                false);
+    }
+
+    boolean reserve(
+            UUID shooterId,
+            UUID targetId,
+            double targetSurvivableHealth,
+            double expectedDamage,
+            int projectileCount,
+            long gameTime,
+            int leaseTicks,
+            boolean selfDefense
+    ) {
         if (shooterId == null || targetId == null || shooterId.equals(targetId)) {
             return false;
         }
@@ -87,17 +143,12 @@ public final class BoomstickFireCoordinator {
             return true;
         }
 
-        double reservedDamage = 0.0D;
-        int reservedProjectiles = 0;
-        for (Reservation reservation : targetReservations.values()) {
-            reservedDamage += reservation.expectedDamage;
-            reservedProjectiles += reservation.projectileCount;
-        }
-
+        Load load = load(targetReservations);
         double survivableHealth = positive(targetSurvivableHealth);
         int requestedProjectiles = validProjectileCount(projectileCount);
-        if (reservedDamage >= survivableHealth
-                || reservedProjectiles + requestedProjectiles > MAX_COMMITTED_PROJECTILES) {
+        boolean overkill = !selfDefense && load.damage >= survivableHealth;
+        if (overkill
+                || load.projectiles + requestedProjectiles > MAX_COMMITTED_PROJECTILES) {
             if (targetReservations.isEmpty()) {
                 reservationsByTarget.remove(targetId);
             }
@@ -113,6 +164,33 @@ public final class BoomstickFireCoordinator {
                         safeExpiry(gameTime, leaseTicks),
                         false));
         return true;
+    }
+
+    /**
+     * Whether a fresh shooter would still be granted a firing place against this target.
+     *
+     * <p>Read-only counterpart of {@link #reserve}, used by a blocked recruit to find an enemy that
+     * still needs shooting instead of standing idle behind a kill its comrades already own. It is a
+     * map lookup over the reservations of one target, so it stays cheap enough to ask about several
+     * candidates in the same tick.</p>
+     */
+    boolean hasFireTurnCapacity(
+            UUID targetId,
+            double targetSurvivableHealth,
+            int projectileCount,
+            long gameTime
+    ) {
+        if (targetId == null) {
+            return false;
+        }
+        purgeExpired(gameTime);
+        Map<UUID, Reservation> targetReservations = reservationsByTarget.get(targetId);
+        if (targetReservations == null) {
+            return true;
+        }
+        Load load = load(targetReservations);
+        return load.damage < positive(targetSurvivableHealth)
+                && load.projectiles + validProjectileCount(projectileCount) <= MAX_COMMITTED_PROJECTILES;
     }
 
     void commit(UUID shooterId, UUID targetId, long gameTime, int flightTicks) {
@@ -181,6 +259,16 @@ public final class BoomstickFireCoordinator {
         }
     }
 
+    private static Load load(Map<UUID, Reservation> targetReservations) {
+        double damage = 0.0D;
+        int projectiles = 0;
+        for (Reservation reservation : targetReservations.values()) {
+            damage += reservation.expectedDamage;
+            projectiles += reservation.projectileCount;
+        }
+        return new Load(damage, projectiles);
+    }
+
     private static double positive(double value) {
         return Double.isFinite(value) && value > 0.0D ? value : 1.0D;
     }
@@ -192,6 +280,10 @@ public final class BoomstickFireCoordinator {
     private static long safeExpiry(long gameTime, int ticks) {
         long duration = Math.max(1, ticks);
         return gameTime > Long.MAX_VALUE - duration ? Long.MAX_VALUE : gameTime + duration;
+    }
+
+    /** Damage and physical projectiles already claimed against one target. */
+    private record Load(double damage, int projectiles) {
     }
 
     private static final class Reservation {

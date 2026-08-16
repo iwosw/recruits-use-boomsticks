@@ -54,6 +54,35 @@ class ArtilleryReloadProtocolTest {
     }
 
     @Test
+    void partialNativeStateIdentifiesTheLastCompletedReloadStep() {
+        for (String weaponId : SupportedArtillery.gameplayWeaponIds()) {
+            ArtilleryWeaponProfile profile = SupportedArtillery.profileFor(weaponId).orElseThrow();
+            List<ArtilleryReloadStep> steps = ArtilleryReloadProtocol.stepsFor(profile);
+            CompoundTag weapon = new CompoundTag();
+
+            assertEquals(0, ArtilleryNativeState.completedReloadStepsTag(weapon, steps));
+            for (int index = 0; index < steps.size(); index++) {
+                ArtilleryNativeState.applyReloadStepTag(weapon, steps.get(index));
+                assertEquals(index + 1, ArtilleryNativeState.completedReloadStepsTag(weapon, steps),
+                        weaponId + " must resume after its last committed native step");
+            }
+        }
+    }
+
+    @Test
+    void firedCarbineDoesNotLookLikeACompletedReload() {
+        ArtilleryWeaponProfile profile = SupportedArtillery
+                .profileFor(SupportedArtillery.MATCHLOCK_CARBINE_ID)
+                .orElseThrow();
+        List<ArtilleryReloadStep> steps = ArtilleryReloadProtocol.stepsFor(profile);
+        CompoundTag weapon = new CompoundTag();
+
+        ArtilleryNativeState.markFiredTag(weapon, profile);
+
+        assertEquals(0, ArtilleryNativeState.completedReloadStepsTag(weapon, steps));
+    }
+
+    @Test
     void everyChainSpendsExactlyTheNativeAmmunition() {
         for (String weaponId : SupportedArtillery.gameplayWeaponIds()) {
             ArtilleryWeaponProfile profile = SupportedArtillery.profileFor(weaponId).orElseThrow();
@@ -189,7 +218,8 @@ class ArtilleryReloadProtocolTest {
     void handgonneAndTaccolaWriteTheNativeBallAndLoadedMarkers() {
         for (String weaponId : List.of(
                 SupportedArtillery.HANDGONNE_ID,
-                SupportedArtillery.TACCOLA_HANDGONNE_ID)) {
+                SupportedArtillery.TACCOLA_HANDGONNE_ID,
+                SupportedArtillery.BRONZE_HANDGONNE_ID)) {
             List<ArtilleryReloadStep> steps = ArtilleryReloadProtocol.stepsFor(weaponId);
 
             assertEquals(0.0D, numberWrite(steps.get(1), ArtilleryNativeState.AMMO_KEY));
@@ -271,6 +301,43 @@ class ArtilleryReloadProtocolTest {
         steps.forEach(step -> ArtilleryNativeState.applyReloadStepTag(weapon, step));
         assertTrue(ArtilleryNativeState.isLoadedTag(weapon, profile));
         assertEquals(1, ArtilleryReloadProtocol.ammoConsumed(profile));
+    }
+
+    @Test
+    void markmengonneIronBallBranchLoadsAndRamsWithoutInventingLoadedFlag() {
+        ArtilleryWeaponProfile profile = SupportedArtillery.markmengonneIronBallProfile();
+        List<ArtilleryReloadStep> steps = ArtilleryReloadProtocol.stepsFor(profile);
+
+        assertEquals(3, steps.size());
+        assertEquals(
+                List.of(ComponentRequirement.item(SupportedArtillery.IRON_BALL_ID)),
+                steps.get(1).components());
+        assertEquals(0.0D, numberWrite(steps.get(1), ArtilleryNativeState.AMMO_KEY));
+        assertEquals(
+                List.of(
+                        ComponentRequirement.item(SupportedArtillery.VANILLA_STICK_ID),
+                        ComponentRequirement.tag(ArtilleryReloadProtocol.RAMROD_TAG)),
+                steps.get(2).components());
+        assertTrue(steps.get(2).write(ArtilleryNativeState.LOADED_KEY).isEmpty());
+
+        CompoundTag weapon = new CompoundTag();
+        steps.forEach(step -> ArtilleryNativeState.applyReloadStepTag(weapon, step));
+        assertTrue(ArtilleryNativeState.isLoadedTag(weapon, profile));
+        assertFalse(weapon.contains(ArtilleryNativeState.LOADED_KEY));
+        assertEquals(1, ArtilleryReloadProtocol.ammoConsumed(profile));
+    }
+
+    @Test
+    void bronzeHandgonneRamsWithAStickOrRamrod() {
+        List<ArtilleryReloadStep> steps =
+                ArtilleryReloadProtocol.stepsFor(SupportedArtillery.BRONZE_HANDGONNE_ID);
+
+        assertEquals(
+                List.of(
+                        ComponentRequirement.item(SupportedArtillery.VANILLA_STICK_ID),
+                        ComponentRequirement.tag(ArtilleryReloadProtocol.RAMROD_TAG)),
+                steps.get(2).components());
+        assertTrue(steps.get(2).write(ArtilleryNativeState.LOADED_KEY).orElseThrow().flag());
     }
 
     @Test

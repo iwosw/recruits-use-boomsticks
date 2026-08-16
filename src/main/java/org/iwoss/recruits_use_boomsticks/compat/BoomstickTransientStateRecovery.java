@@ -41,10 +41,14 @@ public final class BoomstickTransientStateRecovery {
             return;
         }
         try {
-            adapters.forEachAdapter(adapter -> adapter.endSteppedReload(recruit, recruit.getMainHandItem()));
+            adapters.forEachAdapter(adapter -> {
+                adapter.endSteppedReload(recruit, recruit.getMainHandItem());
+                forEachCarriedStack(recruit, adapter::clearTransientState);
+            });
+            recruit.stopUsingItem();
         } catch (RuntimeException | LinkageError exception) {
             RecruitsUseBoomsticks.LOGGER.warn(
-                    "Failed to return a borrowed loading component for recruit {}",
+                    "Failed to recover boomstick state before dropping recruit {} inventory",
                     recruit.getId(),
                     exception);
         }

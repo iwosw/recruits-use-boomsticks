@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.IntPredicate;
 
 /**
  * Inventory access for native Artillery loading components matched by registry identity or item tag.
@@ -56,15 +57,24 @@ public final class ArtilleryComponentAccess {
     }
 
     public static int count(Container inventory, ArtilleryReloadStep.ComponentRequirement component) {
+        return count(inventory, component, ignored -> true);
+    }
+
+    public static int count(
+            Container inventory,
+            ArtilleryReloadStep.ComponentRequirement component,
+            IntPredicate usableSlot
+    ) {
         Objects.requireNonNull(inventory, "inventory");
         Objects.requireNonNull(component, "component");
+        Objects.requireNonNull(usableSlot, "usableSlot");
         if (component.isEmptyHand()) {
             return 0;
         }
         int count = 0;
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
             ItemStack stack = inventory.getItem(slot);
-            if (matches(stack, component)) {
+            if (usableSlot.test(slot) && matches(stack, component)) {
                 count += stack.getCount();
             }
         }
@@ -97,11 +107,20 @@ public final class ArtilleryComponentAccess {
      * demand of the chain, while a damaged tool is needed only once because it survives its step.</p>
      */
     public static boolean satisfiesAll(Container inventory, List<ArtilleryReloadStep> steps) {
+        return satisfiesAll(inventory, steps, ignored -> true);
+    }
+
+    public static boolean satisfiesAll(
+            Container inventory,
+            List<ArtilleryReloadStep> steps,
+            IntPredicate usableSlot
+    ) {
         Objects.requireNonNull(inventory, "inventory");
         Objects.requireNonNull(steps, "steps");
+        Objects.requireNonNull(usableSlot, "usableSlot");
         Map<ArtilleryReloadStep.ComponentRequirement, Integer> demand = new LinkedHashMap<>();
         for (ArtilleryReloadStep step : steps) {
-            ArtilleryReloadStep.ComponentRequirement chosen = select(inventory, step);
+            ArtilleryReloadStep.ComponentRequirement chosen = select(inventory, step, usableSlot);
             if (chosen == null) {
                 return false;
             }
@@ -114,7 +133,7 @@ public final class ArtilleryComponentAccess {
             demand.put(chosen, required);
         }
         for (Map.Entry<ArtilleryReloadStep.ComponentRequirement, Integer> entry : demand.entrySet()) {
-            if (count(inventory, entry.getKey()) < entry.getValue()) {
+            if (count(inventory, entry.getKey(), usableSlot) < entry.getValue()) {
                 return false;
             }
         }
@@ -129,10 +148,19 @@ public final class ArtilleryComponentAccess {
      * native code would not have spent. A {@code null} result means no alternative is available.</p>
      */
     public static ArtilleryReloadStep.ComponentRequirement select(Container inventory, ArtilleryReloadStep step) {
+        return select(inventory, step, ignored -> true);
+    }
+
+    public static ArtilleryReloadStep.ComponentRequirement select(
+            Container inventory,
+            ArtilleryReloadStep step,
+            IntPredicate usableSlot
+    ) {
         Objects.requireNonNull(inventory, "inventory");
         Objects.requireNonNull(step, "step");
+        Objects.requireNonNull(usableSlot, "usableSlot");
         for (ArtilleryReloadStep.ComponentRequirement component : step.components()) {
-            if (component.isEmptyHand() || count(inventory, component) > 0) {
+            if (component.isEmptyHand() || count(inventory, component, usableSlot) > 0) {
                 return component;
             }
         }

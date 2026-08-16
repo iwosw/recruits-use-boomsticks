@@ -44,6 +44,7 @@ public final class ArtilleryReloadProtocol {
             SupportedArtillery.MINI_PISTOLA_ID,
             SupportedArtillery.TILLER_GUN_ID,
             SupportedArtillery.MARKMENGONNE_ID,
+            SupportedArtillery.BRONZE_HANDGONNE_ID,
             SupportedArtillery.DOUBLE_BARREL_GONNE_ID);
 
     /** Whether the native shot for this weapon is lit with a match held in the free hand. */
@@ -67,6 +68,10 @@ public final class ArtilleryReloadProtocol {
     private static final List<ComponentRequirement> BARE_HAND_OR_RAMROD = List.of(
             ComponentRequirement.EMPTY_HAND,
             ComponentRequirement.tag(RAMROD_TAG));
+    /** Bronze and Markmen's Handgonne explicitly test a vanilla stick before the ramrod tag. */
+    private static final List<ComponentRequirement> STICK_OR_RAMROD = List.of(
+            ComponentRequirement.item(SupportedArtillery.VANILLA_STICK_ID),
+            ComponentRequirement.tag(RAMROD_TAG));
     private static final List<ComponentRequirement> BARE_HAND = List.of(
             ComponentRequirement.EMPTY_HAND);
     /** Tiller Gun rams with a bare hand or, in its own native branch, with the powder flask. */
@@ -77,6 +82,8 @@ public final class ArtilleryReloadProtocol {
     private static final Map<String, List<ArtilleryReloadStep>> CHAINS = createChains();
     private static final List<ArtilleryReloadStep> NOBLE_HANDGONNE_IRON_BALL_CHAIN =
             handCannonChain(SupportedArtillery.IRON_BALL_ID, true, true);
+    private static final List<ArtilleryReloadStep> MARKMENGONNE_IRON_BALL_CHAIN =
+            handCannonChain(SupportedArtillery.IRON_BALL_ID, true, false, STICK_OR_RAMROD);
 
     private ArtilleryReloadProtocol() {
     }
@@ -92,6 +99,10 @@ public final class ArtilleryReloadProtocol {
         if (SupportedArtillery.NOBLE_HANDGONNE_ID.equals(profile.registryId())
                 && SupportedArtillery.IRON_BALL_ID.equals(profile.ammoId())) {
             return NOBLE_HANDGONNE_IRON_BALL_CHAIN;
+        }
+        if (SupportedArtillery.MARKMENGONNE_ID.equals(profile.registryId())
+                && SupportedArtillery.IRON_BALL_ID.equals(profile.ammoId())) {
+            return MARKMENGONNE_IRON_BALL_CHAIN;
         }
         return stepsFor(profile.registryId());
     }
@@ -170,6 +181,8 @@ public final class ArtilleryReloadProtocol {
                 SupportedArtillery.IRON_BALL_ID, true, true));
         chains.put(SupportedArtillery.TACCOLA_HANDGONNE_ID, handCannonChain(
                 SupportedArtillery.IRON_BALL_ID, true, true));
+        chains.put(SupportedArtillery.BRONZE_HANDGONNE_ID, handCannonChain(
+                SupportedArtillery.IRON_BALL_ID, true, true, STICK_OR_RAMROD));
         // HandcannonRightclickProcedure: the same three steps without the ammo marker and without a
         // native loaded flag; its match branch only checks stage 2.0.
         chains.put(SupportedArtillery.HAND_CANNON_ID, handCannonChain(
@@ -299,6 +312,15 @@ public final class ArtilleryReloadProtocol {
             boolean writesAmmoMarker,
             boolean writesLoadedFlag
     ) {
+        return handCannonChain(ammoId, writesAmmoMarker, writesLoadedFlag, BARE_HAND_OR_RAMROD);
+    }
+
+    private static List<ArtilleryReloadStep> handCannonChain(
+            String ammoId,
+            boolean writesAmmoMarker,
+            boolean writesLoadedFlag,
+            List<ComponentRequirement> rammingComponents
+    ) {
         Objects.requireNonNull(ammoId, "ammoId");
         List<NativeWrite> ballExtras = writesAmmoMarker
                 ? List.of(NativeWrite.number(ArtilleryNativeState.AMMO_KEY, 0.0D))
@@ -315,7 +337,7 @@ public final class ArtilleryReloadProtocol {
                         LORE_NEEDS_RAMMING,
                         ballExtras.toArray(new NativeWrite[0])),
                 rammingStep(
-                        BARE_HAND_OR_RAMROD,
+                        rammingComponents,
                         2.0D,
                         BoomstickSound.ARTILLERY_HAND_CANNON_RAMMING,
                         ramExtras.toArray(new NativeWrite[0])));

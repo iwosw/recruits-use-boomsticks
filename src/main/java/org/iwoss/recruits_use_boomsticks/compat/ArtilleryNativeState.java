@@ -7,6 +7,8 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 
 /** NPC-owned representation of the bytecode-confirmed Artillery staged loading protocol. */
@@ -114,6 +116,57 @@ public final class ArtilleryNativeState {
                 tag.putDouble(write.key(), write.number());
             }
         }
+    }
+
+    /** Returns the native loading steps already committed on a partially loaded weapon. */
+    public static int completedReloadSteps(ItemStack weapon, List<ArtilleryReloadStep> steps) {
+        Objects.requireNonNull(steps, "steps");
+        if (weapon == null || weapon.isEmpty() || !weapon.hasTag()) {
+            return 0;
+        }
+        CompoundTag tag = weapon.getTag();
+        return completedReloadStepsTag(tag, steps);
+    }
+
+    static int completedReloadStepsTag(CompoundTag tag, List<ArtilleryReloadStep> steps) {
+        Objects.requireNonNull(steps, "steps");
+        if (tag == null) {
+            return 0;
+        }
+        // Later steps overwrite stage/ammo values from earlier steps. A boundary is valid only when
+        // every last-write-wins value up to it still matches; checking one step alone confuses the
+        // fired Carbine's stage 3/powder 0 state with its loaded stage 3/powder 1 state.
+        for (int index = steps.size() - 1; index >= 0; index--) {
+            if (hasCumulativeWrites(tag, steps, index)) {
+                return index + 1;
+            }
+        }
+        return 0;
+    }
+
+    private static boolean hasCumulativeWrites(
+            CompoundTag tag,
+            List<ArtilleryReloadStep> steps,
+            int completedIndex
+    ) {
+        HashSet<String> checkedKeys = new HashSet<>();
+        for (int stepIndex = completedIndex; stepIndex >= 0; stepIndex--) {
+            for (ArtilleryReloadStep.NativeWrite write : steps.get(stepIndex).writes()) {
+                if (!checkedKeys.add(write.key())) {
+                    continue;
+                }
+                if (write.kind() == ArtilleryReloadStep.NativeWrite.Kind.BOOLEAN) {
+                    if (tag.getTagType(write.key()) != Tag.TAG_BYTE
+                            || tag.getBoolean(write.key()) != write.flag()) {
+                        return false;
+                    }
+                } else if (tag.getTagType(write.key()) != Tag.TAG_DOUBLE
+                        || tag.getDouble(write.key()) != write.number()) {
+                    return false;
+                }
+            }
+        }
+        return !checkedKeys.isEmpty();
     }
 
     /** Reproduces the native transient display lore without touching any other display data. */

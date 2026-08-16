@@ -1,6 +1,5 @@
 package org.iwoss.recruits_use_boomsticks.event;
 
-import com.talhanation.recruits.entities.AbstractRecruitEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
@@ -13,6 +12,7 @@ import net.minecraftforge.fml.common.Mod;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
 import org.iwoss.recruits_use_boomsticks.ai.BoomstickFireCoordinator;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickDamagePolicy;
+import org.iwoss.recruits_use_boomsticks.compat.BoomstickProjectileAttribution;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickProjectilePolicy;
 import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
@@ -33,7 +33,8 @@ public final class BoomstickProjectileEvents {
         Projectile projectile = event.getProjectile();
         // The owner and hit-shape tests come first: they are cheap and they keep the adapter lookup,
         // which reads an entity's persistent data, off every unrelated projectile impact.
-        if (!(projectile.getOwner() instanceof AbstractRecruitEntity recruit)) {
+        if (!(projectile instanceof AbstractArrow arrow)
+                || !BoomstickProjectileAttribution.isRecruitOwned(arrow)) {
             return;
         }
         if (!(event.getRayTraceResult() instanceof EntityHitResult entityHit)) {
@@ -42,22 +43,15 @@ public final class BoomstickProjectileEvents {
         if (!CompatConfig.ENABLED.get()
                 || !BoomstickProjectilePolicy.shouldApply(
                 true,
-                projectile instanceof AbstractArrow arrow
-                        ? RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledProjectile(arrow)
-                        : RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledProjectile(projectile.getClass()),
+                RECRUIT_WEAPON_ADAPTERS.isSupportedEnabledProjectile(arrow),
                 true)) {
             return;
         }
 
         Entity hitEntity = entityHit.getEntity();
-        if (hitEntity == recruit) {
+        if (BoomstickProjectileAttribution.isFriendly(arrow, hitEntity)) {
             // Cancellation is the original Forge 47 contract and maps to SKIP_ENTITY on newer
             // Forge builds, keeping the projectile alive so it can continue past an ally.
-            event.setCanceled(true);
-            return;
-        }
-        if (hitEntity instanceof LivingEntity living
-                && (recruit.isAlliedTo(hitEntity) || !recruit.canAttack(living))) {
             event.setCanceled(true);
             return;
         }
@@ -72,17 +66,18 @@ public final class BoomstickProjectileEvents {
     @SubscribeEvent
     public static void onRecruitProjectileHurt(LivingHurtEvent event) {
         if (!(event.getSource().getDirectEntity() instanceof AbstractArrow projectile)
-                || !(projectile.getOwner() instanceof AbstractRecruitEntity recruit)) {
+                || !BoomstickProjectileAttribution.isRecruitOwned(projectile)) {
             return;
         }
         RECRUIT_WEAPON_ADAPTERS.findEnabledProjectile(projectile).ifPresent(adapter -> {
             event.setAmount(BoomstickDamagePolicy.configuredDamage(
                     event.getAmount(),
                     adapter.integration()));
-            BoomstickFireCoordinator.resolveHitShared(
-                    recruit.getUUID(),
-                    event.getEntity().getUUID(),
-                    event.getEntity().level().getGameTime());
+            BoomstickProjectileAttribution.shooterUuid(projectile).ifPresent(shooter ->
+                    BoomstickFireCoordinator.resolveHitShared(
+                            shooter,
+                            event.getEntity().getUUID(),
+                            event.getEntity().level().getGameTime()));
         });
     }
 }

@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntPredicate;
 
 /**
  * Server-safe Artillery Addon boundary. It uses registry identities and the native projectile
@@ -49,6 +50,8 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             "recruits_use_boomsticks:artillery_arrow_projectile";
     static final String NOBLE_AMMO_BRANCH_KEY =
             "recruits_use_boomsticks:noble_handgonne_ammo_branch";
+    static final String MARKMENGONNE_AMMO_BRANCH_KEY =
+            "recruits_use_boomsticks:markmengonne_ammo_branch";
     private static final String NOBLE_IRON_BALL_BRANCH = "iron_ball";
     private static final String NOBLE_ARROW_BRANCH = "arrow";
 
@@ -119,8 +122,12 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             return Optional.empty();
         }
         if (SupportedArtillery.NOBLE_HANDGONNE_ID.equals(weaponId)
-                && nobleUsesIronBallBranch(weapon)) {
+                && usesIronBallBranch(weapon, weaponId)) {
             return Optional.of(SupportedArtillery.nobleHandgonneIronBallProfile());
+        }
+        if (SupportedArtillery.MARKMENGONNE_ID.equals(weaponId)
+                && usesIronBallBranch(weapon, weaponId)) {
+            return Optional.of(SupportedArtillery.markmengonneIronBallProfile());
         }
         return SupportedArtillery.profileFor(weaponId);
     }
@@ -179,6 +186,15 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
     }
 
     @Override
+    public int completedReloadSteps(ItemStack weapon) {
+        return artilleryProfile(weapon)
+                .map(profile -> ArtilleryNativeState.completedReloadSteps(
+                        weapon,
+                        ArtilleryReloadProtocol.stepsFor(profile)))
+                .orElse(0);
+    }
+
+    @Override
     public boolean hasReloadComponents(CrossBowmanEntity recruit, ItemStack weapon) {
         if (recruit == null) {
             return false;
@@ -188,15 +204,17 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         if (profileResult.isEmpty()) {
             return false;
         }
-        List<ArtilleryReloadStep> steps =
-                ArtilleryReloadProtocol.stepsFor(profileResult.orElseThrow());
+        List<ArtilleryReloadStep> steps = remainingReloadSteps(weapon, profileResult.orElseThrow());
         if (steps.isEmpty()) {
             return true;
         }
         // A chain that spends the same component more than once needs every unit up front: a
         // per-step presence check would start a Chu Ko Nu magazine on a single arrow and abandon it
         // halfway with the earlier rounds already gone.
-        return ArtilleryComponentAccess.satisfiesAll(recruit.getInventory(), steps);
+        return ArtilleryComponentAccess.satisfiesAll(
+                recruit.getInventory(),
+                steps,
+                usableComponentSlots(recruit));
     }
 
     @Override
@@ -215,8 +233,10 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             return false;
         }
         ArtilleryReloadStep step = steps.get(stepIndex);
-        ArtilleryReloadStep.ComponentRequirement component =
-                ArtilleryComponentAccess.select(recruit.getInventory(), step);
+        ArtilleryReloadStep.ComponentRequirement component = ArtilleryComponentAccess.select(
+                recruit.getInventory(),
+                step,
+                usableComponentSlots(recruit));
         if (component == null) {
             return false;
         }
@@ -303,13 +323,21 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         }
         try {
             returnBorrowedComponent(recruit);
+            ArtilleryReloadStep.ComponentRequirement match =
+                    ArtilleryReloadStep.ComponentRequirement.item(ArtilleryReloadProtocol.MATCH_ID);
+            if (ArtilleryComponentAccess.matches(recruit.getOffhandItem(), match)) {
+                return;
+            }
+            int offhandSlot = recruit.getInventorySlotIndex(EquipmentSlot.OFFHAND);
+            if (findComponentSlotOutsideOffhand(recruit, recruit.getInventory(), match, offhandSlot) < 0) {
+                return;
+            }
+            boolean hadSnapshot = recruit.getPersistentData().contains(SAVED_OFFHAND_KEY);
             saveOffhandOnce(recruit, List.of());
-            borrowComponent(
-                    recruit,
-                    new ArtilleryReloadStep.ComponentRequirement(
-                            ArtilleryReloadProtocol.MATCH_ID,
-                            ArtilleryReloadStep.ComponentRequirement.Kind.ITEM),
-                    ArtilleryReloadStep.ComponentUse.NONE);
+            if (!borrowComponent(recruit, match, ArtilleryReloadStep.ComponentUse.NONE)
+                    && !hadSnapshot) {
+                recruit.getPersistentData().remove(SAVED_OFFHAND_KEY);
+            }
         } catch (RuntimeException | LinkageError exception) {
             RecruitsUseBoomsticks.LOGGER.warn(
                     "Artillery match display failed for recruit {}",
@@ -410,16 +438,7 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         return -1;
     }
 
-    /**
-     * Snapshots the recruit's own off-hand item once per loading transaction.
-     *
-     * <p>An item this very chain loads with is stowed instead of snapshotted. A powder flask that is
-     * already sitting in the off hand — left there by an earlier transaction, or handed over by a
-     * player — would otherwise be recorded as the recruit's own equipment and put straight back at
-     * the end of every chain. The chain also could not borrow it, because a borrow only ever moves a
-     * component out of a slot other than the off hand, so the recruit would abort at its first step
-     * and stay stuck holding a flask it can neither use nor put away.</p>
-     */
+    /** Snapshots ordinary gear, but safely stows a component that the chain itself can use. */
     private static void saveOffhandOnce(CrossBowmanEntity recruit, List<ArtilleryReloadStep> steps) {
         CompoundTag data = recruit.getPersistentData();
         if (data.contains(SAVED_OFFHAND_KEY)) {
@@ -438,7 +457,6 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         data.put(SAVED_OFFHAND_KEY, occupant.save(new CompoundTag()));
     }
 
-    /** Whether the stack is something this chain loads with rather than the recruit's own gear. */
     private static boolean isChainComponent(ItemStack stack, List<ArtilleryReloadStep> steps) {
         if (stack == null || stack.isEmpty()) {
             return false;
@@ -448,6 +466,32 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
                 if (!component.isEmptyHand() && ArtilleryComponentAccess.matches(stack, component)) {
                     return true;
                 }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Which slots a loading chain may actually spend from.
+     *
+     * <p>Storage is always available. The off hand only counts while a free storage slot exists to
+     * return its occupant to, because a borrow that cannot be given back would drop the component on
+     * the ground. That storage scan does not depend on the slot being tested, so it is resolved once
+     * per predicate rather than once per slot: these tests run inside per-slot inventory loops.</p>
+     */
+    private static IntPredicate usableComponentSlots(CrossBowmanEntity recruit) {
+        Container inventory = recruit.getInventory();
+        int offhandSlot = recruit.getInventorySlotIndex(EquipmentSlot.OFFHAND);
+        boolean offhandReturnable = hasFreeStorageSlot(recruit, inventory);
+        return slot -> RecruitInventorySafety.isStorageSlot(recruit, slot)
+                || (slot == offhandSlot && offhandReturnable);
+    }
+
+    private static boolean hasFreeStorageSlot(CrossBowmanEntity recruit, Container inventory) {
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            if (RecruitInventorySafety.isStorageSlot(recruit, slot)
+                    && inventory.getItem(slot).isEmpty()) {
+                return true;
             }
         }
         return false;
@@ -532,8 +576,8 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         // A weapon with a captured native chain also needs every loading tool before it may start.
         return selectReloadProfile(recruit, weapon)
                 .map(profile -> ArtilleryAmmoAccess.count(recruit.getInventory(), profile.ammoId())
-                        >= requiredAmmo(profile)
-                        && hasReloadComponents(recruit, profile))
+                        >= requiredAmmo(weapon, profile)
+                        && hasReloadComponents(recruit, weapon, profile))
                 .orElse(false);
     }
 
@@ -547,7 +591,7 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
                 .map(profile -> ArtilleryAmmoAccess.consume(
                         recruit.getInventory(),
                         profile.ammoId(),
-                        requiredAmmo(profile)))
+                        requiredAmmo(weapon, profile)))
                 .orElse(false);
     }
 
@@ -557,9 +601,12 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
      * <p>A weapon with a captured native chain spends exactly what that chain's own consuming steps
      * spend. Only a weapon without a captured chain falls back to the profile's policy value.</p>
      */
-    private static int requiredAmmo(ArtilleryWeaponProfile profile) {
+    private static int requiredAmmo(ItemStack weapon, ArtilleryWeaponProfile profile) {
+        List<ArtilleryReloadStep> remaining = remainingReloadSteps(weapon, profile);
         return ArtilleryReloadProtocol.hasSteppedChain(profile.registryId())
-                ? ArtilleryReloadProtocol.ammoConsumed(profile)
+                ? (int) remaining.stream()
+                .filter(step -> step.componentUse() == ArtilleryReloadStep.ComponentUse.CONSUME_ONE)
+                .count()
                 : profile.ammoPerReload();
     }
 
@@ -569,57 +616,111 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
     ) {
         Optional<ArtilleryWeaponProfile> current = artilleryProfile(weapon);
         if (current.isEmpty()
-                || !SupportedArtillery.NOBLE_HANDGONNE_ID.equals(current.get().registryId())
-                || ArtilleryNativeState.isLoaded(weapon, current.get())) {
+                || !hasSelectableIronBallBranch(current.get().registryId())
+                || ArtilleryNativeState.isLoaded(weapon, current.get())
+                || ArtilleryNativeState.isReloading(weapon)
+                || ArtilleryNativeState.completedReloadSteps(
+                weapon,
+                ArtilleryReloadProtocol.stepsFor(current.get())) > 0) {
             return current;
         }
 
-        ArtilleryWeaponProfile ironBall = SupportedArtillery.nobleHandgonneIronBallProfile();
+        String weaponId = current.get().registryId();
+        ArtilleryWeaponProfile ironBall = ironBallProfile(weaponId);
         ArtilleryWeaponProfile arrow = SupportedArtillery
-                .profileFor(SupportedArtillery.NOBLE_HANDGONNE_ID)
+                .profileFor(weaponId)
                 .orElseThrow();
         ArtilleryWeaponProfile selected;
-        if (hasReloadAmmoAndComponents(recruit, ironBall)) {
+        if (hasReloadAmmoAndComponents(recruit, weapon, ironBall)) {
             selected = ironBall;
-        } else if (hasReloadAmmoAndComponents(recruit, arrow)) {
+        } else if (hasReloadAmmoAndComponents(recruit, weapon, arrow)) {
             selected = arrow;
         } else {
             return current;
         }
-        weapon.getOrCreateTag().putString(
-                NOBLE_AMMO_BRANCH_KEY,
-                selected == ironBall ? NOBLE_IRON_BALL_BRANCH : NOBLE_ARROW_BRANCH);
+        // The branch is state on the weapon, so it is only committed for the weapon the recruit
+        // actually holds and is about to load. The combat goal polls every carried stack for
+        // usability each tick, and a spare gun in the backpack must not have its ammunition branch
+        // rewritten — or flipped back and forth as unrelated supplies come and go — by a question.
+        if (recruit.getMainHandItem() == weapon) {
+            weapon.getOrCreateTag().putString(
+                    ammoBranchKey(weaponId),
+                    selected == ironBall ? NOBLE_IRON_BALL_BRANCH : NOBLE_ARROW_BRANCH);
+        }
         return Optional.of(selected);
     }
 
     private static boolean hasReloadAmmoAndComponents(
             CrossBowmanEntity recruit,
+            ItemStack weapon,
             ArtilleryWeaponProfile profile
     ) {
-        return ArtilleryAmmoAccess.count(recruit.getInventory(), profile.ammoId()) >= requiredAmmo(profile)
-                && hasReloadComponents(recruit, profile);
+        return ArtilleryAmmoAccess.count(recruit.getInventory(), profile.ammoId())
+                >= requiredAmmo(weapon, profile)
+                && hasReloadComponents(recruit, weapon, profile);
     }
 
     private static boolean hasReloadComponents(
             CrossBowmanEntity recruit,
+            ItemStack weapon,
+            ArtilleryWeaponProfile profile
+    ) {
+        List<ArtilleryReloadStep> steps = remainingReloadSteps(weapon, profile);
+        return steps.isEmpty() || ArtilleryComponentAccess.satisfiesAll(
+                recruit.getInventory(),
+                steps,
+                usableComponentSlots(recruit));
+    }
+
+    private static List<ArtilleryReloadStep> remainingReloadSteps(
+            ItemStack weapon,
             ArtilleryWeaponProfile profile
     ) {
         List<ArtilleryReloadStep> steps = ArtilleryReloadProtocol.stepsFor(profile);
-        return steps.isEmpty() || ArtilleryComponentAccess.satisfiesAll(recruit.getInventory(), steps);
+        int completed = ArtilleryNativeState.completedReloadSteps(weapon, steps);
+        return completed >= steps.size() ? List.of() : steps.subList(completed, steps.size());
     }
 
-    private static boolean nobleUsesIronBallBranch(ItemStack weapon) {
+    private static boolean usesIronBallBranch(ItemStack weapon, String weaponId) {
         CompoundTag tag = weapon.getTag();
         if (tag == null) {
             return false;
         }
-        if (NOBLE_IRON_BALL_BRANCH.equals(tag.getString(NOBLE_AMMO_BRANCH_KEY))) {
+        String branch = tag.getString(ammoBranchKey(weaponId));
+        if (NOBLE_IRON_BALL_BRANCH.equals(branch)) {
             return true;
         }
+        if (NOBLE_ARROW_BRANCH.equals(branch)) {
+            return false;
+        }
         // Recognize a natively loaded ball even when it predates this compatibility marker.
-        return tag.contains(ArtilleryNativeState.AMMO_KEY)
-                && tag.getDouble(ArtilleryNativeState.AMMO_KEY) == 0.0D
-                && tag.getBoolean(ArtilleryNativeState.LOADED_KEY);
+        if (!tag.contains(ArtilleryNativeState.AMMO_KEY)
+                || tag.getDouble(ArtilleryNativeState.AMMO_KEY) != 0.0D) {
+            return false;
+        }
+        if (SupportedArtillery.NOBLE_HANDGONNE_ID.equals(weaponId)) {
+            return tag.getBoolean(ArtilleryNativeState.LOADED_KEY);
+        }
+        return SupportedArtillery.MARKMENGONNE_ID.equals(weaponId)
+                && tag.getDouble(ArtilleryNativeState.POWDER_KEY) >= 1.0D
+                && tag.getDouble(ArtilleryNativeState.STAGE_KEY) == 2.0D;
+    }
+
+    private static boolean hasSelectableIronBallBranch(String weaponId) {
+        return SupportedArtillery.NOBLE_HANDGONNE_ID.equals(weaponId)
+                || SupportedArtillery.MARKMENGONNE_ID.equals(weaponId);
+    }
+
+    private static ArtilleryWeaponProfile ironBallProfile(String weaponId) {
+        return SupportedArtillery.NOBLE_HANDGONNE_ID.equals(weaponId)
+                ? SupportedArtillery.nobleHandgonneIronBallProfile()
+                : SupportedArtillery.markmengonneIronBallProfile();
+    }
+
+    private static String ammoBranchKey(String weaponId) {
+        return SupportedArtillery.NOBLE_HANDGONNE_ID.equals(weaponId)
+                ? NOBLE_AMMO_BRANCH_KEY
+                : MARKMENGONNE_AMMO_BRANCH_KEY;
     }
 
     @Override
@@ -746,52 +847,14 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         }
     }
 
-    /** Per-tick gravity {@link AbstractArrow} applies to its own motion. */
-    private static final double ARROW_GRAVITY_PER_TICK = 0.05D;
-    /** Longest lead this policy will add, so a hopeless long shot cannot aim at the sky. */
-    private static final double MAX_AIM_ARC = 8.0D;
-
-    /**
-     * Builds the launch vector, adding the upward arc a projectile needs to reach its target.
-     *
-     * <p>Recruits aim at a third of the target's height, below their own eyes, and every projectile
-     * here extends {@link AbstractArrow} and therefore falls at {@value #ARROW_GRAVITY_PER_TICK}
-     * blocks per tick squared. Without a lead the shot lands visibly short and low.</p>
-     *
-     * <p>{@code shoot} treats velocity as blocks per tick, so flight time is roughly the horizontal
-     * distance divided by that velocity, and the drop over that flight is {@code g/2 * t^2}. Adding
-     * exactly that drop back is self-calibrating: a fast iron ball barely arcs while a slow bolt
-     * gets a real lob. Drag makes the true flight slightly longer, so this stays a mild
-     * under-compensation rather than an overshoot.</p>
-     */
+    /** @see BoomstickBallistics#aimVector(Vec3, Vec3, double) */
     static Vec3 aimVector(Vec3 origin, Vec3 target, double projectileVelocity) {
-        double dx = target.x - origin.x;
-        double dy = target.y - origin.y;
-        double dz = target.z - origin.z;
-        double horizontal = Math.sqrt(dx * dx + dz * dz);
-        if (horizontal <= 0.0D || !Double.isFinite(projectileVelocity) || projectileVelocity <= 0.0D) {
-            return new Vec3(dx, dy, dz);
-        }
-        double flightTicks = horizontal / projectileVelocity;
-        double arc = Math.min(MAX_AIM_ARC, 0.5D * ARROW_GRAVITY_PER_TICK * flightTicks * flightTicks);
-        return new Vec3(dx, dy + arc, dz);
+        return BoomstickBallistics.aimVector(origin, target, projectileVelocity);
     }
 
-    /**
-     * Horizontal distance past which {@link #aimVector} can no longer pay for the drop.
-     *
-     * <p>This is the inverse of the arc above at its cap: the compensation grows with the square of
-     * the flight time until it hits {@link #MAX_AIM_ARC}, and beyond that point the lead is clipped
-     * and the projectile lands short no matter how long the recruit aims. A slow projectile reaches
-     * that wall early — a thrown cobblestone at velocity {@code 0.75} runs out at roughly thirteen
-     * blocks — so the combat goal uses this to decide when to close the distance instead of lobbing
-     * shots into the ground.</p>
-     */
+    /** @see BoomstickBallistics#maxCompensatedRange(double) */
     public static double maxCompensatedRange(double projectileVelocity) {
-        if (!Double.isFinite(projectileVelocity) || projectileVelocity <= 0.0D) {
-            return 0.0D;
-        }
-        return projectileVelocity * Math.sqrt(2.0D * MAX_AIM_ARC / ARROW_GRAVITY_PER_TICK);
+        return BoomstickBallistics.maxCompensatedRange(projectileVelocity);
     }
 
     private static AbstractArrow createProjectile(ServerLevel level, ArtilleryWeaponProfile profile) {
@@ -825,6 +888,7 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             Vec3 origin
     ) {
         projectile.setOwner(recruit);
+        BoomstickProjectileAttribution.mark(projectile, recruit);
         projectile.pickup = profile.pickupAllowed()
                 ? AbstractArrow.Pickup.ALLOWED
                 : AbstractArrow.Pickup.DISALLOWED;

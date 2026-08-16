@@ -121,6 +121,9 @@ class ArtilleryThrowableAdapterTest {
         assertFalse(available.supportsProjectileClassName(null));
         assertFalse(available.supportsAmmo(null));
         assertFalse(available.isThrowable(null));
+        // Artillery's throwables run a native finish path, so a recruit must never be put into the
+        // vanilla use state for them: a completed use would throw a second time at no cost.
+        assertFalse(available.windUpUsesNativeItemState(null));
     }
 
     private static void assertNativeBranch(

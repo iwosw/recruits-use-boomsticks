@@ -2,10 +2,12 @@
   "gui.recruits_use_boomsticks.command.text.weapons_out": "Weapons out!",
   "gui.recruits_use_boomsticks.command.text.weapons_away": "Weapons away!",
   "gui.recruits_use_boomsticks.command.tooltip.weapons_out": "Make the recruits take a supported ranged weapon into their main hand and carry it.",
-  "gui.recruits_use_boomsticks.command.tooltip.weapons_away": "Make the recruits put the ranged weapon back and take their other weapon.",
+  "gui.recruits_use_boomsticks.command.tooltip.weapons_away": "Make the recruits sling the ranged weapon over the shield hand and take their other weapon, or nothing at all.",
   "chat.recruits_use_boomsticks.weapons_out": "Weapons out: %s of %s armed recruits drew a ranged weapon.",
   "chat.recruits_use_boomsticks.weapons_away": "Weapons away: %s of %s armed recruits stowed a ranged weapon.",
   "chat.recruits_use_boomsticks.carry.nobody": "The order reached nobody: none of your recruits from the selected groups are nearby.",
   "chat.recruits_use_boomsticks.carry.unarmed": "The order reached %s recruits, but none of them owns a supported ranged weapon.",
-  "chat.recruits_use_boomsticks.carry.no_replacement": "Weapons away: %s recruits already have the weapon in their off hand, or had no room to move it."
+  "chat.recruits_use_boomsticks.carry.blocked": "Weapons away: none of the %s armed recruits has room to put the weapon away without dropping something.",
+  "gui.recruits_use_boomsticks.command.tooltip.unavailable": "This server does not have Recruits Use Boomsticks installed, so it cannot receive the order.",
+  "chat.recruits_use_boomsticks.carry.too_many_groups": "One order carries at most %s groups; %s of the selected groups did not receive it."
 }
