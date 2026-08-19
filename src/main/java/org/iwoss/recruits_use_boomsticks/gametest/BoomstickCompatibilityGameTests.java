@@ -1,10 +1,5 @@
 package org.iwoss.recruits_use_boomsticks.gametest;
 
-import com.TBK.medieval_boomsticks.Config;
-import com.TBK.medieval_boomsticks.common.items.RechargeItem;
-import com.TBK.medieval_boomsticks.server.entity.HeavyBoltProjectile;
-import com.TBK.medieval_boomsticks.server.entity.RoundBallProjectile;
-import com.TBK.medieval_boomsticks.server.entity.ThrownJavelin;
 import com.talhanation.recruits.config.RecruitsServerConfig;
 import com.talhanation.recruits.entities.CrossBowmanEntity;
 import com.talhanation.recruits.entities.ai.FleeTNT;
@@ -29,6 +24,8 @@ import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.CrossbowItem;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.entity.ProjectileImpactEvent;
@@ -65,6 +62,8 @@ import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import org.iwoss.recruits_use_boomsticks.event.BoomstickProjectileEvents;
 import org.iwoss.recruits_use_boomsticks.inventory.RecruitInventorySafety;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Optional;
@@ -78,6 +77,14 @@ public final class BoomstickCompatibilityGameTests {
     /** Concrete members of the native `minecraft:powder_flask` and `artillery:ramrod` tags. */
     private static final String POWDER_FLASK_ID = SupportedArtillery.MOD_ID + ":horn_flask";
     private static final String RAMROD_ID = SupportedArtillery.MOD_ID + ":ramrod";
+    private static final String ROUND_BALL_PROJECTILE_CLASS =
+            "com.TBK.medieval_boomsticks.server.entity.RoundBallProjectile";
+    private static final String HEAVY_BOLT_PROJECTILE_CLASS =
+            "com.TBK.medieval_boomsticks.server.entity.HeavyBoltProjectile";
+    private static final String THROWN_JAVELIN_CLASS =
+            "com.TBK.medieval_boomsticks.server.entity.ThrownJavelin";
+    private static final String MEDIEVAL_BOOMSTICKS_CONFIG_CLASS =
+            "com.TBK.medieval_boomsticks.Config";
 
     private BoomstickCompatibilityGameTests() {
     }
@@ -151,7 +158,7 @@ public final class BoomstickCompatibilityGameTests {
         reloadGoal.tick();
         helper.assertTrue(reloadGoal.phase() == BoomstickAttackState.Phase.RELOAD,
                 "reload progress must continue after the recruit is attacked");
-        helper.assertTrue(RechargeItem.isReCharge(weapon),
+        helper.assertTrue(weapon.getOrCreateTag().getBoolean("recharge"),
                 "reload animation must remain active after the recruit is attacked");
         helper.assertFalse(MedievalBoomsticksAdapter.INSTANCE.isLoaded(weapon),
                 "an interrupted Arbalest reload must not enter its raised charged pose early");
@@ -207,9 +214,10 @@ public final class BoomstickCompatibilityGameTests {
         helper.assertTrue(result.outcome() == BoomstickWeaponAdapter.ShotOutcome.FIRED,
                 "fixture must fire the arbalest");
 
-        HeavyBoltProjectile bolt = helper.getLevel()
-                .getEntitiesOfClass(HeavyBoltProjectile.class, recruit.getBoundingBox().inflate(24.0D))
+        AbstractArrow bolt = helper.getLevel()
+                .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
                 .stream()
+                .filter(candidate -> isNamedType(candidate, HEAVY_BOLT_PROJECTILE_CLASS))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("arbalest did not spawn a heavy bolt"));
         // The native projectile applies random inaccuracy after the ballistic lead. Assert the
@@ -325,8 +333,10 @@ public final class BoomstickCompatibilityGameTests {
         helper.assertFalse(shooter.canAttack(ally), "recruits with the same owner must not attack each other");
 
         ItemStack weapon = stack(SupportedBoomsticks.HANDGONNE_ID);
-        AbstractArrow recruitProjectile = new RoundBallProjectile(helper.getLevel(), shooter, weapon);
-        AbstractArrow playerProjectile = new RoundBallProjectile(helper.getLevel(), player, weapon);
+        AbstractArrow recruitProjectile = medievalProjectile(
+                ROUND_BALL_PROJECTILE_CLASS, helper.getLevel(), shooter, weapon);
+        AbstractArrow playerProjectile = medievalProjectile(
+                ROUND_BALL_PROJECTILE_CLASS, helper.getLevel(), player, weapon);
         recruitProjectile.setOwner(shooter);
         playerProjectile.setOwner(player);
 
@@ -380,7 +390,8 @@ public final class BoomstickCompatibilityGameTests {
             ally.setIsOwned(true);
 
             ItemStack weapon = stack(SupportedBoomsticks.HANDGONNE_ID);
-            AbstractArrow projectile = new RoundBallProjectile(helper.getLevel(), shooter, weapon);
+            AbstractArrow projectile = medievalProjectile(
+                    ROUND_BALL_PROJECTILE_CLASS, helper.getLevel(), shooter, weapon);
             projectile.setOwner(shooter);
             BoomstickProjectileAttribution.mark(projectile, shooter);
             shooter.discard();
@@ -409,8 +420,10 @@ public final class BoomstickCompatibilityGameTests {
         CrossBowmanEntity shooter = spawnCrossbowman(helper);
         Player player = helper.makeMockPlayer();
         ItemStack weapon = stack(SupportedBoomsticks.HANDGONNE_ID);
-        AbstractArrow recruitProjectile = new RoundBallProjectile(helper.getLevel(), shooter, weapon);
-        AbstractArrow playerProjectile = new RoundBallProjectile(helper.getLevel(), player, weapon);
+        AbstractArrow recruitProjectile = medievalProjectile(
+                ROUND_BALL_PROJECTILE_CLASS, helper.getLevel(), shooter, weapon);
+        AbstractArrow playerProjectile = medievalProjectile(
+                ROUND_BALL_PROJECTILE_CLASS, helper.getLevel(), player, weapon);
         recruitProjectile.setOwner(shooter);
         playerProjectile.setOwner(player);
         recruitProjectile.tickCount = 200;
@@ -430,7 +443,8 @@ public final class BoomstickCompatibilityGameTests {
     public static void airborneHeavyBoltsExpire(GameTestHelper helper) {
         CrossBowmanEntity shooter = spawnCrossbowman(helper);
         ItemStack weapon = stack(SupportedBoomsticks.ARBALEST_ID);
-        AbstractArrow airborne = new HeavyBoltProjectile(helper.getLevel(), shooter, weapon);
+        AbstractArrow airborne = medievalProjectile(
+                HEAVY_BOLT_PROJECTILE_CLASS, helper.getLevel(), shooter, weapon);
         airborne.setOwner(shooter);
         airborne.pickup = AbstractArrow.Pickup.ALLOWED;
         airborne.tickCount = 200;
@@ -458,7 +472,8 @@ public final class BoomstickCompatibilityGameTests {
             target.setHealth(20.0F);
             ItemStack weapon = stack(SupportedBoomsticks.HANDGONNE_ID);
 
-            AbstractArrow first = new RoundBallProjectile(helper.getLevel(), shooter, weapon);
+            AbstractArrow first = medievalProjectile(
+                    ROUND_BALL_PROJECTILE_CLASS, helper.getLevel(), shooter, weapon);
             first.setOwner(shooter);
             target.invulnerableTime = 10;
             BoomstickProjectileEvents.onProjectileImpact(new ProjectileImpactEvent(
@@ -472,7 +487,8 @@ public final class BoomstickCompatibilityGameTests {
                     "the configured floor must leave a 20-health target at exactly half health, got "
                             + target.getHealth());
 
-            AbstractArrow second = new RoundBallProjectile(helper.getLevel(), shooter, weapon);
+            AbstractArrow second = medievalProjectile(
+                    ROUND_BALL_PROJECTILE_CLASS, helper.getLevel(), shooter, weapon);
             second.setOwner(shooter);
             BoomstickProjectileEvents.onProjectileImpact(new ProjectileImpactEvent(
                     second,
@@ -587,7 +603,7 @@ public final class BoomstickCompatibilityGameTests {
 
         helper.assertTrue(recruit.getTarget() == null,
                 "a passive recruit must not have a target restored, it holds " + recruit.getTarget());
-        helper.assertFalse(RechargeItem.isFire(weapon), "a passive recruit must not fire");
+        helper.assertFalse(weapon.getOrCreateTag().getBoolean("fire"), "a passive recruit must not fire");
         helper.assertTrue(goal.phase() == BoomstickAttackState.Phase.IDLE,
                 "a passive recruit must not enter an aim or fire phase, it is in " + goal.phase());
         helper.succeed();
@@ -664,15 +680,16 @@ public final class BoomstickCompatibilityGameTests {
         recruit.setTarget(helper.spawn(EntityType.ZOMBIE, 5, 2, 1));
         RecruitBoomstickAttackGoal goal = new RecruitBoomstickAttackGoal(recruit, 1.0D);
         goal.start();
-        for (int tick = 0; tick < 20 && !RechargeItem.isFire(previousWeapon); tick++) {
+        for (int tick = 0; tick < 20 && !previousWeapon.getOrCreateTag().getBoolean("fire"); tick++) {
             goal.tick();
         }
-        helper.assertTrue(RechargeItem.isFire(previousWeapon), "fixture must reach the firing animation");
+        helper.assertTrue(previousWeapon.getOrCreateTag().getBoolean("fire"),
+                "fixture must reach the firing animation");
 
         recruit.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
         goal.tick();
 
-        helper.assertFalse(RechargeItem.isFire(previousWeapon),
+        helper.assertFalse(previousWeapon.getOrCreateTag().getBoolean("fire"),
                 "changing weapons during the firing animation must clear Fire on the old stack");
         helper.succeed();
     }
@@ -770,40 +787,40 @@ public final class BoomstickCompatibilityGameTests {
     @GameTest(template = "empty", timeoutTicks = 40)
     public static void onlyLegacyLoadedNbtIsNormalized(GameTestHelper helper) {
         ItemStack legacy = stack(SupportedBoomsticks.HANDGONNE_ID);
-        RechargeItem.setCharged(legacy, true);
+        CrossbowItem.setCharged(legacy, true);
         helper.assertTrue(MedievalBoomsticksAdapter.INSTANCE.isLoaded(legacy),
                 "legacy Charged=true must be normalized into native payload");
         helper.assertTrue(legacy.getOrCreateTag().getList("ChargedProjectiles", Tag.TAG_COMPOUND).size() == 1,
                 "legacy handgonne must receive one native charged projectile");
 
         ItemStack malformed = stack(SupportedBoomsticks.SPIKED_HANDGONNE_ID);
-        RechargeItem.setCharged(malformed, true);
+        CrossbowItem.setCharged(malformed, true);
         malformed.getOrCreateTag().putString("ChargedProjectiles", "invalid");
         helper.assertFalse(MedievalBoomsticksAdapter.INSTANCE.isLoaded(malformed),
                 "an explicitly malformed charged payload must be rejected");
-        helper.assertFalse(RechargeItem.isCharged(malformed),
+        helper.assertFalse(CrossbowItem.isCharged(malformed),
                 "rejecting malformed payload must clear Charged");
         helper.assertFalse(malformed.getOrCreateTag().contains("ChargedProjectiles"),
                 "rejecting malformed payload must remove it");
 
         ListTag wrongCount = new ListTag();
         wrongCount.add(stack(SupportedBoomsticks.ROUND_BALL_ID).save(new CompoundTag()));
-        RechargeItem.setCharged(malformed, true);
+        CrossbowItem.setCharged(malformed, true);
         malformed.getOrCreateTag().put("ChargedProjectiles", wrongCount);
         helper.assertFalse(MedievalBoomsticksAdapter.INSTANCE.isLoaded(malformed),
                 "a charged payload with the wrong projectile count must be rejected");
-        helper.assertFalse(RechargeItem.isCharged(malformed),
+        helper.assertFalse(CrossbowItem.isCharged(malformed),
                 "wrong projectile count must not create free ammunition");
 
         ListTag wrongAmmo = new ListTag();
         for (int index = 0; index < 3; index++) {
             wrongAmmo.add(stack(SupportedBoomsticks.HEAVY_BOLT_ID).save(new CompoundTag()));
         }
-        RechargeItem.setCharged(malformed, true);
+        CrossbowItem.setCharged(malformed, true);
         malformed.getOrCreateTag().put("ChargedProjectiles", wrongAmmo);
         helper.assertFalse(MedievalBoomsticksAdapter.INSTANCE.isLoaded(malformed),
                 "a charged payload containing the wrong ammo item must be rejected");
-        helper.assertFalse(RechargeItem.isCharged(malformed),
+        helper.assertFalse(CrossbowItem.isCharged(malformed),
                 "wrong projectile item must not create free ammunition");
         helper.succeed();
     }
@@ -815,7 +832,7 @@ public final class BoomstickCompatibilityGameTests {
         ListTag nativePayload = new ListTag();
         nativePayload.add(stack(SupportedBoomsticks.ROUND_BALL_ID).save(new CompoundTag()));
         nativeLoaded.getOrCreateTag().put("ChargedProjectiles", nativePayload);
-        RechargeItem.setCharged(nativeLoaded, true);
+        CrossbowItem.setCharged(nativeLoaded, true);
 
         BoomstickWeaponAdapter.ShotResult result = MedievalBoomsticksAdapter.INSTANCE.fire(
                 recruit,
@@ -1363,7 +1380,7 @@ public final class BoomstickCompatibilityGameTests {
                 .getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24.0D))
                 .stream()
                 .filter(candidate -> candidate.getOwner() == recruit
-                        && candidate instanceof ThrownJavelin)
+                        && isNamedType(candidate, THROWN_JAVELIN_CLASS))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the javelin projectile was not spawned"));
 
@@ -1372,14 +1389,17 @@ public final class BoomstickCompatibilityGameTests {
         Vec3 look = target.subtract(recruit.getX(), recruit.getEyeY() - 0.1D, recruit.getZ());
         recruit.setYRot((float) (Mth.atan2(look.z, look.x) * Mth.RAD_TO_DEG) - 90.0F);
         recruit.setXRot((float) (-Mth.atan2(look.y, look.horizontalDistance()) * Mth.RAD_TO_DEG));
-        ThrownJavelin reference = new ThrownJavelin(helper.getLevel(), recruit, stack(
-                SupportedMedievalThrowables.JAVELIN_ID));
+        AbstractArrow reference = medievalProjectile(
+                THROWN_JAVELIN_CLASS,
+                helper.getLevel(),
+                recruit,
+                stack(SupportedMedievalThrowables.JAVELIN_ID));
         reference.shootFromRotation(
                 recruit,
                 recruit.getXRot(),
                 recruit.getYRot(),
                 0.0F,
-                (float) Config.javelinSpeed,
+                medievalJavelinSpeed(),
                 0.0F);
 
         // The javelin points along its motion, so the two must agree on the direction of flight.
@@ -5511,6 +5531,40 @@ public final class BoomstickCompatibilityGameTests {
             return false;
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("could not exercise BetterRecruitFormations heading", exception);
+        }
+    }
+
+    /** Keeps optional Medieval Boomsticks implementation types out of the GameTest holder's linkage. */
+    private static AbstractArrow medievalProjectile(
+            String className,
+            Level level,
+            LivingEntity owner,
+            ItemStack weapon) {
+        try {
+            Class<?> projectileClass = Class.forName(className);
+            Constructor<?> constructor = projectileClass.getConstructor(
+                    Level.class, LivingEntity.class, ItemStack.class);
+            Object projectile = constructor.newInstance(level, owner, weapon);
+            if (projectile instanceof AbstractArrow arrow) {
+                return arrow;
+            }
+            throw new IllegalStateException(className + " is not an AbstractArrow");
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("could not create optional projectile " + className, exception);
+        }
+    }
+
+    private static boolean isNamedType(Object value, String className) {
+        return value != null && value.getClass().getName().equals(className);
+    }
+
+    private static float medievalJavelinSpeed() {
+        try {
+            Class<?> configClass = Class.forName(MEDIEVAL_BOOMSTICKS_CONFIG_CLASS);
+            Field speed = configClass.getField("javelinSpeed");
+            return (float) speed.getDouble(null);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("could not read Medieval Boomsticks javelin speed", exception);
         }
     }
 

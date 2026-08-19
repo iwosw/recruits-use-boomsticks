@@ -48,6 +48,8 @@ def dependencyMatrixProfile = (project.findProperty('matrix') ?: 'default').toSt
         .replaceAll('[^A-Za-z0-9_.-]', '_')
 def recruitsVersion = (project.findProperty('recruitsVersion') ?: '1.15.2').toString()
 def medievalBoomsticksFile = (project.findProperty('medievalBoomsticksFile') ?: '5832925').toString()
+def includeMedievalBoomsticks = (project.findProperty('includeMedievalBoomsticks') ?: 'true')
+        .toString().toBoolean()
 def geckolibFile = (project.findProperty('geckolibFile') ?: '8285794').toString()
 def epicKnightsVersion = (project.findProperty('epicKnightsVersion') ?: '2kK9qUpx').toString()
 def architecturyVersion = (project.findProperty('architecturyVersion') ?: '9.2.14+forge').toString()
@@ -92,14 +94,14 @@ minecraft {
             if (stressProfile != 'baseline') {
                 workingDirectory project.file("run-client-${stressProfile}")
             }
-            property 'forge.enabledGameTestNamespaces', mod_id
         }
 
         server {
-            if (stressProfile != 'baseline') {
+            if (!includeMedievalBoomsticks) {
+                workingDirectory project.file("run-server-no-medieval-boomsticks-${stressProfile}")
+            } else if (stressProfile != 'baseline') {
                 workingDirectory project.file("run-server-${stressProfile}")
             }
-            property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
             if (project.hasProperty('serverPort')) {
                 args '--port', project.property('serverPort').toString()
@@ -147,8 +149,14 @@ dependencies {
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
     implementation fg.deobf("maven.modrinth:villager-recruits:${recruitsVersion}")
-    implementation fg.deobf("curse.maven:medieval-boomsticks-1123016:${medievalBoomsticksFile}")
-    implementation fg.deobf("curse.maven:geckolib-388172:${geckolibFile}")
+    // Compile against the typed integration, but do not make either jar part of the core runtime.
+    // -PincludeMedievalBoomsticks=false exercises the Artillery-only installation.
+    compileOnly fg.deobf("curse.maven:medieval-boomsticks-1123016:${medievalBoomsticksFile}")
+    compileOnly fg.deobf("curse.maven:geckolib-388172:${geckolibFile}")
+    if (includeMedievalBoomsticks) {
+        runtimeOnly fg.deobf("curse.maven:medieval-boomsticks-1123016:${medievalBoomsticksFile}")
+        runtimeOnly fg.deobf("curse.maven:geckolib-388172:${geckolibFile}")
+    }
     if (artilleryFile != null) {
         runtimeOnly fg.deobf("curse.maven:epic-knights-artillery-addon-1307540:${artilleryFile}")
     }

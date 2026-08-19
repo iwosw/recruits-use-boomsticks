@@ -36,14 +36,14 @@ side = "BOTH"
 
 [[dependencies."${mod_id}"]]
 modId = "medieval_boomsticks"
-mandatory = true
+mandatory = false
 versionRange = "${medieval_boomsticks_version_range}"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies."${mod_id}"]]
 modId = "geckolib"
-mandatory = true
+mandatory = false
 versionRange = "${geckolib_version_range}"
 ordering = "AFTER"
 side = "BOTH"
