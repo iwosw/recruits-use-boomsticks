@@ -8,6 +8,7 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.AxeItem;
 import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ShieldItem;
 import net.minecraft.world.item.SwordItem;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
 import org.iwoss.recruits_use_boomsticks.compat.BoomstickTransientStateRecovery;
@@ -34,6 +35,8 @@ public final class BoomstickCarryOrder {
     private static final double COMMAND_RANGE = 100.0D;
 
     private static final String CARRY_TAG = RecruitsUseBoomsticks.MOD_ID + ":carrying_firearm";
+    private static final String DISPLACED_SHIELD_TAG =
+            RecruitsUseBoomsticks.MOD_ID + ":carry_displaced_shield";
 
     private BoomstickCarryOrder() {
     }
@@ -175,12 +178,26 @@ public final class BoomstickCarryOrder {
      */
     private static boolean drawFirearm(CrossBowmanEntity recruit) {
         RecruitWeaponAdapters adapters = RecruitWeaponAdapters.production();
-        RecruitHandSwap.intoMainHand(recruit, adapters::isSupportedEnabledWeapon);
+        ItemStack displacedShield = displacedShield(recruit);
+        boolean drewWithShield = !displacedShield.isEmpty()
+                && RecruitHandSwap.rotateOffHandIntoMainHand(
+                recruit,
+                adapters::isSupportedEnabledWeapon,
+                stack -> sameStack(stack, displacedShield));
+        if (!drewWithShield) {
+            RecruitHandSwap.intoMainHand(recruit, adapters::isSupportedEnabledWeapon);
+        }
+        if (adapters.isSupportedEnabledWeapon(recruit.getMainHandItem())
+                && !displacedShield.isEmpty()
+                && RecruitHandSwap.intoOffHand(recruit, stack -> sameStack(stack, displacedShield))) {
+            recruit.getPersistentData().remove(DISPLACED_SHIELD_TAG);
+        }
         return adapters.isSupportedEnabledWeapon(recruit.getMainHandItem());
     }
 
     private static boolean stowFirearm(CrossBowmanEntity recruit) {
         RecruitWeaponAdapters adapters = RecruitWeaponAdapters.production();
+        ItemStack offhandBeforeStow = recruit.getOffhandItem().copy();
         // The config switches are deliberately ignored: a weapon carried while the integration was
         // still on has to be stowable after it was switched off.
         if (adapters.isSupportedWeapon(recruit.getMainHandItem())) {
@@ -189,22 +206,50 @@ public final class BoomstickCarryOrder {
                     recruit,
                     stack -> !adapters.isSupportedWeapon(stack)
                             && (isMeleeWeapon(stack) || stack.getItem() instanceof CrossbowItem))) {
+                rememberDisplacedShield(recruit, offhandBeforeStow);
                 return false;
             }
             // Nothing to take instead is not a reason to keep the weapon raised: the order slings it
             // over the shoulder the way a player's off hand does and leaves the main hand empty. The
             // combat goal draws it back out of the off hand as soon as a fight starts.
             if (RecruitHandSwap.stowMainHandInOffHand(recruit, adapters::isSupportedWeapon)) {
+                rememberDisplacedShield(recruit, offhandBeforeStow);
                 return false;
             }
         }
         RecruitHandSwap.intoOffHand(recruit, adapters::isSupportedWeapon);
+        rememberDisplacedShield(recruit, offhandBeforeStow);
         if (adapters.isSupportedWeapon(recruit.getOffhandItem())
                 && (adapters.isSupportedWeapon(recruit.getMainHandItem())
                 || recruit.getMainHandItem().isEmpty())) {
             takeBackOwnWeapon(recruit, adapters);
         }
         return adapters.isSupportedWeapon(recruit.getMainHandItem());
+    }
+
+    /** Remembers the exact shield displaced by the away order so the inverse order can restore it. */
+    private static void rememberDisplacedShield(CrossBowmanEntity recruit, ItemStack previousOffhand) {
+        if (previousOffhand.isEmpty()
+                || !(previousOffhand.getItem() instanceof ShieldItem)
+                || previousOffhand.getItem() == recruit.getOffhandItem().getItem()) {
+            return;
+        }
+        recruit.getPersistentData().put(
+                DISPLACED_SHIELD_TAG,
+                previousOffhand.save(new CompoundTag()));
+    }
+
+    private static ItemStack displacedShield(CrossBowmanEntity recruit) {
+        CompoundTag data = recruit.getPersistentData();
+        return data.contains(DISPLACED_SHIELD_TAG, net.minecraft.nbt.Tag.TAG_COMPOUND)
+                ? ItemStack.of(data.getCompound(DISPLACED_SHIELD_TAG))
+                : ItemStack.EMPTY;
+    }
+
+    private static boolean sameStack(ItemStack candidate, ItemStack expected) {
+        return candidate != null
+                && !candidate.isEmpty()
+                && ItemStack.isSameItemSameTags(candidate, expected);
     }
 
     private static boolean hasReplacementWeapon(

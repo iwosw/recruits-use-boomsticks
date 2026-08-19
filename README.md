@@ -124,7 +124,7 @@ The Windlass Crossbow performs its cocking sequence before loading an Arrow. Chu
 The Villager Recruits combat command screen receives two additional buttons:
 
 - **Weapons out!** moves a supported ranged weapon into the main hand.
-- **Weapons away!** stows it in the off-hand shield slot and restores a Sword, Axe, or Crossbow when available. A recruit that owns nothing else keeps the weapon in its off hand with an empty main hand, and draws it again when a fight starts.
+- **Weapons away!** stows it in the off-hand shield slot and restores a Sword, Axe, or Crossbow when available. If this displaces an equipped shield, the next **Weapons out!** restores that exact shield, including its damage and NBT. A recruit that owns nothing else keeps the weapon in its off hand with an empty main hand, and draws it again when a fight starts.
 
 Orders affect the selected groups. With no group selected, they affect every nearby recruit owned by the player. An active loading transaction is safely closed before an order rearranges either hand.
 
