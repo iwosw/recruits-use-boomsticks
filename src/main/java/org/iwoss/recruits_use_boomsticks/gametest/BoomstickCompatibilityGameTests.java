@@ -5293,6 +5293,57 @@ public final class BoomstickCompatibilityGameTests {
         helper.succeed();
     }
 
+    /** The inverse carry order restores the exact Epic Knights shield it displaced. */
+    @GameTest(template = "empty", timeoutTicks = 40)
+    public static void carryOrderRestoresTheDisplacedEpicKnightsShield(GameTestHelper helper) {
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        ItemStack firearm = stack(SupportedBoomsticks.ARQUEBUS_ID);
+        ItemStack shield = stack("magistuarmory:iron_heatershield");
+        shield.setDamageValue(3);
+        recruit.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, firearm);
+        recruit.setItemInHand(net.minecraft.world.InteractionHand.OFF_HAND, shield);
+
+        int swordSlot = -1;
+        for (int slot = 0; slot < recruit.getInventory().getContainerSize(); slot++) {
+            if (!RecruitInventorySafety.isStorageSlot(recruit, slot)) {
+                continue;
+            }
+            if (swordSlot < 0) {
+                swordSlot = slot;
+                recruit.getInventory().setItem(slot, stack("minecraft:iron_sword"));
+            } else {
+                recruit.getInventory().setItem(slot, stack("minecraft:cobblestone"));
+            }
+        }
+        helper.assertTrue(swordSlot >= 0, "fixture needs one ordinary storage slot");
+
+        BoomstickCarryOrder.apply(recruit, false);
+
+        helper.assertTrue(recruit.getMainHandItem().is(stack("minecraft:iron_sword").getItem()),
+                "the away order must restore the melee weapon");
+        helper.assertTrue(recruit.getOffhandItem().is(firearm.getItem()),
+                "the away order must stow the firearm in the off hand");
+        helper.assertTrue(recruit.getInventory().countItem(shield.getItem()) == 1,
+                "the displaced Epic Knights shield must remain in storage exactly once");
+
+        boolean carrying = BoomstickCarryOrder.apply(recruit, true);
+
+        helper.assertTrue(carrying, "the out order must draw the firearm again");
+        helper.assertTrue(recruit.getMainHandItem().is(firearm.getItem()),
+                "the firearm must return to the main hand");
+        helper.assertTrue(recruit.getOffhandItem().is(shield.getItem()),
+                "the exact displaced Epic Knights shield must return to the off hand");
+        helper.assertTrue(recruit.getOffhandItem().getDamageValue() == 3,
+                "restoring the shield must preserve its damage and NBT");
+        helper.assertTrue(recruit.getInventory().countItem(shield.getItem()) == 1,
+                "the round trip must keep exactly one Epic Knights shield");
+        helper.assertTrue(recruit.getInventory().countItem(firearm.getItem()) == 1,
+                "the round trip must keep exactly one firearm");
+        helper.assertTrue(recruit.getInventory().countItem(stack("minecraft:iron_sword").getItem()) == 1,
+                "the round trip must keep exactly one melee weapon");
+        helper.succeed();
+    }
+
     /**
      * A recruit that owns nothing else still puts its only firearm away.
      *

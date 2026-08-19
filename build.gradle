@@ -210,7 +210,7 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
             throw new GradleException('GameTest log was not created')
         }
         def output = gameTestLog.getText('UTF-8')
-        def requiredTests = 136
+        def requiredTests = 137
         if (output.contains('Failed to load datapacks')
                 || !output.contains("${requiredTests} tests are now running")
                 || !output.contains("All ${requiredTests} required tests passed")) {

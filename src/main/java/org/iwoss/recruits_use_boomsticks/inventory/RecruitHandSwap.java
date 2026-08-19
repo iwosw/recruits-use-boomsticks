@@ -133,6 +133,42 @@ public final class RecruitHandSwap {
         return false;
     }
 
+    /**
+     * Draws the wanted off-hand stack while restoring a stored replacement into the off hand.
+     *
+     * <p>The old main-hand stack occupies the replacement's storage slot, so the three-way
+     * rotation remains lossless even when ordinary storage is full.</p>
+     */
+    public static boolean rotateOffHandIntoMainHand(
+            AbstractInventoryEntity recruit,
+            Predicate<ItemStack> wanted,
+            Predicate<ItemStack> offhandReplacement
+    ) {
+        SimpleContainer inventory = recruit == null ? null : recruit.getInventory();
+        if (inventory == null) {
+            return false;
+        }
+        ItemStack offHand = recruit.getOffhandItem().copy();
+        if (offHand.isEmpty() || !wanted.test(offHand)) {
+            return false;
+        }
+        ItemStack mainHand = recruit.getMainHandItem().copy();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            if (!RecruitInventorySafety.isStorageSlot(recruit, slot)) {
+                continue;
+            }
+            ItemStack candidate = inventory.getItem(slot);
+            if (candidate.isEmpty() || !offhandReplacement.test(candidate)) {
+                continue;
+            }
+            inventory.setItem(slot, mainHand);
+            recruit.setItemInHand(InteractionHand.MAIN_HAND, offHand);
+            recruit.setItemInHand(InteractionHand.OFF_HAND, candidate.copy());
+            return true;
+        }
+        return false;
+    }
+
     private static boolean into(
             AbstractInventoryEntity recruit,
             InteractionHand destination,
