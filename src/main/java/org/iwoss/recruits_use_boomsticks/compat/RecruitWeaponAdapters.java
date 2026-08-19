@@ -3,8 +3,11 @@ package org.iwoss.recruits_use_boomsticks.compat;
 import com.talhanation.recruits.entities.CrossBowmanEntity;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
+import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 
+import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -13,12 +16,14 @@ import java.util.function.Predicate;
 
 /** Ordered lookup for every ranged-weapon integration available to recruit AI. */
 public final class RecruitWeaponAdapters {
+    private static final String MEDIEVAL_BOOMSTICKS_SENTINEL =
+            "com.TBK.medieval_boomsticks.common.items.RechargeItem";
+    private static final String MEDIEVAL_FIREARM_ADAPTER =
+            "org.iwoss.recruits_use_boomsticks.compat.MedievalBoomsticksAdapter";
+    private static final String MEDIEVAL_THROWABLE_ADAPTER =
+            "org.iwoss.recruits_use_boomsticks.compat.MedievalBoomsticksThrowableAdapter";
     private static final RecruitWeaponAdapters PRODUCTION = new RecruitWeaponAdapters(
-            List.of(
-                    MedievalBoomsticksAdapter.INSTANCE,
-                    MedievalBoomsticksThrowableAdapter.INSTANCE,
-                    ArtilleryAddonAdapter.INSTANCE,
-                    ArtilleryThrowableAdapter.INSTANCE));
+            productionAdapters());
 
     private final List<BoomstickWeaponAdapter> adapters;
 
@@ -32,6 +37,57 @@ public final class RecruitWeaponAdapters {
 
     public static RecruitWeaponAdapters production() {
         return PRODUCTION;
+    }
+
+    /**
+     * Builds the runtime adapter list without resolving optional Medieval Boomsticks classes when
+     * that mod is absent. The concrete adapters retain their native typed boundary when installed;
+     * only this discovery edge is reflective.
+     */
+    private static List<BoomstickWeaponAdapter> productionAdapters() {
+        List<BoomstickWeaponAdapter> adapters = new ArrayList<>();
+        if (classPresent(MEDIEVAL_BOOMSTICKS_SENTINEL)) {
+            addOptionalAdapter(adapters, MEDIEVAL_FIREARM_ADAPTER);
+            addOptionalAdapter(adapters, MEDIEVAL_THROWABLE_ADAPTER);
+        }
+        adapters.add(ArtilleryAddonAdapter.INSTANCE);
+        adapters.add(ArtilleryThrowableAdapter.INSTANCE);
+        return adapters;
+    }
+
+    private static boolean classPresent(String className) {
+        try {
+            Class.forName(className, false, RecruitWeaponAdapters.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException | LinkageError ignored) {
+            return false;
+        }
+    }
+
+    private static void addOptionalAdapter(
+            List<BoomstickWeaponAdapter> adapters,
+            String adapterClassName
+    ) {
+        try {
+            Class<?> adapterClass = Class.forName(
+                    adapterClassName,
+                    true,
+                    RecruitWeaponAdapters.class.getClassLoader());
+            Field instanceField = adapterClass.getField("INSTANCE");
+            Object instance = instanceField.get(null);
+            if (instance instanceof BoomstickWeaponAdapter adapter) {
+                adapters.add(adapter);
+                return;
+            }
+            throw new IllegalStateException(adapterClassName + ".INSTANCE is not a weapon adapter");
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError exception) {
+            // An incompatible optional installation must disable only its own integration rather
+            // than preventing the Artillery-only core from loading.
+            RecruitsUseBoomsticks.LOGGER.warn(
+                    "Optional Medieval Boomsticks adapter {} could not be loaded; disabling it",
+                    adapterClassName,
+                    exception);
+        }
     }
 
     /** Returns the unique adapter claiming the stack and rejects ambiguous registrations. */

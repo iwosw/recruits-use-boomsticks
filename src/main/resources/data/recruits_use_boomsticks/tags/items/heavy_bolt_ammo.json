@@ -1,6 +1,9 @@
 {
   "replace": false,
   "values": [
-    "medieval_boomsticks:heavy_bolt"
+    {
+      "id": "medieval_boomsticks:heavy_bolt",
+      "required": false
+    }
   ]
 }

@@ -1,6 +1,9 @@
 {
   "replace": false,
   "values": [
-    "medieval_boomsticks:round_ball"
+    {
+      "id": "medieval_boomsticks:round_ball",
+      "required": false
+    }
   ]
 }
