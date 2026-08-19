@@ -6,7 +6,7 @@
 
 Recruits Use Boomsticks is a Minecraft Forge compatibility mod that lets Villager Recruits crossbowmen fight with Medieval Boomsticks and selected EK: Artillery Addon weapons.
 
-Version 2.0 adds full recruit-side loading for the supported Artillery arsenal, native projectiles, throwing weapons, coordinated formation fire, improved aiming and reload animations, and company-wide **Weapons out! / Weapons away!** orders.
+Version 2.1 adds full recruit-side loading for the supported Artillery arsenal, native projectiles, throwing weapons, coordinated formation fire, improved aiming and reload animations, and company-wide **Weapons out! / Weapons away!** orders.
 
 ## Requirements
 
@@ -18,25 +18,26 @@ Install the mod on both the client and the server. Dependencies are not bundled 
 | Forge | 47.3.32–47.4.x |
 | Java | 17 |
 | Villager Recruits | 1.15.0–1.15.2 |
-| Medieval Boomsticks | 1.01–1.2 |
-| GeckoLib | 4.2.4–4.8.4 |
+| Medieval Boomsticks | Optional; 1.01–1.2 |
+| GeckoLib | Optional; 4.2.4–4.8.4; required by Medieval Boomsticks |
 | Epic Knights | 8.2–10.11 |
 | Architectury API | 9.0.8–9.2.14 |
 | Cloth Config | 11.0.99–12.0.109 |
-| EK: Artillery Addon | Optional; 1.11–1.13.4 |
+| EK: Artillery Addon | Optional; 1.11–1.13.4 or 1.15.2 |
 
 Epic Knights: Addon is optional. It is only needed if Artillery's native Steel Francisca conversion recipe should be available.
 
-BetterRecruitFormations is also optional. Version 2.0 is tested with it installed: a recruit turns toward its target while aiming and firing, holds the shot direction through recoil, and then returns to its previous formation direction without forgetting the target.
+BetterRecruitFormations is also optional. Version 2.1 is tested with it installed: a recruit turns toward its target while aiming and firing, holds the shot direction through recoil, and then returns to its previous formation direction without forgetting the target.
 
 ## Installation
 
 1. Install Minecraft 1.20.1 and a supported Forge build.
-2. Install Villager Recruits, Medieval Boomsticks, GeckoLib, Epic Knights, Architectury API, and Cloth Config.
-3. Optionally install EK: Artillery Addon 1.11–1.13.4 and BetterRecruitFormations.
-4. Put `recruits_use_boomsticks-2.0.0.jar` in the client and server `mods` folders.
+2. Install Villager Recruits, Epic Knights, Architectury API, and Cloth Config.
+3. Optionally install Medieval Boomsticks with GeckoLib, EK: Artillery Addon 1.11–1.13.4 or 1.15.2,
+   and BetterRecruitFormations.
+4. Put `recruits_use_boomsticks-2.1.0.jar` in the client and server `mods` folders.
 
-Artillery Addon 1.14 is not supported on dedicated servers. That upstream release loads a client-only class during server startup. Recruits Use Boomsticks does not ship a patch for another mod's server crash.
+Artillery Addon 1.14–1.15.1 is not supported on dedicated servers. Those upstream releases load a client-only class during server startup. Artillery 1.15.2 fixes that crash and is verified on an unpatched dedicated server.
 
 ## Supported weapons
 
@@ -154,11 +155,11 @@ Forge creates `config/recruits_use_boomsticks-common.toml` after the first launc
 - Noble's Shatter Shot and Iron Bit branches are disabled.
 - Double Barrel Gonne uses only its first Iron Ball barrel.
 - Grenades are excluded because their native ownerless explosions cannot participate in recruit allied-fire protection.
-- Artillery 1.14 is excluded from the dedicated-server version range because of its upstream client-class crash.
+- Artillery 1.14–1.15.1 is excluded from the dedicated-server version range because of its upstream client-class crash.
 
 ## Verification
 
-The release gate uses focused unit tests, real Forge dedicated-server GameTests, an optional-dependency run without Artillery, dependency-range matrix runs, and a release-JAR content check. The current harness contains 163 unit tests and 136 required GameTests.
+The release gate uses focused unit tests, real Forge dedicated-server GameTests, an optional-dependency run without Artillery, dependency-range matrix runs, and a release-JAR content check. The current harness contains 163 unit tests and 137 required GameTests.
 
 Detailed Artillery evidence and exact runtime boundaries are recorded in [the compatibility verification report](docs/compat/artillery-addon-compatibility-verification.md).
 

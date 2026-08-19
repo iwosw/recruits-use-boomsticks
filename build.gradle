@@ -26,7 +26,7 @@ if (!stressProfiles.contains(stressProfile)) {
     throw new GradleException("Unknown stress profile '${stressProfile}'. Expected one of ${stressProfiles}")
 }
 def stressIncludes = { String candidate -> stressProfile == candidate || stressProfile == 'all' }
-def artilleryProfile = (project.findProperty('artillery') ?: '1.13.4').toString()
+def artilleryProfile = (project.findProperty('artillery') ?: '1.15.2').toString()
 def artilleryFiles = [
         '1.11'  : '7455014',
         '1.11.1': '7490351',
@@ -36,7 +36,8 @@ def artilleryFiles = [
         '1.13.2': '8039277',
         '1.13.3': '8051642',
         '1.13.4': '8252195',
-        '1.14'  : '8325660'
+        '1.14'  : '8325660',
+        '1.15.2': '8682920'
 ]
 def artilleryProfiles = ['none'] + artilleryFiles.keySet()
 if (!artilleryProfiles.contains(artilleryProfile)) {
@@ -62,7 +63,8 @@ def geckolibVersionRange = (project.findProperty('geckolibVersionRange') ?: '[4.
 def epicKnightsVersionRange = (project.findProperty('epicKnightsVersionRange') ?: '[8.2,11)').toString()
 def architecturyVersionRange = (project.findProperty('architecturyVersionRange') ?: '[9.0.8,10)').toString()
 def clothConfigVersionRange = (project.findProperty('clothConfigVersionRange') ?: '[11.0.99,13)').toString()
-def artilleryVersionRange = (project.findProperty('artilleryVersionRange') ?: '[1.11,1.14)').toString()
+def artilleryVersionRange = (project.findProperty('artilleryVersionRange')
+        ?: '[1.11,1.14),[1.15.2,1.16)').toString()
 def gameTestDirectory = "run-gametest-${stressProfile}-artillery-${artilleryProfile}-matrix-${dependencyMatrixProfile}"
 
 base {
@@ -124,8 +126,8 @@ mixin {
     add sourceSets.main, "${mod_id}.refmap.json"
     config "${mod_id}.mixins.json"
     // Development-only. It strips the client-only listeners that stop Artillery 1.14 from loading on
-    // a dedicated server, so runGameTestServer -Partillery=1.14 can compare it with the latest
-    // unpatched server-safe 1.13.4 artifact. It is deliberately absent from the release jar's
+    // a dedicated server, so runGameTestServer -Partillery=1.14 can compare it with the current
+    // unpatched server-safe 1.15.2 artifact. It is deliberately absent from the release jar's
     // MixinConfigs manifest entry below: patching another mod's binary for players would make this
     // project answerable for Artillery's server stability.
     if (artilleryProfile == '1.14' && artilleryDevPatch) {
@@ -141,9 +143,10 @@ repositories {
 }
 
 // Artillery Addon runtime artifact. -Partillery=none proves the optional-dependency path.
-// 8252195 (1.13.4) is the latest dedicated-server-safe file and registers all eighteen supported
-// profiles. 8325660 (1.14.0) still fails dedicated-server loading upstream. It may run GameTests
-// only through the dev-only patch configured above; that patched run does not make 1.14 supported.
+// 8682920 (1.15.2) is the current dedicated-server-safe release baseline and registers all eighteen
+// supported profiles. 8325660 (1.14.0) still fails dedicated-server loading upstream and may run
+// GameTests only through the dev-only patch configured above. 8252195 (1.13.4) remains available for
+// the older supported range.
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
@@ -197,10 +200,10 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
     doFirst {
         if (artilleryProfile == '1.14' && artilleryDevPatch) {
             // 1.14 needs the development-only mixin config above to load on a dedicated server at
-            // all. The release boundary is the unpatched 8252195 (1.13.4) run.
+            // all. The release boundary is the unpatched 8682920 (1.15.2) run.
             logger.lifecycle('Running GameTests against Artillery 1.14 (8325660) with the '
                     + 'development-only dedicated-server patch. The release claim stays with the '
-                    + 'unpatched 8252195 (1.13.4) run.')
+                    + 'unpatched 8682920 (1.15.2) run.')
         }
         delete file("${gameTestDirectory}/logs/latest.log")
     }
