@@ -8,6 +8,26 @@ rerun on the current tree on 2026-08-16: 1.11, 1.11.1, 1.12, 1.13, 1.13.1, 1.13.
 1.13.4 each passed all 133 required tests. Artillery 1.14.0 still crashes an unpatched dedicated server on `ClientLevel`;
 the development-only patch remains verification scaffolding and is not shipped.
 
+## Artillery 1.15.2 release verification (2026-08-19)
+
+CurseForge file `8682920` resolves as
+`curse.maven:epic-knights-artillery-addon-1307540:8682920_mapped_official_1.20.1`.
+The original JAR is 3,641,680 bytes with SHA-1
+`7e953aee363199bd48867c54cc20ceec3ea00d5c`. Its former server-crashing GunMaker listeners are now
+isolated in `GunMaker$ClientEvents` and annotated for `Dist.CLIENT`.
+
+An unpatched dedicated run with Recruits 1.15.2 and Artillery Addon 1.15.2 started successfully and
+completed the current harness: `137 tests are now running!`, followed by
+`All 137 required tests passed :)`. The focused unit-test task also passed. All eighteen supported
+firearm profiles and five supported throwing weapons remain registered and executable through the
+existing adapter boundary. The upstream `artillery_addon:guide_book` function still logs a
+non-fatal parse error because its command begins with `/`; this does not affect mod loading or the
+compatibility tests.
+
+`build.gradle` uses `-Partillery=1.15.2` as the default runtime and declares the disjoint supported
+range `[1.11,1.14),[1.15.2,1.16)`. This keeps the verified 1.11–1.13.x line and 1.15.2 while
+continuing to reject the server-unsafe 1.14–1.15.1 line.
+
 The current dependency matrix also passed all 133 required tests at both verified corners: Forge
 47.3.32 with Recruits 1.15.0, Medieval Boomsticks 1.01, GeckoLib 4.2.4, Epic Knights 8.2,
 Architectury 9.0.8, and Cloth Config 11.0.99; and Forge 47.4.22 with Recruits 1.15.2, Medieval
