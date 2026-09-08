@@ -1,6 +1,51 @@
 # Artillery Addon compatibility verification
 
-## Status: EIGHTEEN FIREARM PROFILES AND FIVE THROWING WEAPONS RUNTIME-VERIFIED
+## Artillery 1.16.2 / release 2.2.0 (2026-09-08)
+
+The current default is the original, unpatched Artillery 1.16.2 artifact `8812944`, SHA-1
+`292b5b74afd930fd14850fb7c156f2252811b124`. The firearm allowlist contains 24 IDs, including
+six new wheellocks. Five existing Artillery throwing weapons remain enabled. Exact contracts,
+version-specific ballistics, loading policy and exclusions are in the
+[1.16.2 API report](artillery-addon-1.16.2-api.md).
+
+This update was checked with Java 17, Gradle 8.8, Forge 47.4.22 and Recruits 1.15.2:
+
+| Check | Result |
+| --- | --- |
+| Unit tests | 168 passed |
+| Unpatched Artillery 1.16.2 dedicated server | All 143 required GameTests passed |
+| Artillery 1.15.2 regression | All 143 required GameTests passed; six 1.16.2-only cases gated |
+| No Artillery installed | All 143 required GameTests passed; Artillery-specific cases gated |
+
+`build` completed successfully. The reobfuscated release JAR is
+`build/libs/recruits_use_boomsticks-2.2.0.jar` (361,725 bytes), SHA-256
+`211b9a91d2a457d8c590bb6d36042bd2313c873cd5c09d1982eb2f58ef624e6c`.
+Its mod metadata and manifest report 2.2.0; the optional Artillery range is
+`[1.11,1.14),[1.15.2,1.16),[1.16.2]`. The new profiles class is present, no dependency JARs
+or upstream Artillery/Recruits classes are bundled, and the development-only Artillery mixin
+configuration is absent from the manifest.
+
+Each new firearm test checks a physical reload through recruit AI, a missing-spanner refusal,
+interruption and weapon save/load, exact ammunition/tool costs, native projectile owner and
+ballistics, and another reload/fire cycle through combat AI. Dual cases additionally check
+second-barrel-first firing, retained rounds across save/load, and refusal to overwrite a
+noncanonical partially charged second barrel. The breechloader checks one recoverable empty case.
+Existing firearm runtime expectations select the installed release's native damage/flags, while
+unit tests also preserve the old catalog's constants.
+
+Commands: `gradlew test runGameTestServer build`, `gradlew runGameTestServer -Partillery=1.15.2`,
+and `gradlew runGameTestServer -Partillery=none`. This workstation used a downloaded Gradle 8.8
+distribution and an untracked local Maven forwarding init script to work around Java TLS
+download failures; artifacts were fetched with curl's certificate verification enabled. Neither
+the forwarding script nor downloaded upstream/decompiled files are release inputs.
+
+The full historical dependency matrix below was not rerun for 2.2.0. This is dedicated-server
+automation evidence; it does not claim a manual visual client playthrough. Upstream optional
+Epic Knights Addon recipe/tag errors and the Artillery guide-book parse error remain nonfatal.
+Hand Mortar, Wallgun, additional ammunition branches and autonomous repair/unloading tools
+remain outside the supported scope.
+
+## Historical status: eighteen firearm profiles and five throwing weapons
 
 All eighteen enabled firearm profiles and all five throwing weapons are proven on an unpatched
 dedicated GameTest server with Artillery 1.13.4 (`8252195`). The full supported Artillery range was

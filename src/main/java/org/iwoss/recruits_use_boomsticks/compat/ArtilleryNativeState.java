@@ -40,6 +40,9 @@ public final class ArtilleryNativeState {
 
     static boolean isLoadedTag(CompoundTag tag, ArtilleryWeaponProfile profile) {
         Objects.requireNonNull(profile, "profile");
+        if (profile.nativeStateMode() == ArtilleryWeaponProfile.NativeStateMode.WHEELLOCK_DUAL) {
+            return woundBarrels(tag) > 0;
+        }
         if (profile.nativeStateMode() == ArtilleryWeaponProfile.NativeStateMode.DOUBLE_BARREL_FIRST) {
             return isDoubleBarrelFirstLoaded(tag, profile);
         }
@@ -61,6 +64,14 @@ public final class ArtilleryNativeState {
     static void markLoadedTag(CompoundTag tag, ArtilleryWeaponProfile profile) {
         Objects.requireNonNull(tag, "tag");
         Objects.requireNonNull(profile, "profile");
+        if (profile.nativeStateMode() == ArtilleryWeaponProfile.NativeStateMode.WHEELLOCK_DUAL) {
+            tag.putDouble(BARREL_ONE_KEY, 4);
+            tag.putDouble(BARREL_TWO_KEY, 4);
+            tag.putDouble(RAMMED_ONE_KEY, 0);
+            tag.putDouble(RAMMED_TWO_KEY, 0);
+            tag.putDouble(LOADED_KEY, 2);
+            return;
+        }
         if (profile.nativeStateMode() == ArtilleryWeaponProfile.NativeStateMode.DOUBLE_BARREL_FIRST) {
             markDoubleBarrelFirstLoaded(tag, profile);
             return;
@@ -205,6 +216,11 @@ public final class ArtilleryNativeState {
     static void markFiredTag(CompoundTag tag, ArtilleryWeaponProfile profile) {
         Objects.requireNonNull(tag, "tag");
         Objects.requireNonNull(profile, "profile");
+        if (profile.nativeStateMode() == ArtilleryWeaponProfile.NativeStateMode.WHEELLOCK_DUAL) {
+            // Native firing consumes barrel two first and leaves the loaded marker untouched.
+            tag.putDouble(isWound(tag, BARREL_TWO_KEY) ? BARREL_TWO_KEY : BARREL_ONE_KEY, 0);
+            return;
+        }
         if (profile.nativeStateMode() == ArtilleryWeaponProfile.NativeStateMode.DOUBLE_BARREL_FIRST) {
             markDoubleBarrelFirstFired(tag);
             return;
@@ -256,8 +272,8 @@ public final class ArtilleryNativeState {
     /**
      * Native rounds still committed on the weapon.
      *
-     * <p>Ammo-count weapons report their remaining counter; every other protocol is single-shot and
-     * reports one when loaded.</p>
+     * <p>Repeaters report their counter, dual wheellocks count wound barrels, and single-shot
+     * protocols report one when loaded.</p>
      */
     public static int remainingRounds(ItemStack weapon, ArtilleryWeaponProfile profile) {
         Objects.requireNonNull(profile, "profile");
@@ -269,6 +285,9 @@ public final class ArtilleryNativeState {
 
     static int remainingRoundsTag(CompoundTag tag, ArtilleryWeaponProfile profile) {
         Objects.requireNonNull(profile, "profile");
+        if (profile.nativeStateMode() == ArtilleryWeaponProfile.NativeStateMode.WHEELLOCK_DUAL) {
+            return woundBarrels(tag);
+        }
         if (tag == null) {
             return 0;
         }
@@ -276,6 +295,14 @@ public final class ArtilleryNativeState {
             return isLoadedTag(tag, profile) ? 1 : 0;
         }
         return (int) committedRounds(tag, profile);
+    }
+
+    private static int woundBarrels(CompoundTag tag) {
+        return (isWound(tag, BARREL_ONE_KEY) ? 1 : 0) + (isWound(tag, BARREL_TWO_KEY) ? 1 : 0);
+    }
+
+    private static boolean isWound(CompoundTag tag, String key) {
+        return tag != null && tag.contains(key, Tag.TAG_DOUBLE) && tag.getDouble(key) == 4;
     }
 
     /** Reads the native counter, rejecting absent, non-native, fractional, or over-capacity values. */

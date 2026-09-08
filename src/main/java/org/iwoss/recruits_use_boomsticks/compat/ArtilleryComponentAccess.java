@@ -187,6 +187,12 @@ public final class ArtilleryComponentAccess {
             component.shrink(1);
             return;
         }
+        if (componentUse == ArtilleryReloadStep.ComponentUse.NONE
+                || componentUse == ArtilleryReloadStep.ComponentUse.KEEP_TOOL
+                || (componentUse == ArtilleryReloadStep.ComponentUse.WIND_WHEELLOCK
+                && net.minecraft.util.Mth.nextDouble(random, 1, 2) != 2)) {
+            return;
+        }
         if (component.isDamageableItem() && component.hurt(1, random, null)) {
             component.shrink(1);
             component.setDamageValue(0);
@@ -217,7 +223,10 @@ public final class ArtilleryComponentAccess {
         ItemStack stack = inventory.getItem(slot);
         if (componentUse == ArtilleryReloadStep.ComponentUse.CONSUME_ONE) {
             stack.shrink(1);
-        } else if (stack.isDamageableItem()) {
+        } else if (componentUse != ArtilleryReloadStep.ComponentUse.NONE
+                && componentUse != ArtilleryReloadStep.ComponentUse.KEEP_TOOL
+                && (componentUse != ArtilleryReloadStep.ComponentUse.WIND_WHEELLOCK
+                || net.minecraft.util.Mth.nextDouble(random, 1, 2) == 2) && stack.isDamageableItem()) {
             if (stack.hurt(1, random, null)) {
                 stack.shrink(1);
                 stack.setDamageValue(0);

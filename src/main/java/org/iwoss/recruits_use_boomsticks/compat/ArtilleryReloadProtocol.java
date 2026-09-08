@@ -27,6 +27,7 @@ public final class ArtilleryReloadProtocol {
     public static final String POWDER_FLASK_TAG = "minecraft:powder_flask";
     /** Native ramrod tag; its members are `iron_ramrod` and `ramrod`. */
     public static final String RAMROD_TAG = "artillery:ramrod";
+    public static final String SPANNER_TAG = "artillery:spanner";
     public static final String MATCH_ID = SupportedArtillery.MOD_ID + ":match";
 
     /**
@@ -263,7 +264,55 @@ public final class ArtilleryReloadProtocol {
         // native double counter 1.0 -> 8.0 with no stage, powder, or loaded marker and no sound.
         chains.put(SupportedArtillery.CHU_KO_NU_ID, chuKoNuChain());
 
+        chains.put(SupportedArtillery.WHEELLOCK_PISTOL_ID, wheellockChain(SupportedArtillery.SMALL_IRON_BALL_ID));
+        chains.put(SupportedArtillery.WHEELLOCK_MUSKET_ID, wheellockChain(SupportedArtillery.IRON_BALL_ID));
+        chains.put(SupportedArtillery.WHEELLOCK_HUNTING_RIFLE_ID, wheellockChain(SupportedArtillery.IRON_BALL_ID));
+        chains.put(SupportedArtillery.WHEELLOCK_BREECHLOADING_RIFLE_ID, List.of(
+                ballStep(SupportedArtillery.LOADED_CARTRIDGE_ID, 1, BoomstickSound.ARTILLERY_HAND_CANNON_LOAD_BALL,
+                        "§7Wheel needs to be primed"), windingStep(ArtilleryNativeState.STAGE_KEY, 2)));
+        chains.put(SupportedArtillery.DUAL_WHEELLOCK_PISTOL_ID, dualWheellockChain(STICK_OR_RAMROD));
+        chains.put(SupportedArtillery.DUAL_WHEELLOCK_CARBINE_ID, dualWheellockChain(RAMROD));
+
         return Collections.unmodifiableMap(chains);
+    }
+
+    private static List<ArtilleryReloadStep> wheellockChain(String ammoId) {
+        List<ArtilleryReloadStep> steps = new ArrayList<>(matchlockChain(ammoId,
+                BoomstickSound.ARTILLERY_LOADING_POWDER, BoomstickSound.ARTILLERY_HAND_CANNON_LOAD_BALL, RAMROD));
+        steps.set(2, new ArtilleryReloadStep(RAMROD,
+                List.of(NativeWrite.number(ArtilleryNativeState.STAGE_KEY, 2)), ComponentUse.DAMAGE_ONE,
+                "§7Wheel needs to be primed", BoomstickSound.ARTILLERY_RAMMING));
+        steps.add(windingStep(ArtilleryNativeState.STAGE_KEY, 3));
+        return List.copyOf(steps);
+    }
+
+    private static ArtilleryReloadStep windingStep(String key, double value, NativeWrite... extras) {
+        List<NativeWrite> writes = new ArrayList<>();
+        writes.add(NativeWrite.number(key, value));
+        Collections.addAll(writes, extras);
+        return new ArtilleryReloadStep(List.of(ComponentRequirement.tag(SPANNER_TAG)), writes,
+                key.equals(ArtilleryNativeState.STAGE_KEY) ? ComponentUse.DAMAGE_ONE : ComponentUse.WIND_WHEELLOCK,
+                LORE_READY, BoomstickSound.ARTILLERY_WIND_WHEELLOCK);
+    }
+
+    private static List<ArtilleryReloadStep> dualWheellockChain(List<ComponentRequirement> rammingComponents) {
+        List<ArtilleryReloadStep> steps = new ArrayList<>();
+        // Load both barrels before winding either: a partially wound native gun can still fire.
+        for (String barrel : List.of(ArtilleryNativeState.BARREL_ONE_KEY, ArtilleryNativeState.BARREL_TWO_KEY)) {
+            String rammed = barrel.equals(ArtilleryNativeState.BARREL_ONE_KEY)
+                    ? ArtilleryNativeState.RAMMED_ONE_KEY : ArtilleryNativeState.RAMMED_TWO_KEY;
+            steps.add(new ArtilleryReloadStep(FLASK,
+                    List.of(NativeWrite.number(barrel, 1), NativeWrite.number(rammed, 0)),
+                    ComponentUse.DAMAGE_ONE, LORE_NEEDS_SHOT, BoomstickSound.ARTILLERY_LOADING_POWDER));
+            steps.add(new ArtilleryReloadStep(List.of(ComponentRequirement.item(SupportedArtillery.SMALL_IRON_BALL_ID)),
+                    List.of(NativeWrite.number(barrel, 2)), ComponentUse.CONSUME_ONE,
+                    LORE_NEEDS_RAMMING, BoomstickSound.ARTILLERY_HAND_CANNON_LOAD_BALL));
+            steps.add(new ArtilleryReloadStep(rammingComponents, List.of(NativeWrite.number(barrel, 3)),
+                    ComponentUse.KEEP_TOOL, "§7Wheel needs to be primed", BoomstickSound.ARTILLERY_HAND_CANNON_RAMMING));
+        }
+        steps.add(windingStep(ArtilleryNativeState.BARREL_ONE_KEY, 4, NativeWrite.number(ArtilleryNativeState.LOADED_KEY, 1)));
+        steps.add(windingStep(ArtilleryNativeState.BARREL_TWO_KEY, 4, NativeWrite.number(ArtilleryNativeState.LOADED_KEY, 2)));
+        return List.copyOf(steps);
     }
 
     /**

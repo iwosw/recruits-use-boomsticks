@@ -88,7 +88,8 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         return SupportedArtillery.IRON_BALL_ID.equals(ammoId)
                 || SupportedArtillery.SMALL_IRON_BALL_ID.equals(ammoId)
                 || SupportedArtillery.LARGE_IRON_BALL_ID.equals(ammoId)
-                || SupportedArtillery.VANILLA_ARROW_ID.equals(ammoId);
+                || SupportedArtillery.VANILLA_ARROW_ID.equals(ammoId)
+                || SupportedArtillery.LOADED_CARTRIDGE_ID.equals(ammoId);
     }
 
     @Override
@@ -123,13 +124,13 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         }
         if (SupportedArtillery.NOBLE_HANDGONNE_ID.equals(weaponId)
                 && usesIronBallBranch(weapon, weaponId)) {
-            return Optional.of(SupportedArtillery.nobleHandgonneIronBallProfile());
+            return Optional.of(Artillery1162Profiles.resolve(SupportedArtillery.nobleHandgonneIronBallProfile()));
         }
         if (SupportedArtillery.MARKMENGONNE_ID.equals(weaponId)
                 && usesIronBallBranch(weapon, weaponId)) {
-            return Optional.of(SupportedArtillery.markmengonneIronBallProfile());
+            return Optional.of(Artillery1162Profiles.resolve(SupportedArtillery.markmengonneIronBallProfile()));
         }
-        return SupportedArtillery.profileFor(weaponId);
+        return SupportedArtillery.profileFor(weaponId).map(Artillery1162Profiles::resolve);
     }
 
     @Override
@@ -144,8 +145,18 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
     @Override
     public boolean isLoaded(ItemStack weapon) {
         return artilleryProfile(weapon)
-                .map(profile -> ArtilleryNativeState.isLoaded(weapon, profile))
+                .map(profile -> ArtilleryNativeState.isLoaded(weapon, profile)
+                        && !hasUnfinishedDualBarrel(weapon, profile))
                 .orElse(false);
+    }
+
+    private static boolean hasUnfinishedDualBarrel(ItemStack weapon, ArtilleryWeaponProfile profile) {
+        if (profile.nativeStateMode() != ArtilleryWeaponProfile.NativeStateMode.WHEELLOCK_DUAL || !weapon.hasTag()) {
+            return false;
+        }
+        double first = weapon.getTag().getDouble(ArtilleryNativeState.BARREL_ONE_KEY);
+        double second = weapon.getTag().getDouble(ArtilleryNativeState.BARREL_TWO_KEY);
+        return (first > 0 && first < 4) || (second > 0 && second < 4);
     }
 
     @Override
@@ -204,17 +215,10 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         if (profileResult.isEmpty()) {
             return false;
         }
-        List<ArtilleryReloadStep> steps = remainingReloadSteps(weapon, profileResult.orElseThrow());
-        if (steps.isEmpty()) {
-            return true;
-        }
         // A chain that spends the same component more than once needs every unit up front: a
         // per-step presence check would start a Chu Ko Nu magazine on a single arrow and abandon it
         // halfway with the earlier rounds already gone.
-        return ArtilleryComponentAccess.satisfiesAll(
-                recruit.getInventory(),
-                steps,
-                usableComponentSlots(recruit));
+        return hasReloadComponents(recruit, weapon, profileResult.orElseThrow());
     }
 
     @Override
@@ -229,6 +233,10 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         }
         ArtilleryWeaponProfile profile = profileResult.orElseThrow();
         List<ArtilleryReloadStep> steps = ArtilleryReloadProtocol.stepsFor(profile);
+        if (!canResumeDualReload(weapon, profile, steps)
+                || !ejectCartridgeSafely(recruit, weapon, profile)) {
+            return false;
+        }
         if (stepIndex < 0 || stepIndex >= steps.size()) {
             return false;
         }
@@ -666,10 +674,11 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             ArtilleryWeaponProfile profile
     ) {
         List<ArtilleryReloadStep> steps = remainingReloadSteps(weapon, profile);
-        return steps.isEmpty() || ArtilleryComponentAccess.satisfiesAll(
+        return canResumeDualReload(weapon, profile, ArtilleryReloadProtocol.stepsFor(profile))
+                && (steps.isEmpty() || ArtilleryComponentAccess.satisfiesAll(
                 recruit.getInventory(),
                 steps,
-                usableComponentSlots(recruit));
+                usableComponentSlots(recruit)));
     }
 
     private static List<ArtilleryReloadStep> remainingReloadSteps(
@@ -679,6 +688,17 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         List<ArtilleryReloadStep> steps = ArtilleryReloadProtocol.stepsFor(profile);
         int completed = ArtilleryNativeState.completedReloadSteps(weapon, steps);
         return completed >= steps.size() ? List.of() : steps.subList(completed, steps.size());
+    }
+
+    private static boolean canResumeDualReload(ItemStack weapon, ArtilleryWeaponProfile profile,
+            List<ArtilleryReloadStep> steps) {
+        if (!hasUnfinishedDualBarrel(weapon, profile)) {
+            return true;
+        }
+        int completed = ArtilleryNativeState.completedReloadSteps(weapon, steps);
+        // Matching the first barrel alone must not overwrite a separately paid second barrel.
+        return completed > 0 && (completed >= 4
+                || weapon.getTag().getDouble(ArtilleryNativeState.BARREL_TWO_KEY) == 0);
     }
 
     private static boolean usesIronBallBranch(ItemStack weapon, String weaponId) {
@@ -742,7 +762,7 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         }
 
         ArtilleryWeaponProfile profile = profileResult.orElseThrow();
-        if (!ArtilleryNativeState.isLoaded(weapon, profile)) {
+        if (!ArtilleryNativeState.isLoaded(weapon, profile) || hasUnfinishedDualBarrel(weapon, profile)) {
             return new ShotResult(ShotOutcome.NOT_LOADED, 0);
         }
         if (!supportsShooterBranch(recruit, profile)) {
@@ -761,10 +781,19 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             return new ShotResult(ShotOutcome.INVALID_WEAPON, 0);
         }
 
+        if (Artillery1162Profiles.isInstalled() && recruit.isPassenger()) {
+            profile = Artillery1162Profiles.mounted(profile);
+        }
+
         ItemStack originalWeapon = weapon.copy();
         List<AbstractArrow> projectiles = new ArrayList<>(profile.projectileCount());
         AbstractArrow currentProjectile = null;
         try {
+            boolean nativeWearBeforeShot = Artillery1162Profiles.isInstalled();
+            if (nativeWearBeforeShot) {
+                weapon.hurtAndBreak(1, recruit,
+                        ignored -> recruit.broadcastBreakEvent(net.minecraft.world.InteractionHand.MAIN_HAND));
+            }
             ArtilleryWeaponProfile.NativeMisfirePolicy misfirePolicy = profile.nativeMisfirePolicy();
             if (misfirePolicy.enabled()
                     && misfirePolicy.misfires(
@@ -774,6 +803,7 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
                             misfirePolicy.randomMaximum()),
                     weapon.getDamageValue())) {
                 ArtilleryNativeState.markFired(weapon, profile);
+                ejectCartridgeSafely(recruit, weapon, profile);
                 return new ShotResult(ShotOutcome.MISFIRED, 0);
             }
 
@@ -826,10 +856,13 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
                         targetPosition,
                         direction);
             }
-            weapon.hurtAndBreak(1, recruit,
-                    ignored -> recruit.broadcastBreakEvent(net.minecraft.world.InteractionHand.MAIN_HAND));
+            if (!nativeWearBeforeShot) {
+                weapon.hurtAndBreak(1, recruit,
+                        ignored -> recruit.broadcastBreakEvent(net.minecraft.world.InteractionHand.MAIN_HAND));
+            }
             ArtilleryNativeState.markFired(weapon, profile);
             ArtilleryNativeState.setFiring(weapon, true);
+            ejectCartridgeSafely(recruit, weapon, profile);
             playShotEffectsSafely(serverLevel, recruit, profile, origin);
             return new ShotResult(ShotOutcome.FIRED, projectiles.size());
         } catch (RuntimeException | LinkageError exception) {
@@ -971,6 +1004,7 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             case ARTILLERY_LOADING_POWDER -> SupportedArtillery.MOD_ID + ":hand_cannon_loading_powder";
             case ARTILLERY_LOAD_BALL -> SupportedArtillery.MOD_ID + ":arquebus_ball";
             case ARTILLERY_RAMMING -> SupportedArtillery.MOD_ID + ":arquebus_ramming";
+            case ARTILLERY_WIND_WHEELLOCK -> SupportedArtillery.MOD_ID + ":arming_wheellock";
             case ARTILLERY_HAND_CANNON_LOAD_BALL -> SupportedArtillery.MOD_ID + ":hand_cannon_load_ball";
             case ARTILLERY_HAND_CANNON_RAMMING -> SupportedArtillery.MOD_ID + ":hand_cannon_ramming";
             case CROSSBOW_LOADING_START -> "minecraft:item.crossbow.loading_start";
@@ -998,6 +1032,14 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             CrossBowmanEntity recruit,
             ArtilleryWeaponProfile profile
     ) {
+        if (SupportedArtillery.WHEELLOCK_PISTOL_ID.equals(profile.registryId())
+                || (Artillery1162Profiles.isInstalled()
+                && SupportedArtillery.MATCHLOCK_PISTOL_ID.equals(profile.registryId()))) {
+            return recruit.getOffhandItem().isEmpty();
+        }
+        if (Artillery1162Profiles.isInstalled() && SupportedArtillery.HACKBUT_ID.equals(profile.registryId())) {
+            return !recruit.isPassenger() && recruit.getOffhandItem().isEmpty();
+        }
         if (profile.alternateInaccuracyBranch() != ArtilleryWeaponProfile.InaccuracyBranch.FORK_REST) {
             return true;
         }
@@ -1007,6 +1049,25 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
 
     private static boolean isForkRestEquipped(CrossBowmanEntity recruit) {
         return SupportedArtillery.FORK_REST_ID.equals(registryId(recruit.getOffhandItem()));
+    }
+
+    /** NPC automatically extracts the spent case after a shot; native players do this by hand. */
+    private static boolean ejectCartridgeSafely(CrossBowmanEntity recruit, ItemStack weapon, ArtilleryWeaponProfile profile) {
+        if (!SupportedArtillery.WHEELLOCK_BREECHLOADING_RIFLE_ID.equals(profile.registryId())
+                || !weapon.hasTag() || weapon.getTag().getDouble(ArtilleryNativeState.STAGE_KEY) != 3) {
+            return true;
+        }
+        try {
+            var item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(SupportedArtillery.EMPTY_CARTRIDGE_ID));
+            if (item != null && recruit.spawnAtLocation(new ItemStack(item)) != null) {
+                weapon.getOrCreateTag().putDouble(ArtilleryNativeState.STAGE_KEY, 4);
+                weapon.getOrCreateTag().putDouble(ArtilleryNativeState.LOADED_KEY, 0);
+                return true;
+            }
+        } catch (RuntimeException exception) {
+            RecruitsUseBoomsticks.LOGGER.warn("Could not eject an Artillery cartridge", exception);
+        }
+        return false;
     }
 
     private static boolean hasNamedSuperclass(Class<?> type, String expectedName) {

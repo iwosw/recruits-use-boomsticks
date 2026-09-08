@@ -2,6 +2,23 @@
 
 All notable changes to Recruits Use Boomsticks are documented here.
 
+## 2.2.0 — 2026-09-08
+
+### Added
+
+- Added Artillery 1.16.2 support for Wheellock Pistol, Musket, Hunting Rifle, Breechloading Hunting Rifle, Double Barrel Pistol and Double Barrel Carbine. They use physical ammunition, the native Ironball projectile, recruit reload/combat AI, ownership and friendly-fire rules.
+- Added spanner winding, native two-barrel state and shot order, cartridge loading and automatic extraction of one recoverable empty case. Reloads preserve paid ammunition across interruptions and weapon save/load.
+
+### Changed
+
+- Applied the 1.16.2 native damage, velocity, spread, projectile flags, mounted branches and misfire bounds to existing supported firearms. Older supported Artillery releases keep their previous profiles.
+- Made Artillery 1.16.2 (`8812944`) the default runtime dependency and admitted that exact version in release metadata. Earlier supported ranges remain available.
+- Expanded the harness to 168 unit tests and 143 required Forge GameTests. The six new runtime cases cover loading tools, ammunition accounting, interrupted reloads, native projectiles, two-barrel save/load and combat AI.
+
+### Scope
+
+- Wheellock Hand Mortar remains disabled because its native grenade explosions lack an owner needed by recruit friendly-fire rules. Wallgun mounting, additional ammunition branches, autonomous repair-kit/worm-ramrod use and villager trades are outside this update.
+
 ## 2.0.0 — 2026-08-16
 
 ### Added

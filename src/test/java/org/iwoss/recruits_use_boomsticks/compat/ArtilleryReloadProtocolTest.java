@@ -37,7 +37,8 @@ class ArtilleryReloadProtocolTest {
             // A repeater is fireable from its first committed round, exactly like the native counter;
             // every other protocol must stay unloaded until its chain finishes.
             boolean repeater = profile.nativeStateMode()
-                    == ArtilleryWeaponProfile.NativeStateMode.AMMO_COUNT;
+                    == ArtilleryWeaponProfile.NativeStateMode.AMMO_COUNT
+                    || profile.nativeStateMode() == ArtilleryWeaponProfile.NativeStateMode.WHEELLOCK_DUAL;
             List<ArtilleryReloadStep> steps = ArtilleryReloadProtocol.stepsFor(weaponId);
             for (int index = 0; index < steps.size(); index++) {
                 ArtilleryNativeState.applyReloadStepTag(weapon, steps.get(index));

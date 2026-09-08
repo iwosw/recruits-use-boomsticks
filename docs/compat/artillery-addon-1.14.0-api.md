@@ -1,5 +1,9 @@
 # Epic Knights: Artilleries and Firearms 1.14.0 binary API report
 
+For the 2.2.0 / Artillery 1.16.2 update, read
+[the 1.16.2 contract](artillery-addon-1.16.2-api.md). This document records the earlier
+weapon slices and remains useful for loading chains that did not change.
+
 This report records the compatibility boundary inspected for Recruits Use Boomsticks. It is based on the exact resolved binary artifact and `javap`; it does not contain decompiled upstream source.
 
 > Runtime update (2026-08-16): eighteen enabled firearm profiles and five throwing weapons execute on the unpatched Artillery 1.13.4 dedicated server. Bronze Handgonne is the eighteenth explicit profile; upstream registers it but omits it from `#artillery:guns`. Artillery 1.14 itself remains server-unsafe upstream.

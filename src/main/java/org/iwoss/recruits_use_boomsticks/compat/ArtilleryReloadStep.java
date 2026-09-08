@@ -29,7 +29,11 @@ public record ArtilleryReloadStep(
         CONSUME_ONE,
         /** The native step calls {@code ItemStack.hurt(1, ...)} and only removes a broken tool. */
         DAMAGE_ONE,
-        /** The native step is performed bare-handed and pays nothing. */
+        /** Native nextDouble(1,2) == 2 check (kept exactly, not replaced with a 50% roll). */
+        WIND_WHEELLOCK,
+        /** A required tool is returned without wear, as in dual wheellock ramming. */
+        KEEP_TOOL,
+        /** The native bare-hand step pays nothing. */
         NONE
     }
 
@@ -111,7 +115,9 @@ public record ArtilleryReloadStep(
 
     /** A tool survives the step unless it breaks, so it is never counted as spent ammunition. */
     public boolean isTool() {
-        return componentUse == ComponentUse.DAMAGE_ONE;
+        return componentUse == ComponentUse.DAMAGE_ONE
+                || componentUse == ComponentUse.KEEP_TOOL
+                || componentUse == ComponentUse.WIND_WHEELLOCK;
     }
 
     /** Whether the recruit has to supply a real item; a bare-hand branch never needs one. */

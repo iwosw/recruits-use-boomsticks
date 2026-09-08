@@ -442,6 +442,7 @@ public final class MedievalBoomsticksAdapter implements BoomstickWeaponAdapter {
                  ARTILLERY_LOADING_POWDER,
                  ARTILLERY_LOAD_BALL,
                  ARTILLERY_RAMMING,
+                 ARTILLERY_WIND_WHEELLOCK,
                  ARTILLERY_HAND_CANNON_LOAD_BALL,
                  ARTILLERY_HAND_CANNON_RAMMING,
                  CROSSBOW_LOADING_START,

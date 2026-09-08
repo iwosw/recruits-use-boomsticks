@@ -1,5 +1,15 @@
 # Active project objective
 
+## Current 2.2.0 update (2026-09-08)
+
+Artillery 1.16.2 compatibility adds six wheellock firearm profiles (24 firearm IDs total),
+native two-barrel operation, cartridge extraction and version-specific ballistics for existing
+weapons. Read `docs/compat/artillery-addon-1.16.2-api.md` and the newest verification entry first;
+the older slice and runtime notes below are historical. The default runtime is now CurseForge
+file `8812944` (1.16.2), with earlier supported profiles selectable through `-Partillery`.
+The current harness contains 168 unit tests and 143 required Forge GameTests.
+Wheellock Hand Mortar and Wallgun remain unsupported; do not claim full arsenal parity.
+
 The active plan for this repository is to **implement compatibility between Villager Recruits 1.15.2 and the Artillery Addon / Epic Knights: Artilleries and Firearms**.
 
 ## Completion status

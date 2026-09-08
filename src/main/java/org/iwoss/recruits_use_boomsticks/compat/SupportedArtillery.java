@@ -31,6 +31,14 @@ public final class SupportedArtillery {
     public static final String TACCOLA_HANDGONNE_ID = MOD_ID + ":taccola_handgonne";
     public static final String HAND_CANNON_ID = MOD_ID + ":hand_cannon";
     public static final String DOUBLE_BARREL_GONNE_ID = MOD_ID + ":double_barrel_gonne";
+    public static final String WHEELLOCK_PISTOL_ID = MOD_ID + ":wheellock_pistol";
+    public static final String WHEELLOCK_MUSKET_ID = MOD_ID + ":wheellock_musket";
+    public static final String WHEELLOCK_HUNTING_RIFLE_ID = MOD_ID + ":wheellock_hunting_rifle";
+    public static final String WHEELLOCK_BREECHLOADING_RIFLE_ID = MOD_ID + ":wheellock_breechloading_rifle";
+    public static final String DUAL_WHEELLOCK_PISTOL_ID = MOD_ID + ":dual_wheellock_pistol";
+    public static final String DUAL_WHEELLOCK_CARBINE_ID = MOD_ID + ":dual_wheellock_carbine";
+    public static final String LOADED_CARTRIDGE_ID = MOD_ID + ":loaded_cartridge";
+    public static final String EMPTY_CARTRIDGE_ID = MOD_ID + ":empty_cartridge";
 
     public static final String IRON_BALL_ID = MOD_ID + ":iron_ball";
     public static final String SMALL_IRON_BALL_ID = MOD_ID + ":small_iron_ball";
@@ -80,7 +88,9 @@ public final class SupportedArtillery {
             CHU_KO_NU_ID,
             TACCOLA_HANDGONNE_ID,
             HAND_CANNON_ID,
-            DOUBLE_BARREL_GONNE_ID
+            DOUBLE_BARREL_GONNE_ID,
+            WHEELLOCK_PISTOL_ID, WHEELLOCK_MUSKET_ID, WHEELLOCK_HUNTING_RIFLE_ID,
+            WHEELLOCK_BREECHLOADING_RIFLE_ID, DUAL_WHEELLOCK_PISTOL_ID, DUAL_WHEELLOCK_CARBINE_ID
     );
 
     private SupportedArtillery() {
@@ -123,7 +133,8 @@ public final class SupportedArtillery {
         return IRON_BALL_ID.equals(id)
                 || SMALL_IRON_BALL_ID.equals(id)
                 || LARGE_IRON_BALL_ID.equals(id)
-                || VANILLA_ARROW_ID.equals(id);
+                || VANILLA_ARROW_ID.equals(id)
+                || LOADED_CARTRIDGE_ID.equals(id);
     }
 
     /** Explicit gameplay allowlist; the remaining profiles are reconnaissance data only. */
@@ -467,6 +478,7 @@ public final class SupportedArtillery {
                 false,
                 ArtilleryWeaponProfile.NativeStateMode.AMMO_COUNT,
                 ArtilleryWeaponProfile.NativeMisfirePolicy.NONE));
+        Artillery1162Profiles.addWheellocks(profiles);
         return Collections.unmodifiableMap(profiles);
     }
 

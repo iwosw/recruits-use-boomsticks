@@ -51,6 +51,7 @@ import org.iwoss.recruits_use_boomsticks.compat.ArtilleryNativeState;
 import org.iwoss.recruits_use_boomsticks.compat.ArtilleryReloadProtocol;
 import org.iwoss.recruits_use_boomsticks.compat.ArtilleryReloadStep;
 import org.iwoss.recruits_use_boomsticks.compat.ArtilleryWeaponProfile;
+import org.iwoss.recruits_use_boomsticks.compat.Artillery1162Profiles;
 import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
 import org.iwoss.recruits_use_boomsticks.compat.SupportedArtillery;
 import org.iwoss.recruits_use_boomsticks.compat.SupportedArtilleryThrowables;
@@ -2006,7 +2007,7 @@ public final class BoomstickCompatibilityGameTests {
         helper.assertTrue(projectiles.size() == 3,
                 "the world must contain all three native Hand Cannon projectiles");
         for (AbstractArrow projectile : projectiles) {
-            helper.assertTrue(Math.abs(projectile.getBaseDamage() - 2.0D) < 1.0E-6D,
+            helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 3.5D : 2.0D)) < 1.0E-6D,
                     "Hand Cannon projectile must preserve its native base damage");
             helper.assertTrue(projectile.isSilent(),
                     "Hand Cannon projectile must preserve its native silent flag");
@@ -2153,15 +2154,15 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Double Barrel native projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 2.7D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 4D : 2.7D)) < 1.0E-6D,
                 "Double Barrel projectile must preserve its confirmed base damage");
-        helper.assertFalse(projectile.isSilent(),
+        helper.assertTrue(projectile.isSilent() == Artillery1162Profiles.isInstalled(),
                 "Double Barrel projectile must preserve the native audible flag");
         helper.assertTrue(projectile.getKnockback() == 1,
                 "Double Barrel projectile must preserve native knockback");
-        helper.assertTrue(projectile.getPierceLevel() == 1,
+        helper.assertTrue(projectile.getPierceLevel() == (Artillery1162Profiles.isInstalled() ? 0 : 1),
                 "Double Barrel projectile must preserve native piercing");
-        helper.assertTrue(projectile.isCritArrow(),
+        helper.assertTrue(projectile.isCritArrow() == !Artillery1162Profiles.isInstalled(),
                 "Double Barrel projectile must preserve its native critical flag");
         helper.assertTrue(projectile.pickup == AbstractArrow.Pickup.DISALLOWED,
                 "Double Barrel projectile must not be collectible");
@@ -2348,7 +2349,7 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Matchlock Musket native projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 4.5D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 5.5D : 4.5D)) < 1.0E-6D,
                 "Matchlock Musket must preserve its confirmed projectile base damage");
         helper.assertTrue(projectile.isSilent(),
                 "Matchlock Musket must preserve the native silent projectile flag");
@@ -2452,7 +2453,7 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Matchlock Carbine native projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 2.7D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 5D : 2.7D)) < 1.0E-6D,
                 "Matchlock Carbine must preserve its confirmed projectile base damage");
         helper.assertTrue(projectile.isSilent(),
                 "Matchlock Carbine must preserve the native silent projectile flag");
@@ -2579,7 +2580,7 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Matchlock Carbine fork-rest projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 2.7D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 5D : 2.7D)) < 1.0E-6D,
                 "Matchlock Carbine fork-rest must preserve its native projectile damage");
         helper.assertTrue(projectile.isSilent(),
                 "Matchlock Carbine fork-rest must preserve the native silent projectile flag");
@@ -2683,13 +2684,13 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Matchlock Pistol native projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 1.9D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 4.5D : 1.9D)) < 1.0E-6D,
                 "Matchlock Pistol must preserve its confirmed projectile base damage");
         helper.assertTrue(projectile.isSilent(),
                 "Matchlock Pistol must preserve the native silent projectile flag");
         helper.assertTrue(projectile.getKnockback() == 1,
                 "Matchlock Pistol must preserve native projectile knockback");
-        helper.assertTrue(projectile.isCritArrow(),
+        helper.assertTrue(projectile.isCritArrow() == !Artillery1162Profiles.isInstalled(),
                 "Matchlock Pistol must preserve the native critical projectile flag");
         helper.assertTrue(projectile.pickup == AbstractArrow.Pickup.DISALLOWED,
                 "Matchlock Pistol projectile must not be collectible");
@@ -2786,7 +2787,7 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Toradar Rifle native projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 3.2D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 6D : 3.2D)) < 1.0E-6D,
                 "Toradar Rifle must preserve its confirmed projectile base damage");
         helper.assertTrue(projectile.isSilent(),
                 "Toradar Rifle must preserve the native silent projectile flag");
@@ -3015,7 +3016,7 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Tiller Gun native projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 2.0D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 3D : 2.0D)) < 1.0E-6D,
                 "Tiller Gun must preserve its confirmed projectile base damage");
         helper.assertTrue(projectile.isSilent(),
                 "Tiller Gun must preserve the native silent projectile flag");
@@ -3053,6 +3054,8 @@ public final class BoomstickCompatibilityGameTests {
         helper.assertTrue(goal.canUse(), "the combat goal must claim an equipped Tiller Gun");
         goal.start();
         for (int tick = 0; tick < 70; tick++) {
+            // This is a successful-shot contract; native misfire bounds have separate coverage.
+            recruit.getRandom().setSeed(0);
             goal.tick();
         }
 
@@ -3131,7 +3134,7 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Harquebus native projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 2.2D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 4.5D : 2.2D)) < 1.0E-6D,
                 "Harquebus must preserve its confirmed projectile base damage");
         helper.assertTrue(projectile.isSilent(),
                 "Harquebus must preserve the native silent projectile flag");
@@ -3249,7 +3252,7 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Harquebus fork-rest projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 2.2D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 4.5D : 2.2D)) < 1.0E-6D,
                 "Harquebus fork-rest must preserve its native projectile damage");
         helper.assertTrue(projectile.isSilent(),
                 "Harquebus fork-rest must preserve the native silent projectile flag");
@@ -3364,15 +3367,15 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Hackbut native projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 5.25D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 10D : 5.25D)) < 1.0E-6D,
                 "Hackbut must preserve its confirmed projectile base damage");
-        helper.assertFalse(projectile.isSilent(),
+        helper.assertTrue(projectile.isSilent() == Artillery1162Profiles.isInstalled(),
                 "Hackbut must preserve the native audible projectile flag");
         helper.assertTrue(projectile.getKnockback() == 1,
                 "Hackbut must preserve native projectile knockback");
         helper.assertTrue(projectile.getPierceLevel() == 1,
                 "Hackbut must preserve native projectile piercing");
-        helper.assertTrue(projectile.isCritArrow(),
+        helper.assertTrue(projectile.isCritArrow() == !Artillery1162Profiles.isInstalled(),
                 "Hackbut projectile must preserve the native critical flag");
         helper.assertTrue(projectile.pickup == AbstractArrow.Pickup.DISALLOWED,
                 "Hackbut projectile must not be collectible");
@@ -3477,7 +3480,7 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Handgonne native projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 1.85D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 4D : 1.85D)) < 1.0E-6D,
                 "Handgonne must preserve its confirmed projectile base damage");
         helper.assertTrue(projectile.isSilent(),
                 "Handgonne must preserve the native silent projectile flag");
@@ -3572,7 +3575,7 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Bronze Handgonne native projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 1.85D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 3.8D : 1.85D)) < 1.0E-6D,
                 "Bronze Handgonne must preserve its confirmed projectile damage");
         helper.succeed();
     }
@@ -3639,7 +3642,7 @@ public final class BoomstickCompatibilityGameTests {
                         && candidate.getClass().getName().equals("net.minecraft.world.entity.projectile.Arrow"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Noble Handgonne Arrow projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 2.55D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 3.5D : 2.55D)) < 1.0E-6D,
                 "Noble Handgonne must preserve its confirmed Arrow base damage");
         helper.assertFalse(projectile.isSilent(),
                 "Noble Handgonne must preserve the native non-silent Arrow flag");
@@ -3927,7 +3930,7 @@ public final class BoomstickCompatibilityGameTests {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
                         "Markmen's Handgonne native Ironball projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 2.9D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 4.1D : 2.9D)) < 1.0E-6D,
                 "Markmen's Handgonne must preserve its confirmed iron-ball damage");
         helper.succeed();
     }
@@ -4303,7 +4306,7 @@ public final class BoomstickCompatibilityGameTests {
                         .equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("the Taccola native projectile was not spawned"));
-        helper.assertTrue(Math.abs(projectile.getBaseDamage() - 1.85D) < 1.0E-6D,
+        helper.assertTrue(Math.abs(projectile.getBaseDamage() - (Artillery1162Profiles.isInstalled() ? 4D : 1.85D)) < 1.0E-6D,
                 "Taccola must preserve its confirmed projectile base damage");
         helper.assertTrue(projectile.isSilent(),
                 "Taccola must preserve the native silent projectile flag");
@@ -5507,6 +5510,136 @@ public final class BoomstickCompatibilityGameTests {
     }
 
     @SuppressWarnings("unchecked")
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void artilleryWheellockPistol(GameTestHelper helper) {
+        assertWheellockCycle(helper, SupportedArtillery.WHEELLOCK_PISTOL_ID, 3.0D, 1);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void artilleryWheellockMusket(GameTestHelper helper) {
+        assertWheellockCycle(helper, SupportedArtillery.WHEELLOCK_MUSKET_ID, 5.7D, 1);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void artilleryWheellockHuntingRifle(GameTestHelper helper) {
+        assertWheellockCycle(helper, SupportedArtillery.WHEELLOCK_HUNTING_RIFLE_ID, 6.2D, 1);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void artilleryWheellockBreechloader(GameTestHelper helper) {
+        assertWheellockCycle(helper, SupportedArtillery.WHEELLOCK_BREECHLOADING_RIFLE_ID, 6.2D, 1);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void artilleryDualWheellockPistol(GameTestHelper helper) {
+        assertWheellockCycle(helper, SupportedArtillery.DUAL_WHEELLOCK_PISTOL_ID, 3.0D, 2);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 120)
+    public static void artilleryDualWheellockCarbine(GameTestHelper helper) {
+        assertWheellockCycle(helper, SupportedArtillery.DUAL_WHEELLOCK_CARBINE_ID, 3.6D, 2);
+    }
+
+    private static void assertWheellockCycle(GameTestHelper helper, String weaponId, double damage, int rounds) {
+        if (!Artillery1162Profiles.isInstalled()) {
+            helper.succeed();
+            return;
+        }
+        helper.assertTrue(artilleryItemRegistered(weaponId), "1.16.2 must register " + weaponId);
+        var adapter = ArtilleryAddonAdapter.INSTANCE;
+        var profile = SupportedArtillery.profileFor(weaponId).orElseThrow();
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        ItemStack weapon = stack(weaponId);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        recruit.setShouldRanged(true);
+        recruit.getInventory().addItem(stack(profile.ammoId(), rounds));
+        giveNativeReloadTools(recruit);
+        helper.assertFalse(adapter.hasReloadComponents(recruit, weapon), "a wheellock must require its spanner");
+        ItemStack spanner = stack(SupportedArtillery.MOD_ID + ":iron_wheellock_spanner");
+        recruit.getInventory().addItem(spanner);
+        if (rounds == 2) {
+            ItemStack partial = weapon.copy();
+            partial.getOrCreateTag().putDouble("barrel_one", 2);
+            partial.getOrCreateTag().putDouble("rammed_one", 0);
+            partial.getOrCreateTag().putDouble("barrel_two", 2);
+            partial.getOrCreateTag().putDouble("rammed_two", 0);
+            CompoundTag savedPartial = partial.getTag().copy();
+            helper.assertFalse(adapter.hasReloadComponents(recruit, partial),
+                    "a noncanonical partial second barrel must not be overwritten by a new chain");
+            helper.assertFalse(adapter.applyReloadStep(recruit, partial, 2),
+                    "a direct reload step must also refuse the noncanonical partial state");
+            helper.assertTrue(savedPartial.equals(partial.getTag()), "refusal must preserve both paid barrels");
+        }
+        RecruitBoomstickAttackGoal reload = RecruitBoomstickAttackGoal.passiveReload(recruit);
+        helper.assertTrue(reload.canUse(), "the wheellock must enter recruit reload AI");
+        reload.start();
+        for (int tick = 0; tick < adapter.reloadTicks(weapon) / 2; tick++) reload.tick();
+        reload.stop();
+        weapon = ItemStack.of(weapon.save(new CompoundTag()));
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        reload = RecruitBoomstickAttackGoal.passiveReload(recruit);
+        helper.assertTrue(reload.canUse(), "an interrupted wheellock chain must resume after save/load");
+        reload.start();
+        for (int tick = 0; tick <= adapter.reloadTicks(weapon); tick++) reload.tick();
+        helper.assertTrue(adapter.isLoaded(weapon), "the complete chain must leave the wheellock ready");
+        helper.assertTrue(ArtilleryNativeState.remainingRounds(weapon, profile) == rounds, "all paid barrels must remain");
+        helper.assertTrue(recruit.getInventory().countItem(stack(profile.ammoId()).getItem()) == 0,
+                "reload must consume exactly one physical round per barrel");
+        helper.assertTrue(recruit.getInventory().countItem(spanner.getItem()) == 1, "the spanner must return exactly once");
+        helper.assertTrue(findInInventory(recruit, spanner).getDamageValue() == (rounds == 2 ? 0 : 1),
+                "winding must preserve the native single/dual spanner wear boundary");
+        boolean breechloader = weaponId.equals(SupportedArtillery.WHEELLOCK_BREECHLOADING_RIFLE_ID);
+        helper.assertTrue(findInInventory(recruit, stack(RAMROD_ID)).getDamageValue()
+                        == (breechloader || rounds == 2 ? 0 : 1),
+                "ramming must charge native wear once, including after an interrupted reload");
+        helper.assertTrue(findInInventory(recruit, stack(POWDER_FLASK_ID)).getDamageValue()
+                        == (breechloader ? 0 : rounds),
+                "powder must be paid once per muzzleloaded barrel");
+        helper.assertTrue(recruit.getOffhandItem().isEmpty(), "reload must return the borrowed off hand");
+        for (int shot = 0; shot < rounds; shot++) {
+            // Save/load the weapon between barrels, without reloading or spending another ball.
+            weapon = ItemStack.of(weapon.save(new CompoundTag()));
+            recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+            recruit.getRandom().setSeed(0);
+            var result = adapter.fire(recruit, weapon, recruit.position().add(10, 0, 0));
+            helper.assertTrue(result.outcome() == BoomstickWeaponAdapter.ShotOutcome.FIRED,
+                    "each loaded barrel must fire through the server adapter");
+            helper.assertTrue(result.projectilesSpawned() == 1, "each trigger pull must spawn one ball");
+            helper.assertTrue(ArtilleryNativeState.remainingRounds(weapon, profile) == rounds - shot - 1,
+                    "firing must spend only the selected barrel");
+        }
+        var projectiles = helper.getLevel().getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24))
+                .stream().filter(p -> p.getOwner() == recruit).toList();
+        helper.assertTrue(projectiles.size() == rounds, "the server must own one native projectile per round");
+        for (var projectile : projectiles) {
+            helper.assertTrue(projectile.getClass().getName().equals("net.mcreator.artilleryaddon.entity.IronballProjectileEntity"),
+                    "the native Ironball class must be preserved");
+            helper.assertTrue(Math.abs(projectile.getBaseDamage() - damage) < 1e-6, "1.16.2 native damage must match");
+            helper.assertTrue(projectile.getPierceLevel() == 0 && !projectile.isCritArrow() && projectile.isSilent(),
+                    "wheel locks use the native noncritical, nonpiercing, silent shot");
+        }
+        if (weaponId.equals(SupportedArtillery.WHEELLOCK_BREECHLOADING_RIFLE_ID)) {
+            long cases = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                    recruit.getBoundingBox().inflate(2)).stream()
+                    .filter(item -> item.getItem().is(stack(SupportedArtillery.EMPTY_CARTRIDGE_ID).getItem())).count();
+            helper.assertTrue(cases == 1, "a spent cartridge must produce exactly one recoverable empty case");
+        }
+        recruit.getInventory().addItem(stack(profile.ammoId(), rounds));
+        LivingEntity target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 4, 2, 1);
+        recruit.setTarget(target);
+        RecruitBoomstickAttackGoal combat = new RecruitBoomstickAttackGoal(recruit, 1);
+        helper.assertTrue(combat.canUse(), "the wheellock must enter recruit combat AI");
+        combat.start();
+        for (int tick = 0; tick < 120; tick++) {
+            recruit.getRandom().setSeed(0);
+            combat.tick();
+        }
+        helper.assertTrue(helper.getLevel().getEntitiesOfClass(AbstractArrow.class, recruit.getBoundingBox().inflate(24))
+                .stream().filter(p -> p.getOwner() == recruit).count() > rounds, "combat AI must reload and fire again");
+        combat.stop();
+        helper.succeed();
+    }
+
     private static CrossBowmanEntity spawnCrossbowman(GameTestHelper helper) {
         return spawnCrossbowman(helper, 1);
     }

@@ -46,7 +46,8 @@ public record ArtilleryWeaponProfile(
     public enum NativeStateMode {
         STAGED,
         AMMO_COUNT,
-        DOUBLE_BARREL_FIRST
+        DOUBLE_BARREL_FIRST,
+        WHEELLOCK_DUAL
     }
 
     public record NativeMisfirePolicy(
@@ -61,8 +62,7 @@ public record ArtilleryWeaponProfile(
             if (enabled && (!Double.isFinite(randomMinimum)
                     || !Double.isFinite(randomMaximum)
                     || randomMinimum >= randomMaximum
-                    || !Double.isFinite(damageThresholdOffset)
-                    || damageThresholdOffset < 0.0D)) {
+                    || !Double.isFinite(damageThresholdOffset))) {
                 throw new IllegalArgumentException("invalid native misfire policy");
             }
         }
@@ -136,10 +136,12 @@ public record ArtilleryWeaponProfile(
      * Native rounds one NPC reload transaction commits.
      *
      * <p>An ammo-count weapon stores its remaining rounds in the native {@code ammo} double, so its
-     * confirmed loaded code doubles as the magazine capacity. Every other protocol is single-shot.</p>
+     * confirmed loaded code doubles as the magazine capacity. Dual wheellocks hold two rounds;
+     * the remaining protocols are single-shot.</p>
      */
     public int magazineSize() {
-        return nativeStateMode == NativeStateMode.AMMO_COUNT ? nativeAmmoCode : 1;
+        return nativeStateMode == NativeStateMode.WHEELLOCK_DUAL ? 2
+                : nativeStateMode == NativeStateMode.AMMO_COUNT ? nativeAmmoCode : 1;
     }
 
     /** Physical ammunition units one complete NPC reload transaction consumes. */
