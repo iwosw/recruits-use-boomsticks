@@ -17,7 +17,7 @@ class ArtilleryAdapterContractTest {
         assertFalse(available.supportsProjectile(Arrow.class));
         assertTrue(available.supportsProjectileClassName(
                 "net.mcreator.artilleryaddon.entity.IronballProjectileEntity"));
-        assertFalse(available.supportsProjectileClassName(
+        assertTrue(available.supportsProjectileClassName(
                 "net.mcreator.artilleryaddon.entity.IronBitProjectileEntity"));
         assertFalse(available.supportsProjectileClassName(Arrow.class.getName()));
         assertFalse(available.supportsProjectileClassName(String.class.getName()));

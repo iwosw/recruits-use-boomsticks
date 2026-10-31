@@ -193,7 +193,8 @@ public final class ArtilleryComponentAccess {
                 && net.minecraft.util.Mth.nextDouble(random, 1, 2) != 2)) {
             return;
         }
-        if (component.isDamageableItem() && component.hurt(1, random, null)) {
+        int wear = componentUse == ArtilleryReloadStep.ComponentUse.DAMAGE_THREE ? 3 : 1;
+        if (component.isDamageableItem() && component.hurt(wear, random, null)) {
             component.shrink(1);
             component.setDamageValue(0);
         }
@@ -227,7 +228,8 @@ public final class ArtilleryComponentAccess {
                 && componentUse != ArtilleryReloadStep.ComponentUse.KEEP_TOOL
                 && (componentUse != ArtilleryReloadStep.ComponentUse.WIND_WHEELLOCK
                 || net.minecraft.util.Mth.nextDouble(random, 1, 2) == 2) && stack.isDamageableItem()) {
-            if (stack.hurt(1, random, null)) {
+            int wear = componentUse == ArtilleryReloadStep.ComponentUse.DAMAGE_THREE ? 3 : 1;
+            if (stack.hurt(wear, random, null)) {
                 stack.shrink(1);
                 stack.setDamageValue(0);
             }

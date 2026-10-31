@@ -19,6 +19,10 @@ public final class CompatConfig {
             .comment("Enable the Epic Knights: Artilleries and Firearms compatibility integration.")
             .define("artilleryAddonEnabled", true);
 
+    public static final ForgeConfigSpec.BooleanValue THIRTY_YEARS_WAR_ENABLED = BUILDER
+            .comment("Enable the Epic Knights: Thirty Years War firearm integration.")
+            .define("thirtyYearsWarEnabled", true);
+
     public static final ForgeConfigSpec.BooleanValue ALLOW_STRATEGIC_FIRE = BUILDER
             .comment("Allow Recruits strategic-fire block positions to use supported Boomsticks weapons.")
             .define("allowStrategicFire", true);
@@ -44,6 +48,10 @@ public final class CompatConfig {
     public static final ForgeConfigSpec.DoubleValue ARTILLERY_ADDON_DAMAGE_MULTIPLIER = BUILDER
             .comment("Additional damage multiplier for recruit-fired Artillery Addon projectiles.")
             .defineInRange("artilleryAddonDamageMultiplier", 1.0D, 0.0D, 100.0D);
+
+    public static final ForgeConfigSpec.DoubleValue THIRTY_YEARS_WAR_DAMAGE_MULTIPLIER = BUILDER
+            .comment("Additional damage multiplier for recruit-fired Thirty Years War bullets.")
+            .defineInRange("thirtyYearsWarDamageMultiplier", 1.0D, 0.0D, 100.0D);
 
     public static final ForgeConfigSpec.DoubleValue MINIMUM_PROJECTILE_DAMAGE = BUILDER
             .comment(
@@ -76,6 +84,7 @@ public final class CompatConfig {
         return switch (integration) {
             case MEDIEVAL_BOOMSTICKS -> MEDIEVAL_BOOMSTICKS_ENABLED.get();
             case ARTILLERY_ADDON -> ARTILLERY_ADDON_ENABLED.get();
+            case THIRTY_YEARS_WAR -> THIRTY_YEARS_WAR_ENABLED.get();
         };
     }
 
@@ -83,6 +92,7 @@ public final class CompatConfig {
         return switch (integration) {
             case MEDIEVAL_BOOMSTICKS -> MEDIEVAL_BOOMSTICKS_DAMAGE_MULTIPLIER.get();
             case ARTILLERY_ADDON -> ARTILLERY_ADDON_DAMAGE_MULTIPLIER.get();
+            case THIRTY_YEARS_WAR -> THIRTY_YEARS_WAR_DAMAGE_MULTIPLIER.get();
         };
     }
 

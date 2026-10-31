@@ -100,7 +100,7 @@ class ArtilleryReloadProtocolTest {
             }
             assertEquals(ArtilleryReloadProtocol.ammoConsumed(weaponId), consumed,
                     weaponId + " must report the ammunition its own chain spends");
-            assertEquals(profile.magazineSize(), consumed,
+            assertEquals(weaponId.equals(SupportedArtillery.FIRE_LANCE_ID) ? 0 : profile.magazineSize(), consumed,
                     weaponId + " loads one round per magazine slot, however many projectiles it fires");
         }
     }

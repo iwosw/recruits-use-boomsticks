@@ -75,3 +75,10 @@ mandatory = false
 versionRange = "${artillery_version_range}"
 ordering = "AFTER"
 side = "BOTH"
+
+[[dependencies."${mod_id}"]]
+modId = "thirtyyearswar"
+mandatory = false
+versionRange = "${thirty_years_war_version_range}"
+ordering = "AFTER"
+side = "BOTH"

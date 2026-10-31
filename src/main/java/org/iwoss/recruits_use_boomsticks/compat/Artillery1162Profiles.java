@@ -22,6 +22,29 @@ public final class Artillery1162Profiles {
         profiles.put(WHEELLOCK_BREECHLOADING_RIFLE_ID, wheellock(WHEELLOCK_BREECHLOADING_RIFLE_ID, LOADED_CARTRIDGE_ID, 2, 3, 7.4, 3, 1, 6.2, FORK_REST, STAGED));
         profiles.put(DUAL_WHEELLOCK_PISTOL_ID, wheellock(DUAL_WHEELLOCK_PISTOL_ID, SMALL_IRON_BALL_ID, 4, 0, 4, 6, 6, 3, NONE, WHEELLOCK_DUAL));
         profiles.put(DUAL_WHEELLOCK_CARBINE_ID, wheellock(DUAL_WHEELLOCK_CARBINE_ID, SMALL_IRON_BALL_ID, 4, 0, 5, 5, 2.5F, 3.6, FORK_REST, WHEELLOCK_DUAL));
+        profiles.put(WHEELLOCK_HAND_MORTAR_ID, handMortar(false));
+        profiles.put(FIRE_LANCE_ID, fireLance(false));
+    }
+
+    public static ArtilleryWeaponProfile handMortar(boolean iron) {
+        return new ArtilleryWeaponProfile(WHEELLOCK_HAND_MORTAR_ID,
+                iron ? IRON_HAND_GRENADE_ID : CLAY_HAND_GRENADE_ID,
+                iron ? IRONNADE_PROJECTILE_ID : CLAYNADE_PROJECTILE_ID,
+                iron ? 2 : 1, false, 2, 3, 40, 20, 1,
+                iron ? 1.5 : 1.8, 30, 30, 1, false, 0, true,
+                BoomstickSound.ARTILLERY_FIRE, true, true, NONE, false, true, STAGED,
+                new ArtilleryWeaponProfile.NativeMisfirePolicy(true, 2, 1500, 0));
+    }
+
+    public static ArtilleryWeaponProfile fireLance(boolean ironBits) {
+        return new ArtilleryWeaponProfile(FIRE_LANCE_ID,
+                ironBits ? IRON_BITS_ID : "minecraft:air",
+                ironBits ? IRON_BIT_PROJECTILE_ID : FIRE_PROJECTILE_ID,
+                ironBits ? 1 : 0, false, 0, 1, 40, 20,
+                ironBits ? 13 : 9, ironBits ? 3.5 : 2, 5, 5,
+                ironBits ? 2 : 1, false, 0, true,
+                BoomstickSound.ARTILLERY_FIRE, ironBits, ironBits, NONE, false, true, STAGED,
+                ArtilleryWeaponProfile.NativeMisfirePolicy.NONE);
     }
 
     private static ArtilleryWeaponProfile wheellock(String id, String ammo, int ready, int fired,

@@ -7,8 +7,9 @@ Traced against the original Forge 1.20.1 artifact, CurseForge project `1307540`,
 The JAR reports mod ID `artillery_addon`, version `1.16.2`; its SHA-1 is
 `292b5b74afd930fd14850fb7c156f2252811b124`.
 
-Recruits Use Boomsticks 2.2.0 adds six wheellock firearms and selects the new ballistics
-for existing weapons only when Artillery reports exactly `1.16.2`. Earlier supported
+The current working tree supports 26 handheld firearm item IDs, including Wheellock Hand Mortar
+and Fire Lance. The 2.2.0 release artifact supported 24. The six wheellocks and new ballistics
+are selected only when Artillery reports exactly `1.16.2`. Earlier supported
 releases retain their previous profiles. The release dependency range deliberately does
 not admit unverified later 1.16.x releases.
 
@@ -37,6 +38,23 @@ or the native fork rest. Base damage is the projectile coefficient before Minecr
 velocity calculation and this mod's configured damage adjustments.
 
 ## Loading and native state
+
+The Wheellock Hand Mortar accepts a powder flask, one `clay_hand_grenade` or
+`iron_hand_grenade`, and an item in `#artillery:spanner`. It writes native stages 0, 1, 2,
+then stage 3 after firing. The loaded double `ammo` marker is 1 for clay or 2 for iron.
+The recruit fires the native `claynade_pro` or `ironnade_pro` projectile. The native
+45-tick fuse is retained. Its blast uses the recruit-owned projectile as the source and
+filters allied recruits and their owner before applying damage; the native ownerless
+explosion is intercepted for recruit shots only. Clay has radius 3, iron radius 4.
+The firing hand must be empty or hold a fork rest.
+
+Fire Lance accepts a powder flask and a torch. One charge wears the flask by three.
+An optional `iron_bits` item writes native double `ammo=1`. The recruit borrows a real
+torch into the off hand to fire. The native fire burst launches nine `fire_proecttile`
+entities in a 2/2/5 sequence over four ticks; loading iron bits adds four `iron_bit_projectile`
+entities on the first tick. These projectiles retain recruit ownership and friendly-fire
+rules. The recruit must be unmounted, matching the native firing gate. The upstream
+player-only water and catastrophic misfire branches are not reproduced for recruits.
 
 Recruits keep the weapon in the main hand and temporarily borrow components into the
 off hand, mirroring the player's native hand layout. Components move through inventory
@@ -100,12 +118,10 @@ The per-weapon updated misfire bounds are recorded in `Artillery1162Profiles`.
 
 ## Explicit exclusions
 
-Wheellock Hand Mortar is not enabled: the native clay/iron grenade impact procedures
-create ownerless explosions, which cannot uphold this adapter's recruit friendly-fire
-contract. Wallgun mounting, additional ammunition branches, full Double Barrel Gonne
+Wallgun mounting, additional ammunition branches, full Double Barrel Gonne
 operation, autonomous use of the new repair kits and worm ramrod, and villager trading
-are also outside this update. The six new profiles bring the firearm allowlist to 24;
-this is not full Artillery arsenal parity.
+are outside this update. The allowlist now contains 26 handheld firearm IDs; this is
+not full Artillery arsenal or ammunition-branch parity.
 
 Runtime results and release checks are recorded in
 [compatibility verification](artillery-addon-compatibility-verification.md).

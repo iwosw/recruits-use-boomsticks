@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ArtilleryWeaponProfileTest {
     @Test
     void exposesOnlyTheConfirmedGameplayProfilesAndReconnaissanceEntries() {
-        assertEquals(24, SupportedArtillery.profiles().size());
+        assertEquals(26, SupportedArtillery.profiles().size());
         assertTrue(SupportedArtillery.profileFor(SupportedArtillery.HANDGONNE_ID).isPresent());
         assertTrue(SupportedArtillery.profileFor(SupportedArtillery.ARQUEBUS_ID).isPresent());
         assertTrue(SupportedArtillery.profileFor(SupportedArtillery.MATCHLOCK_MUSKET_ID).isPresent());
@@ -167,7 +167,8 @@ class ArtilleryWeaponProfileTest {
                         SupportedArtillery.DOUBLE_BARREL_GONNE_ID,
                         SupportedArtillery.WHEELLOCK_PISTOL_ID, SupportedArtillery.WHEELLOCK_MUSKET_ID,
                         SupportedArtillery.WHEELLOCK_HUNTING_RIFLE_ID, SupportedArtillery.WHEELLOCK_BREECHLOADING_RIFLE_ID,
-                        SupportedArtillery.DUAL_WHEELLOCK_PISTOL_ID, SupportedArtillery.DUAL_WHEELLOCK_CARBINE_ID
+                        SupportedArtillery.DUAL_WHEELLOCK_PISTOL_ID, SupportedArtillery.DUAL_WHEELLOCK_CARBINE_ID,
+                        SupportedArtillery.WHEELLOCK_HAND_MORTAR_ID, SupportedArtillery.FIRE_LANCE_ID
                 ),
                 SupportedArtillery.gameplayWeaponIds());
         assertTrue(SupportedArtillery.isGameplayWeapon(SupportedArtillery.ARQUEBUS_ID));
@@ -233,7 +234,8 @@ class ArtilleryWeaponProfileTest {
                         SupportedArtillery.DOUBLE_BARREL_GONNE_ID,
                         SupportedArtillery.WHEELLOCK_PISTOL_ID, SupportedArtillery.WHEELLOCK_MUSKET_ID,
                         SupportedArtillery.WHEELLOCK_HUNTING_RIFLE_ID, SupportedArtillery.WHEELLOCK_BREECHLOADING_RIFLE_ID,
-                        SupportedArtillery.DUAL_WHEELLOCK_PISTOL_ID, SupportedArtillery.DUAL_WHEELLOCK_CARBINE_ID
+                        SupportedArtillery.DUAL_WHEELLOCK_PISTOL_ID, SupportedArtillery.DUAL_WHEELLOCK_CARBINE_ID,
+                        SupportedArtillery.WHEELLOCK_HAND_MORTAR_ID, SupportedArtillery.FIRE_LANCE_ID
                 ),
                 SupportedArtillery.gameplayWeaponIds());
         assertTrue(SupportedArtillery.isGameplayWeapon(SupportedArtillery.MATCHLOCK_PISTOL_ID));
@@ -274,7 +276,8 @@ class ArtilleryWeaponProfileTest {
                         SupportedArtillery.DOUBLE_BARREL_GONNE_ID,
                         SupportedArtillery.WHEELLOCK_PISTOL_ID, SupportedArtillery.WHEELLOCK_MUSKET_ID,
                         SupportedArtillery.WHEELLOCK_HUNTING_RIFLE_ID, SupportedArtillery.WHEELLOCK_BREECHLOADING_RIFLE_ID,
-                        SupportedArtillery.DUAL_WHEELLOCK_PISTOL_ID, SupportedArtillery.DUAL_WHEELLOCK_CARBINE_ID
+                        SupportedArtillery.DUAL_WHEELLOCK_PISTOL_ID, SupportedArtillery.DUAL_WHEELLOCK_CARBINE_ID,
+                        SupportedArtillery.WHEELLOCK_HAND_MORTAR_ID, SupportedArtillery.FIRE_LANCE_ID
                 ),
                 SupportedArtillery.gameplayWeaponIds());
         assertTrue(SupportedArtillery.isGameplayWeapon(SupportedArtillery.TORADAR_RIFLE_ID));

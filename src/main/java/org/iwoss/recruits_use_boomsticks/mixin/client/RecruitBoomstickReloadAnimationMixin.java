@@ -56,7 +56,8 @@ public abstract class RecruitBoomstickReloadAnimationMixin {
         try {
             ItemStack weapon = recruit.getMainHandItem();
             BoomstickWeaponAdapter adapter = RecruitWeaponAdapters.production().findEnabled(weapon).orElse(null);
-            if (adapter == null || adapter.integration() != RecruitWeaponIntegration.MEDIEVAL_BOOMSTICKS) {
+            if (adapter == null || (adapter.integration() != RecruitWeaponIntegration.MEDIEVAL_BOOMSTICKS
+                    && adapter.integration() != RecruitWeaponIntegration.THIRTY_YEARS_WAR)) {
                 return;
             }
             if (!adapter.isReloading(weapon)) {

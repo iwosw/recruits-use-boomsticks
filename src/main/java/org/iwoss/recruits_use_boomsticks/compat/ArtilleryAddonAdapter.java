@@ -39,6 +39,11 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
 
     private static final String IRONBALL_PROJECTILE_CLASS =
             "net.mcreator.artilleryaddon.entity.IronballProjectileEntity";
+    private static final String ARTILLERY_ENTITY_PACKAGE = "net.mcreator.artilleryaddon.entity.";
+    private static final String[] ADDITIONAL_PROJECTILE_CLASSES = {
+            "ClaynadeProEntity", "IronnadeProEntity", "FireProecttileEntity", "IronBitProjectileEntity"};
+    private static final String MORTAR_BRANCH_KEY = "recruits_use_boomsticks:mortar_ammo_branch";
+    private static final String FIRE_LANCE_BRANCH_KEY = "recruits_use_boomsticks:fire_lance_ammo_branch";
     private static final String ARTILLERY_FIRE_SOUND = SupportedArtillery.MOD_ID + ":arquebus_firing";
     private static final String ARTILLERY_HAND_CANNON_FIRE_SOUND =
             SupportedArtillery.MOD_ID + ":hand_cannon_fireing";
@@ -89,7 +94,10 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
                 || SupportedArtillery.SMALL_IRON_BALL_ID.equals(ammoId)
                 || SupportedArtillery.LARGE_IRON_BALL_ID.equals(ammoId)
                 || SupportedArtillery.VANILLA_ARROW_ID.equals(ammoId)
-                || SupportedArtillery.LOADED_CARTRIDGE_ID.equals(ammoId);
+                || SupportedArtillery.LOADED_CARTRIDGE_ID.equals(ammoId)
+                || SupportedArtillery.CLAY_HAND_GRENADE_ID.equals(ammoId)
+                || SupportedArtillery.IRON_HAND_GRENADE_ID.equals(ammoId)
+                || SupportedArtillery.IRON_BITS_ID.equals(ammoId);
     }
 
     @Override
@@ -97,7 +105,15 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         if (!isAvailable() || projectileType == null) {
             return false;
         }
-        return hasNamedSuperclass(projectileType, IRONBALL_PROJECTILE_CLASS);
+        if (hasNamedSuperclass(projectileType, IRONBALL_PROJECTILE_CLASS)) {
+            return true;
+        }
+        for (String name : ADDITIONAL_PROJECTILE_CLASSES) {
+            if (hasNamedSuperclass(projectileType, ARTILLERY_ENTITY_PACKAGE + name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -109,7 +125,18 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
     }
 
     public boolean supportsProjectileClassName(String className) {
-        return isAvailable() && IRONBALL_PROJECTILE_CLASS.equals(className);
+        if (!isAvailable()) {
+            return false;
+        }
+        if (IRONBALL_PROJECTILE_CLASS.equals(className)) {
+            return true;
+        }
+        for (String name : ADDITIONAL_PROJECTILE_CLASSES) {
+            if ((ARTILLERY_ENTITY_PACKAGE + name).equals(className)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -122,6 +149,11 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         if (!isAvailable() || !SupportedArtillery.isGameplayWeapon(weaponId)) {
             return Optional.empty();
         }
+        if ((SupportedArtillery.WHEELLOCK_HAND_MORTAR_ID.equals(weaponId)
+                || SupportedArtillery.FIRE_LANCE_ID.equals(weaponId))
+                && !Artillery1162Profiles.isInstalled()) {
+            return Optional.empty();
+        }
         if (SupportedArtillery.NOBLE_HANDGONNE_ID.equals(weaponId)
                 && usesIronBallBranch(weapon, weaponId)) {
             return Optional.of(Artillery1162Profiles.resolve(SupportedArtillery.nobleHandgonneIronBallProfile()));
@@ -129,6 +161,12 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         if (SupportedArtillery.MARKMENGONNE_ID.equals(weaponId)
                 && usesIronBallBranch(weapon, weaponId)) {
             return Optional.of(Artillery1162Profiles.resolve(SupportedArtillery.markmengonneIronBallProfile()));
+        }
+        if (SupportedArtillery.WHEELLOCK_HAND_MORTAR_ID.equals(weaponId)) {
+            return Optional.of(Artillery1162Profiles.handMortar(usesIronMortarGrenade(weapon)));
+        }
+        if (SupportedArtillery.FIRE_LANCE_ID.equals(weaponId)) {
+            return Optional.of(Artillery1162Profiles.fireLance(usesIronBits(weapon)));
         }
         return SupportedArtillery.profileFor(weaponId).map(Artillery1162Profiles::resolve);
     }
@@ -326,13 +364,15 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         }
         RecruitInventorySafety.repairInvalidArmour(recruit);
         Optional<ArtilleryWeaponProfile> profile = artilleryProfile(weapon);
-        if (profile.isEmpty() || !ArtilleryReloadProtocol.firesWithMatch(profile.get().registryId())) {
+        if (profile.isEmpty() || (!ArtilleryReloadProtocol.firesWithMatch(profile.get().registryId())
+                && !SupportedArtillery.FIRE_LANCE_ID.equals(profile.get().registryId()))) {
             return;
         }
         try {
             returnBorrowedComponent(recruit);
-            ArtilleryReloadStep.ComponentRequirement match =
-                    ArtilleryReloadStep.ComponentRequirement.item(ArtilleryReloadProtocol.MATCH_ID);
+            ArtilleryReloadStep.ComponentRequirement match = ArtilleryReloadStep.ComponentRequirement.item(
+                    SupportedArtillery.FIRE_LANCE_ID.equals(profile.get().registryId())
+                            ? "minecraft:torch" : ArtilleryReloadProtocol.MATCH_ID);
             if (ArtilleryComponentAccess.matches(recruit.getOffhandItem(), match)) {
                 return;
             }
@@ -623,6 +663,10 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             ItemStack weapon
     ) {
         Optional<ArtilleryWeaponProfile> current = artilleryProfile(weapon);
+        if (current.isPresent() && (SupportedArtillery.WHEELLOCK_HAND_MORTAR_ID.equals(current.get().registryId())
+                || SupportedArtillery.FIRE_LANCE_ID.equals(current.get().registryId()))) {
+            return select1162ReloadBranch(recruit, weapon, current.get());
+        }
         if (current.isEmpty()
                 || !hasSelectableIronBallBranch(current.get().registryId())
                 || ArtilleryNativeState.isLoaded(weapon, current.get())
@@ -658,6 +702,50 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         return Optional.of(selected);
     }
 
+    private Optional<ArtilleryWeaponProfile> select1162ReloadBranch(
+            CrossBowmanEntity recruit, ItemStack weapon, ArtilleryWeaponProfile current) {
+        if (ArtilleryNativeState.isLoaded(weapon, current)
+                || ArtilleryNativeState.isReloading(weapon)
+                || ArtilleryNativeState.completedReloadSteps(
+                        weapon, ArtilleryReloadProtocol.stepsFor(current)) > 0) {
+            return Optional.of(current);
+        }
+        boolean mortar = SupportedArtillery.WHEELLOCK_HAND_MORTAR_ID.equals(current.registryId());
+        ArtilleryWeaponProfile preferred = mortar
+                ? Artillery1162Profiles.handMortar(true) : Artillery1162Profiles.fireLance(true);
+        ArtilleryWeaponProfile fallback = mortar
+                ? Artillery1162Profiles.handMortar(false) : Artillery1162Profiles.fireLance(false);
+        ArtilleryWeaponProfile selected = hasReloadAmmoAndComponents(recruit, weapon, preferred)
+                ? preferred : fallback;
+        if (recruit.getMainHandItem() == weapon) {
+            weapon.getOrCreateTag().putString(mortar ? MORTAR_BRANCH_KEY : FIRE_LANCE_BRANCH_KEY,
+                    selected == preferred ? "iron" : "basic");
+        }
+        return Optional.of(selected);
+    }
+
+    private static boolean usesIronMortarGrenade(ItemStack weapon) {
+        CompoundTag tag = weapon.getTag();
+        if (tag == null) {
+            return false;
+        }
+        if (tag.contains(MORTAR_BRANCH_KEY)) {
+            return "iron".equals(tag.getString(MORTAR_BRANCH_KEY));
+        }
+        return tag.getDouble(ArtilleryNativeState.AMMO_KEY) == 2;
+    }
+
+    private static boolean usesIronBits(ItemStack weapon) {
+        CompoundTag tag = weapon.getTag();
+        if (tag == null) {
+            return false;
+        }
+        if (tag.contains(FIRE_LANCE_BRANCH_KEY)) {
+            return "iron".equals(tag.getString(FIRE_LANCE_BRANCH_KEY));
+        }
+        return tag.getDouble(ArtilleryNativeState.AMMO_KEY) == 1;
+    }
+
     private static boolean hasReloadAmmoAndComponents(
             CrossBowmanEntity recruit,
             ItemStack weapon,
@@ -674,7 +762,10 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             ArtilleryWeaponProfile profile
     ) {
         List<ArtilleryReloadStep> steps = remainingReloadSteps(weapon, profile);
-        return canResumeDualReload(weapon, profile, ArtilleryReloadProtocol.stepsFor(profile))
+        return (!SupportedArtillery.FIRE_LANCE_ID.equals(profile.registryId())
+                || ArtilleryComponentAccess.count(recruit.getInventory(),
+                        ArtilleryReloadStep.ComponentRequirement.item("minecraft:torch")) > 0)
+                && canResumeDualReload(weapon, profile, ArtilleryReloadProtocol.stepsFor(profile))
                 && (steps.isEmpty() || ArtilleryComponentAccess.satisfiesAll(
                 recruit.getInventory(),
                 steps,
@@ -822,20 +913,37 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             float inaccuracy = useAlternateInaccuracy
                     ? profile.alternateInaccuracy()
                     : profile.inaccuracy();
-            for (int index = 0; index < profile.projectileCount(); index++) {
-                currentProjectile = createProjectile(serverLevel, profile);
+            boolean fireLance = SupportedArtillery.FIRE_LANCE_ID.equals(profile.registryId());
+            boolean ironBits = fireLance && SupportedArtillery.IRON_BITS_ID.equals(profile.ammoId());
+            int immediateCount = fireLance ? (ironBits ? 6 : 2) : profile.projectileCount();
+            for (int index = 0; index < immediateCount; index++) {
+                boolean lanceFire = fireLance && index < 2;
+                String projectileId = lanceFire ? SupportedArtillery.FIRE_PROJECTILE_ID
+                        : profile.projectileEntityId();
+                currentProjectile = createProjectile(serverLevel, projectileId);
                 if (currentProjectile == null) {
                     discardProjectiles(projectiles);
                     restoreStack(weapon, originalWeapon);
                     return new ShotResult(ShotOutcome.SPAWN_FAILED, 0);
                 }
                 configureProjectile(currentProjectile, profile, recruit, origin);
+                if (lanceFire) {
+                    currentProjectile.setBaseDamage(1);
+                    currentProjectile.setCritArrow(true);
+                }
+                float shotSpread = fireLance ? (lanceFire ? 4 : switch (index) {
+                    case 2 -> 6;
+                    case 3 -> 5;
+                    default -> 4;
+                }) : inaccuracy;
+                float shotVelocity = fireLance ? (lanceFire ? 2 : index < 4 ? 3 : 4)
+                        : (float) profile.projectileVelocity();
                 currentProjectile.shoot(
                         direction.x,
                         direction.y,
                         direction.z,
-                        (float) profile.projectileVelocity(),
-                        inaccuracy);
+                        shotVelocity,
+                        shotSpread);
                 if (!serverLevel.addFreshEntity(currentProjectile)) {
                     currentProjectile.remove(Entity.RemovalReason.DISCARDED);
                     currentProjectile = null;
@@ -864,6 +972,9 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             ArtilleryNativeState.setFiring(weapon, true);
             ejectCartridgeSafely(recruit, weapon, profile);
             playShotEffectsSafely(serverLevel, recruit, profile, origin);
+            if (fireLance) {
+                FireLanceVolleyEvents.schedule(serverLevel, recruit, origin, direction);
+            }
             return new ShotResult(ShotOutcome.FIRED, projectiles.size());
         } catch (RuntimeException | LinkageError exception) {
             if (currentProjectile != null) {
@@ -891,11 +1002,15 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
     }
 
     private static AbstractArrow createProjectile(ServerLevel level, ArtilleryWeaponProfile profile) {
-        if (SupportedArtillery.VANILLA_ARROW_ID.equals(profile.projectileEntityId())) {
+        return createProjectile(level, profile.projectileEntityId());
+    }
+
+    private static AbstractArrow createProjectile(ServerLevel level, String projectileEntityId) {
+        if (SupportedArtillery.VANILLA_ARROW_ID.equals(projectileEntityId)) {
             return new Arrow(level, 0.0D, 0.0D, 0.0D);
         }
 
-        ResourceLocation projectileId = ResourceLocation.tryParse(profile.projectileEntityId());
+        ResourceLocation projectileId = ResourceLocation.tryParse(projectileEntityId);
         EntityType<?> entityType = projectileId == null
                 ? null
                 : ForgeRegistries.ENTITY_TYPES.getValue(projectileId);
@@ -904,14 +1019,40 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
         }
 
         Entity created = entityType.create(level);
+        String expectedClass = switch (projectileEntityId) {
+            case SupportedArtillery.CLAYNADE_PROJECTILE_ID -> ARTILLERY_ENTITY_PACKAGE + "ClaynadeProEntity";
+            case SupportedArtillery.IRONNADE_PROJECTILE_ID -> ARTILLERY_ENTITY_PACKAGE + "IronnadeProEntity";
+            case SupportedArtillery.FIRE_PROJECTILE_ID -> ARTILLERY_ENTITY_PACKAGE + "FireProecttileEntity";
+            case SupportedArtillery.IRON_BIT_PROJECTILE_ID -> ARTILLERY_ENTITY_PACKAGE + "IronBitProjectileEntity";
+            default -> IRONBALL_PROJECTILE_CLASS;
+        };
         if (!(created instanceof AbstractArrow arrow)
-                || !hasNamedSuperclass(created.getClass(), IRONBALL_PROJECTILE_CLASS)) {
+                || !hasNamedSuperclass(created.getClass(), expectedClass)) {
             if (created != null) {
                 created.remove(Entity.RemovalReason.DISCARDED);
             }
             return null;
         }
         return arrow;
+    }
+
+    static void spawnDelayedFireLanceShot(ServerLevel level, CrossBowmanEntity recruit,
+            Vec3 origin, Vec3 direction, float spread, double damage) {
+        if (recruit.isRemoved() || !recruit.isAlive()) {
+            return;
+        }
+        AbstractArrow projectile = createProjectile(level, SupportedArtillery.FIRE_PROJECTILE_ID);
+        if (projectile == null) {
+            return;
+        }
+        ArtilleryWeaponProfile profile = Artillery1162Profiles.fireLance(false);
+        configureProjectile(projectile, profile, recruit, origin);
+        projectile.setBaseDamage(damage);
+        projectile.setCritArrow(true);
+        projectile.shoot(direction.x, direction.y, direction.z, 2, spread);
+        if (!level.addFreshEntity(projectile)) {
+            projectile.discard();
+        }
     }
 
     private static void configureProjectile(
@@ -1032,6 +1173,13 @@ public final class ArtilleryAddonAdapter implements BoomstickWeaponAdapter {
             CrossBowmanEntity recruit,
             ArtilleryWeaponProfile profile
     ) {
+        if (SupportedArtillery.FIRE_LANCE_ID.equals(profile.registryId())) {
+            return !recruit.isPassenger() && "minecraft:torch".equals(registryId(recruit.getOffhandItem()));
+        }
+        if (SupportedArtillery.WHEELLOCK_HAND_MORTAR_ID.equals(profile.registryId())) {
+            return !recruit.isPassenger()
+                    && (recruit.getOffhandItem().isEmpty() || isForkRestEquipped(recruit));
+        }
         if (SupportedArtillery.WHEELLOCK_PISTOL_ID.equals(profile.registryId())
                 || (Artillery1162Profiles.isInstalled()
                 && SupportedArtillery.MATCHLOCK_PISTOL_ID.equals(profile.registryId()))) {

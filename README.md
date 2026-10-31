@@ -4,7 +4,7 @@
 
 # Recruits Use Boomsticks
 
-Recruits Use Boomsticks is a Minecraft Forge compatibility mod that lets Villager Recruits crossbowmen fight with Medieval Boomsticks and selected EK: Artillery Addon weapons.
+Recruits Use Boomsticks is a Minecraft Forge compatibility mod that lets Villager Recruits crossbowmen fight with Medieval Boomsticks, selected EK: Artillery Addon weapons, and Epic Knights: Thirty Years War firearms.
 
 Version 2.2 adds Artillery 1.16.2 compatibility, six wheellock firearms, native two-barrel operation, cartridge loading and case extraction, and version-specific weapon ballistics. Existing loading AI, formation fire, animations, and **Weapons out! / Weapons away!** orders also apply to the new firearms.
 
@@ -24,8 +24,9 @@ Install the mod on both the client and the server. Dependencies are not bundled 
 | Architectury API | 9.0.8–9.2.14 |
 | Cloth Config | 11.0.99–12.0.109 |
 | EK: Artillery Addon | Optional; 1.11–1.13.4, 1.15.2, or 1.16.2 |
+| Epic Knights: Thirty Years War | Optional; Forge 1.2; requires Epic Knights 10.11 or newer within this mod's supported range |
 
-Epic Knights: Addon is optional. It is only needed if Artillery's native Steel Francisca conversion recipe should be available.
+Epic Knights: Addon is optional. Artillery's native Steel Francisca conversion and Fire Lance crafting recipes require it; without the addon, those two recipes do not load. The firearms themselves still register.
 
 BetterRecruitFormations is also optional. Version 2.1 is tested with it installed: a recruit turns toward its target while aiming and firing, holds the shot direction through recoil, and then returns to its previous formation direction without forgetting the target.
 
@@ -34,8 +35,8 @@ BetterRecruitFormations is also optional. Version 2.1 is tested with it installe
 1. Install Minecraft 1.20.1 and a supported Forge build.
 2. Install Villager Recruits, Epic Knights, Architectury API, and Cloth Config.
 3. Optionally install Medieval Boomsticks with GeckoLib, EK: Artillery Addon 1.11–1.13.4, 1.15.2, or 1.16.2,
-   and BetterRecruitFormations.
-4. Put `recruits_use_boomsticks-2.2.0.jar` in the client and server `mods` folders.
+   Epic Knights: Thirty Years War 1.2, and BetterRecruitFormations.
+4. Put `recruits_use_boomsticks-2.2.1.jar` in the client and server `mods` folders.
 
 Artillery Addon 1.14–1.15.1 is not supported on dedicated servers. Those upstream releases load a client-only class during server startup. Artillery 1.15.2 fixes that crash and is verified on an unpatched dedicated server.
 
@@ -60,6 +61,17 @@ Artillery Addon 1.14–1.15.1 is not supported on dedicated servers. Those upstr
 - Javelin
 
 Each throw spends one held item and creates that weapon's native projectile at the speed and damage the mod's own configuration gives it, and leaves the thrown weapon collectible. The War Dart and the Javelin carry their durability cost on the item a player picks back up, and break in the recruit's hand instead of throwing a spent weapon.
+
+### Epic Knights: Thirty Years War firearms
+
+| Weapon | Ammunition | Reload tool |
+| --- | --- | --- |
+| Baroque Matchlock Musket | One Paper Cartridge | Flint and Steel |
+| Baroque Wheellock Pistol | One Paper Cartridge | None |
+
+Give the firearm and Paper Cartridges to a crossbowman; also put Flint and Steel in its inventory for the musket. The recruit reloads and fires through the same combat AI and carry orders as the other supported firearms. Cartridges are always physical, even when Recruits allows free vanilla arrows. Each musket reload wears the flint once, and each shot wears its firearm once.
+
+Shots use the addon's native raycast, armor penetration, sounds and effects. Native gun configuration controls damage, range, spread, reload and cooldown; the common recruit range and mounted reload policy still apply. Allies and the recruit's owner are protected. The mod remains optional and is not bundled. See the [1.2 compatibility contract](docs/compat/thirty-years-war-1.2.md).
 
 ### EK: Artillery Addon firearms
 
@@ -89,12 +101,14 @@ Each throw spends one held item and creates that weapon's native projectile at t
 | Wheellock Breechloading Rifle (1.16.2) | Loaded Cartridge; standing, mounted, Fork Rest | 1 |
 | Dual Wheellock Pistol (1.16.2) | Two Small Iron Balls | 1 per trigger pull |
 | Dual Wheellock Carbine (1.16.2) | Two Small Iron Balls; standing, Fork Rest | 1 per trigger pull |
+| Wheellock Hand Mortar (1.16.2) | Clay or Iron Hand Grenade; Powder Flask and Spanner | 1 grenade |
+| Fire Lance (1.16.2) | Powder Flask and Torch; optional Iron Bits | 9 fire projectiles, plus 4 iron bits |
 
 Noble Handgonne and Markmengonne prefer their native Iron Ball branches when the recruit can complete that loading chain. If no ball is available, they can use their native Arrow branches instead. Shatter Shot and Iron Bit are not enabled. Bronze Handgonne is routed by its explicit registry ID because Artillery does not include it in `#artillery:guns`.
 
 Wheellocks require a Wheellock Spanner or Iron Wheellock Spanner to wind their locks. Muzzleloaders also need a powder flask and ramrod; the breechloader consumes a Loaded Cartridge and automatically extracts its recoverable empty case after firing. Recruits finish loading both dual-wheellock barrels, then fire the second barrel followed by the first without reloading between them. Artillery 1.16.2 uses its own confirmed damage, speed, spread and misfire values; earlier supported versions keep their previous profiles. See the [1.16.2 contract](docs/compat/artillery-addon-1.16.2-api.md) for the NPC timing and loading boundaries.
 
-The Wheellock Hand Mortar and Wheellock Wallgun remain unsupported. The mortar uses the excluded grenade explosion chain; wallgun mounting and the other previously excluded ammunition branches are not part of this release.
+The Hand Mortar uses a recruit-owned blast that spares allies. Wheellock Wallgun mounting and previously excluded ammunition branches remain outside the verified coverage.
 
 ### EK: Artillery Addon throwing weapons
 
@@ -148,11 +162,13 @@ Forge creates `config/recruits_use_boomsticks-common.toml` after the first launc
 | `enabled` | `true` | Master compatibility switch |
 | `medievalBoomsticksEnabled` | `true` | Medieval Boomsticks integration |
 | `artilleryAddonEnabled` | `true` | Optional Artillery integration |
+| `thirtyYearsWarEnabled` | `true` | Optional Thirty Years War integration |
 | `allowStrategicFire` | `true` | Allow Recruits strategic-fire positions |
 | `smokeParticles` | `true` | Extra synchronized smoke after shots |
 | `damage.projectileDamageMultiplier` | `1.0` | Global projectile damage multiplier |
 | `damage.medievalBoomsticksDamageMultiplier` | `1.0` | Additional Boomsticks multiplier |
 | `damage.artilleryAddonDamageMultiplier` | `1.0` | Additional Artillery multiplier |
+| `damage.thirtyYearsWarDamageMultiplier` | `1.0` | Additional Thirty Years War bullet multiplier |
 | `damage.minimumProjectileDamage` | `10.0` | Minimum raw damage per projectile; use `0.0` for native damage |
 | `damage.projectilesIgnoreHurtCooldown` | `true` | Let every projectile in a volley deal damage |
 | `debugLogging` | `false` | Detailed compatibility diagnostics |
@@ -164,12 +180,12 @@ Forge creates `config/recruits_use_boomsticks-common.toml` after the first launc
 - Taccola's Shatter Shot, Iron Bit, and Arrow branches are disabled.
 - Noble's Shatter Shot and Iron Bit branches are disabled.
 - Double Barrel Gonne uses only its first Iron Ball barrel.
-- Grenades are excluded because their native ownerless explosions cannot participate in recruit allied-fire protection.
+- Hand Mortar clay and iron grenades use a recruit-owned blast; other grenade use remains outside the firearm adapter.
 - Artillery 1.14–1.15.1 is excluded from the dedicated-server version range because of its upstream client-class crash.
 
 ## Verification
 
-The release gate uses focused unit tests, real Forge dedicated-server GameTests, an optional-dependency run without Artillery, dependency-range matrix runs, and a release-JAR content check. The current harness contains 168 unit tests and 143 required GameTests. The 2.2.0 verification results distinguish the current runs from historical dependency matrices.
+The release gate uses focused unit tests, real Forge dedicated-server GameTests, optional-dependency runs, dependency-range matrix runs, and a release-JAR content check. The current harness contains 171 unit tests and 158 required GameTests. The [Thirty Years War report](docs/compat/thirty-years-war-1.2.md) records its current runtime profiles separately from historical dependency matrices.
 
 Detailed Artillery evidence and exact runtime boundaries are recorded in [the compatibility verification report](docs/compat/artillery-addon-compatibility-verification.md).
 
@@ -179,6 +195,6 @@ Report compatibility bugs at <https://github.com/iwosw/recruits-use-boomsticks/i
 
 ## Credits and license
 
-Villager Recruits, Medieval Boomsticks, Epic Knights, EK: Artillery Addon, and BetterRecruitFormations are separate projects owned by their respective authors. This project does not redistribute their assets or code.
+Villager Recruits, Medieval Boomsticks, Epic Knights, EK: Artillery Addon, Epic Knights: Thirty Years War, and BetterRecruitFormations are separate projects owned by their respective authors. This project does not redistribute their assets or code.
 
 Recruits Use Boomsticks is available under the [MIT License](LICENSE).

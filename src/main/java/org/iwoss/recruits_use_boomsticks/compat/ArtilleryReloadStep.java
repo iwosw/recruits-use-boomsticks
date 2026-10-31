@@ -29,6 +29,8 @@ public record ArtilleryReloadStep(
         CONSUME_ONE,
         /** The native step calls {@code ItemStack.hurt(1, ...)} and only removes a broken tool. */
         DAMAGE_ONE,
+        /** Fire Lance powder charge wears its flask by three. */
+        DAMAGE_THREE,
         /** Native nextDouble(1,2) == 2 check (kept exactly, not replaced with a 50% roll). */
         WIND_WHEELLOCK,
         /** A required tool is returned without wear, as in dual wheellock ramming. */
@@ -116,6 +118,7 @@ public record ArtilleryReloadStep(
     /** A tool survives the step unless it breaks, so it is never counted as spent ammunition. */
     public boolean isTool() {
         return componentUse == ComponentUse.DAMAGE_ONE
+                || componentUse == ComponentUse.DAMAGE_THREE
                 || componentUse == ComponentUse.KEEP_TOOL
                 || componentUse == ComponentUse.WIND_WHEELLOCK;
     }

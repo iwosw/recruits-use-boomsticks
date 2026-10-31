@@ -85,6 +85,8 @@ public final class ArtilleryReloadProtocol {
             handCannonChain(SupportedArtillery.IRON_BALL_ID, true, true);
     private static final List<ArtilleryReloadStep> MARKMENGONNE_IRON_BALL_CHAIN =
             handCannonChain(SupportedArtillery.IRON_BALL_ID, true, false, STICK_OR_RAMROD);
+    private static final List<ArtilleryReloadStep> IRON_MORTAR_CHAIN = handMortarChain(true);
+    private static final List<ArtilleryReloadStep> IRON_FIRE_LANCE_CHAIN = fireLanceChain(true);
 
     private ArtilleryReloadProtocol() {
     }
@@ -104,6 +106,14 @@ public final class ArtilleryReloadProtocol {
         if (SupportedArtillery.MARKMENGONNE_ID.equals(profile.registryId())
                 && SupportedArtillery.IRON_BALL_ID.equals(profile.ammoId())) {
             return MARKMENGONNE_IRON_BALL_CHAIN;
+        }
+        if (SupportedArtillery.WHEELLOCK_HAND_MORTAR_ID.equals(profile.registryId())
+                && SupportedArtillery.IRON_HAND_GRENADE_ID.equals(profile.ammoId())) {
+            return IRON_MORTAR_CHAIN;
+        }
+        if (SupportedArtillery.FIRE_LANCE_ID.equals(profile.registryId())
+                && SupportedArtillery.IRON_BITS_ID.equals(profile.ammoId())) {
+            return IRON_FIRE_LANCE_CHAIN;
         }
         return stepsFor(profile.registryId());
     }
@@ -272,8 +282,39 @@ public final class ArtilleryReloadProtocol {
                         "§7Wheel needs to be primed"), windingStep(ArtilleryNativeState.STAGE_KEY, 2)));
         chains.put(SupportedArtillery.DUAL_WHEELLOCK_PISTOL_ID, dualWheellockChain(STICK_OR_RAMROD));
         chains.put(SupportedArtillery.DUAL_WHEELLOCK_CARBINE_ID, dualWheellockChain(RAMROD));
+        chains.put(SupportedArtillery.WHEELLOCK_HAND_MORTAR_ID, handMortarChain(false));
+        chains.put(SupportedArtillery.FIRE_LANCE_ID, fireLanceChain(false));
 
         return Collections.unmodifiableMap(chains);
+    }
+
+    private static List<ArtilleryReloadStep> handMortarChain(boolean iron) {
+        return List.of(
+                flaskStep(0, BoomstickSound.ARTILLERY_LOADING_POWDER),
+                ballStep(iron ? SupportedArtillery.IRON_HAND_GRENADE_ID
+                                : SupportedArtillery.CLAY_HAND_GRENADE_ID,
+                        1, BoomstickSound.ARTILLERY_HAND_CANNON_LOAD_BALL,
+                        "§7Wheel needs to be primed",
+                        NativeWrite.number(ArtilleryNativeState.AMMO_KEY, iron ? 2 : 1)),
+                new ArtilleryReloadStep(List.of(ComponentRequirement.tag(SPANNER_TAG)),
+                        List.of(NativeWrite.number(ArtilleryNativeState.STAGE_KEY, 2)),
+                        ComponentUse.DAMAGE_ONE, LORE_READY, BoomstickSound.ARTILLERY_WIND_WHEELLOCK));
+    }
+
+    private static List<ArtilleryReloadStep> fireLanceChain(boolean ironBits) {
+        ArtilleryReloadStep powder = new ArtilleryReloadStep(FLASK,
+                List.of(NativeWrite.number(ArtilleryNativeState.STAGE_KEY, 0),
+                        NativeWrite.number(ArtilleryNativeState.POWDER_KEY, 1)),
+                ComponentUse.DAMAGE_THREE, "§7Loaded with powder",
+                BoomstickSound.ARTILLERY_LOADING_POWDER);
+        if (!ironBits) {
+            return List.of(powder);
+        }
+        return List.of(powder, new ArtilleryReloadStep(
+                List.of(ComponentRequirement.item(SupportedArtillery.IRON_BITS_ID)),
+                List.of(NativeWrite.number(ArtilleryNativeState.AMMO_KEY, 1)),
+                ComponentUse.CONSUME_ONE, "§7Loaded with iron bits",
+                BoomstickSound.ARTILLERY_LOADING_POWDER));
     }
 
     private static List<ArtilleryReloadStep> wheellockChain(String ammoId) {

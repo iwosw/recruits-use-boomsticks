@@ -78,8 +78,29 @@ class Artillery1162ProfilesTest {
     }
 
     @Test
-    void newGrenadeAndWallgunBranchesRemainOutsideTheAllowlist() {
-        assertFalse(SupportedArtillery.isGameplayWeapon(MOD_ID + ":wheellock_hand_mortar"));
+    void handMortarAndFireLanceAreEnabledWhileMountedWallgunRemainsOutsideTheAllowlist() {
+        assertTrue(SupportedArtillery.isGameplayWeapon(WHEELLOCK_HAND_MORTAR_ID));
+        assertTrue(SupportedArtillery.isGameplayWeapon(FIRE_LANCE_ID));
         assertFalse(SupportedArtillery.isGameplayWeapon(MOD_ID + ":wheellock_wallgun"));
+    }
+
+    @Test
+    void mortarAndFireLanceBranchesReachTheirNativeReadyState() {
+        for (var profile : List.of(Artillery1162Profiles.handMortar(false),
+                Artillery1162Profiles.handMortar(true), Artillery1162Profiles.fireLance(false),
+                Artillery1162Profiles.fireLance(true))) {
+            var tag = new CompoundTag();
+            var steps = ArtilleryReloadProtocol.stepsFor(profile);
+            steps.forEach(step -> ArtilleryNativeState.applyReloadStepTag(tag, step));
+            assertTrue(ArtilleryNativeState.isLoadedTag(tag, profile), profile.ammoId());
+            assertEquals(profile.loadedStage(), tag.getDouble("stage"));
+            assertEquals(profile.ammoId().equals("minecraft:air") ? 0 : 1,
+                    ArtilleryReloadProtocol.ammoConsumed(profile));
+            ArtilleryNativeState.markFiredTag(tag, profile);
+            assertFalse(ArtilleryNativeState.isLoadedTag(tag, profile));
+            if (FIRE_LANCE_ID.equals(profile.registryId())) {
+                assertEquals(0, tag.getDouble("ammo"));
+            }
+        }
     }
 }

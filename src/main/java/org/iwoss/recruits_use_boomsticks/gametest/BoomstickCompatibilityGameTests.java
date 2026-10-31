@@ -29,6 +29,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.entity.ProjectileImpactEvent;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 import net.minecraftforge.fml.ModList;
@@ -61,6 +63,7 @@ import org.iwoss.recruits_use_boomsticks.compat.SupportedBoomsticks;
 import org.iwoss.recruits_use_boomsticks.compat.SupportedMedievalThrowables;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import org.iwoss.recruits_use_boomsticks.event.BoomstickProjectileEvents;
+import org.iwoss.recruits_use_boomsticks.event.RecruitMortarExplosionEvents;
 import org.iwoss.recruits_use_boomsticks.inventory.RecruitInventorySafety;
 
 import java.lang.reflect.Constructor;
@@ -69,6 +72,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 @GameTestHolder(RecruitsUseBoomsticks.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -2995,6 +3000,7 @@ public final class BoomstickCompatibilityGameTests {
                 "Tiller Gun reload must set the native loaded flag its ramming step writes");
 
         recruit.setShiftKeyDown(true);
+        recruit.getRandom().setSeed(0);
         BoomstickWeaponAdapter.ShotResult result = ArtilleryAddonAdapter.INSTANCE.fire(
                 recruit,
                 weapon,
@@ -5538,6 +5544,125 @@ public final class BoomstickCompatibilityGameTests {
     @GameTest(template = "empty", timeoutTicks = 120)
     public static void artilleryDualWheellockCarbine(GameTestHelper helper) {
         assertWheellockCycle(helper, SupportedArtillery.DUAL_WHEELLOCK_CARBINE_ID, 3.6D, 2);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void artilleryClayHandMortar(GameTestHelper helper) {
+        assertHandMortarCycle(helper, false);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 100)
+    public static void artilleryIronHandMortar(GameTestHelper helper) {
+        assertHandMortarCycle(helper, true);
+    }
+
+    private static void assertHandMortarCycle(GameTestHelper helper, boolean iron) {
+        if (!Artillery1162Profiles.isInstalled()) {
+            helper.succeed();
+            return;
+        }
+        var adapter = ArtilleryAddonAdapter.INSTANCE;
+        var profile = Artillery1162Profiles.handMortar(iron);
+        CrossBowmanEntity shooter = spawnCrossbowman(helper, 1);
+        CrossBowmanEntity ally = spawnCrossbowman(helper, 2);
+        Player owner = helper.makeMockPlayer();
+        shooter.setOwnerUUID(Optional.of(owner.getUUID()));
+        ally.setOwnerUUID(Optional.of(owner.getUUID()));
+        shooter.setIsOwned(true);
+        ally.setIsOwned(true);
+        ItemStack weapon = stack(SupportedArtillery.WHEELLOCK_HAND_MORTAR_ID);
+        shooter.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        shooter.getInventory().addItem(stack(POWDER_FLASK_ID));
+        shooter.getInventory().addItem(stack(profile.ammoId()));
+        shooter.getInventory().addItem(stack(SupportedArtillery.MOD_ID + ":iron_wheellock_spanner"));
+        helper.assertTrue(adapter.hasReloadComponents(shooter, weapon), "mortar must select its grenade branch");
+        helper.assertTrue(RecruitBoomstickAttackGoal.passiveReload(shooter).canUse(),
+                "mortar must enter recruit reload AI");
+        for (int step = 0; step < adapter.reloadStepCount(weapon); step++) {
+            helper.assertTrue(adapter.applyReloadStep(shooter, weapon, step), "mortar loading step " + step);
+        }
+        adapter.endSteppedReload(shooter, weapon);
+        helper.assertTrue(adapter.isLoaded(weapon), "mortar must reach native stage 2");
+        helper.assertTrue(shooter.getInventory().countItem(stack(profile.ammoId()).getItem()) == 0,
+                "mortar must consume one physical grenade");
+        shooter.getRandom().setSeed(0);
+        var result = adapter.fire(shooter, weapon, shooter.position().add(10, 0, 0));
+        helper.assertTrue(result.outcome() == BoomstickWeaponAdapter.ShotOutcome.FIRED,
+                "loaded mortar must fire");
+        var grenade = helper.getLevel().getEntitiesOfClass(AbstractArrow.class,
+                        shooter.getBoundingBox().inflate(24)).stream()
+                .filter(candidate -> candidate.getOwner() == shooter
+                        && BuiltInRegistries.ENTITY_TYPE.getKey(candidate.getType()).toString()
+                        .equals(profile.projectileEntityId())).findFirst().orElseThrow();
+        LivingEntity enemy = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, 4, 2, 1);
+        float allyHealth = ally.getHealth();
+        float enemyHealth = enemy.getHealth();
+        RecruitMortarExplosionEvents.onImpact(new ProjectileImpactEvent(grenade, new EntityHitResult(enemy)));
+        helper.runAtTickTime(50, () -> {
+            helper.assertTrue(ally.getHealth() == allyHealth, "mortar blast must spare an allied recruit");
+            helper.assertTrue(enemy.getHealth() < enemyHealth, "mortar blast must hurt an enemy");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 50)
+    public static void artilleryFireLancePowder(GameTestHelper helper) {
+        assertFireLanceCycle(helper, false);
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 50)
+    public static void artilleryFireLanceIronBits(GameTestHelper helper) {
+        assertFireLanceCycle(helper, true);
+    }
+
+    private static void assertFireLanceCycle(GameTestHelper helper, boolean ironBits) {
+        if (!Artillery1162Profiles.isInstalled()) {
+            helper.succeed();
+            return;
+        }
+        var adapter = ArtilleryAddonAdapter.INSTANCE;
+        var profile = Artillery1162Profiles.fireLance(ironBits);
+        CrossBowmanEntity recruit = spawnCrossbowman(helper);
+        ItemStack weapon = stack(SupportedArtillery.FIRE_LANCE_ID);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        recruit.getInventory().addItem(stack(POWDER_FLASK_ID));
+        recruit.getInventory().addItem(stack("minecraft:torch"));
+        if (ironBits) recruit.getInventory().addItem(stack(SupportedArtillery.IRON_BITS_ID));
+        helper.assertTrue(adapter.hasReloadComponents(recruit, weapon), "Fire Lance needs powder and a torch");
+        helper.assertTrue(RecruitBoomstickAttackGoal.passiveReload(recruit).canUse(),
+                "Fire Lance must enter recruit reload AI");
+        for (int step = 0; step < adapter.reloadStepCount(weapon); step++) {
+            helper.assertTrue(adapter.applyReloadStep(recruit, weapon, step), "Fire Lance loading step " + step);
+        }
+        adapter.endSteppedReload(recruit, weapon);
+        helper.assertTrue(adapter.isLoaded(weapon), "Fire Lance must reach its native ready state");
+        helper.assertTrue(findInInventory(recruit, stack(POWDER_FLASK_ID)).getDamageValue() == 3,
+                "Fire Lance powder charge must wear the flask by three");
+        adapter.showFiringTool(recruit, weapon);
+        helper.assertTrue(recruit.getOffhandItem().is(Items.TORCH), "Fire Lance must show its torch");
+        AtomicInteger flameCount = new AtomicInteger();
+        AtomicInteger bitCount = new AtomicInteger();
+        Consumer<EntityJoinLevelEvent> capture = joined -> {
+            if (!(joined.getEntity() instanceof AbstractArrow arrow) || arrow.getOwner() != recruit) return;
+            String id = BuiltInRegistries.ENTITY_TYPE.getKey(arrow.getType()).toString();
+            if (SupportedArtillery.FIRE_PROJECTILE_ID.equals(id)) flameCount.incrementAndGet();
+            if (SupportedArtillery.IRON_BIT_PROJECTILE_ID.equals(id)) bitCount.incrementAndGet();
+        };
+        MinecraftForge.EVENT_BUS.addListener(capture);
+        var shot = adapter.fire(recruit, weapon, recruit.position().add(10, 0, 0));
+        adapter.clearFiringTool(recruit);
+        helper.assertTrue(shot.outcome() == BoomstickWeaponAdapter.ShotOutcome.FIRED,
+                "Fire Lance must fire its chosen branch");
+        helper.assertTrue(shot.projectilesSpawned() == (ironBits ? 6 : 2),
+                "Fire Lance must spawn the first flame pair and optional four iron bits");
+        helper.runAtTickTime(8, () -> {
+            MinecraftForge.EVENT_BUS.unregister(capture);
+            helper.assertTrue(flameCount.get() == 9,
+                    "Fire Lance must launch nine native flame bolts, got " + flameCount.get());
+            helper.assertTrue(bitCount.get() == (ironBits ? 4 : 0),
+                    "Fire Lance must add four optional iron bits, got " + bitCount.get());
+            helper.succeed();
+        });
     }
 
     private static void assertWheellockCycle(GameTestHelper helper, String weaponId, double damage, int rounds) {

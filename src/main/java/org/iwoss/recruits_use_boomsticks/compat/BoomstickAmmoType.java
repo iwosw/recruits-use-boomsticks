@@ -5,5 +5,6 @@ public enum BoomstickAmmoType {
     ROUND_BALL,
     HEAVY_BOLT,
     ARROW,
-    THROWN_WEAPON
+    THROWN_WEAPON,
+    PAPER_CARTRIDGE
 }

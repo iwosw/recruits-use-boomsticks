@@ -37,6 +37,14 @@ public final class SupportedArtillery {
     public static final String WHEELLOCK_BREECHLOADING_RIFLE_ID = MOD_ID + ":wheellock_breechloading_rifle";
     public static final String DUAL_WHEELLOCK_PISTOL_ID = MOD_ID + ":dual_wheellock_pistol";
     public static final String DUAL_WHEELLOCK_CARBINE_ID = MOD_ID + ":dual_wheellock_carbine";
+    public static final String WHEELLOCK_HAND_MORTAR_ID = MOD_ID + ":wheellock_hand_mortar";
+    public static final String FIRE_LANCE_ID = MOD_ID + ":fire_lance";
+    public static final String CLAY_HAND_GRENADE_ID = MOD_ID + ":clay_hand_grenade";
+    public static final String IRON_HAND_GRENADE_ID = MOD_ID + ":iron_hand_grenade";
+    public static final String IRON_BITS_ID = MOD_ID + ":iron_bits";
+    public static final String CLAYNADE_PROJECTILE_ID = MOD_ID + ":claynade_pro";
+    public static final String IRONNADE_PROJECTILE_ID = MOD_ID + ":ironnade_pro";
+    public static final String FIRE_PROJECTILE_ID = MOD_ID + ":fire_proecttile";
     public static final String LOADED_CARTRIDGE_ID = MOD_ID + ":loaded_cartridge";
     public static final String EMPTY_CARTRIDGE_ID = MOD_ID + ":empty_cartridge";
 
@@ -90,7 +98,8 @@ public final class SupportedArtillery {
             HAND_CANNON_ID,
             DOUBLE_BARREL_GONNE_ID,
             WHEELLOCK_PISTOL_ID, WHEELLOCK_MUSKET_ID, WHEELLOCK_HUNTING_RIFLE_ID,
-            WHEELLOCK_BREECHLOADING_RIFLE_ID, DUAL_WHEELLOCK_PISTOL_ID, DUAL_WHEELLOCK_CARBINE_ID
+            WHEELLOCK_BREECHLOADING_RIFLE_ID, DUAL_WHEELLOCK_PISTOL_ID, DUAL_WHEELLOCK_CARBINE_ID,
+            WHEELLOCK_HAND_MORTAR_ID, FIRE_LANCE_ID
     );
 
     private SupportedArtillery() {
@@ -134,7 +143,10 @@ public final class SupportedArtillery {
                 || SMALL_IRON_BALL_ID.equals(id)
                 || LARGE_IRON_BALL_ID.equals(id)
                 || VANILLA_ARROW_ID.equals(id)
-                || LOADED_CARTRIDGE_ID.equals(id);
+                || LOADED_CARTRIDGE_ID.equals(id)
+                || CLAY_HAND_GRENADE_ID.equals(id)
+                || IRON_HAND_GRENADE_ID.equals(id)
+                || IRON_BITS_ID.equals(id);
     }
 
     /** Explicit gameplay allowlist; the remaining profiles are reconnaissance data only. */

@@ -2,6 +2,25 @@
 
 All notable changes to Recruits Use Boomsticks are documented here.
 
+## Unreleased — Thirty Years War compatibility
+
+- Added optional Epic Knights: Thirty Years War Forge 1.2 support for Baroque Matchlock Musket and Baroque Wheellock Pistol, using physical Paper Cartridges and the shared recruit combat, reload, carry-order and pose paths.
+- Preserved native hitscan shooting, configuration, armor penetration, sound and effects; added recruit-only allied/owner damage protection and an independent compatibility switch and damage multiplier.
+- Musket reloads require real Flint and Steel and wear it once. Interrupted NPC reloads spend nothing; completed native `Charged` payloads survive save/load. Instant shots release formation reservations immediately.
+- Added runtime coverage for both firearms, blocked shots, armor penetration, ammo/tool accounting, recovery, friendly fire, kill switches, repeated combat and optional mod presence.
+
+## 2.2.1 — 2026-09-26
+
+### Added
+
+- Enabled the handheld Wheellock Hand Mortar with physical clay or iron grenades, native projectiles and fuse, and recruit-safe explosions that spare allies.
+- Enabled Fire Lance with a physical powder charge, torch, optional iron bits, and the native nine-flame burst plus four iron-bit projectiles.
+- Expanded the 1.16.2 handheld firearm allowlist to 26 IDs and the harness to 169 unit tests and 147 required Forge GameTests.
+
+### Scope
+
+- Wallguns, emplaced weapons, and the previously excluded ammunition branches remain outside the verified coverage.
+
 ## 2.2.0 — 2026-09-08
 
 ### Added

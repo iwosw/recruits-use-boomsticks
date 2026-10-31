@@ -510,7 +510,11 @@ public final class RecruitBoomstickAttackGoal extends Goal {
                     || shotOutcome == BoomstickWeaponAdapter.ShotOutcome.MISFIRED) {
                 beginCooldown(cooldownTicks);
                 if (shotOutcome == BoomstickWeaponAdapter.ShotOutcome.FIRED) {
-                    commitShotReservation(aimPoint, profile);
+                    if (adapter.isInstantShot()) {
+                        releasePendingShotReservation();
+                    } else {
+                        commitShotReservation(aimPoint, profile);
+                    }
                     firingFacingPosition = facingPosition;
                     fireAnimationTicks = FIRE_ANIMATION_TICKS;
                 } else {

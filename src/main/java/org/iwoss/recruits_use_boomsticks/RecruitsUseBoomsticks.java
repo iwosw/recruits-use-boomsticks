@@ -25,8 +25,8 @@ public final class RecruitsUseBoomsticks {
     private void onCommonSetup(final FMLCommonSetupEvent event) {
         BoomstickNetwork.register();
         LOGGER.info("{} {} loaded; Recruits={}, Medieval Boomsticks={}, GeckoLib={}, Epic Knights Addon={}, "
-                        + "Artillery Addon={}; "
-                        + "compatibility switches: global={}, medievalBoomsticks={}, artilleryAddon={}",
+                        + "Artillery Addon={}, Thirty Years War={}; "
+                        + "compatibility switches: global={}, medievalBoomsticks={}, artilleryAddon={}, thirtyYearsWar={}",
                 MOD_ID,
                 ModList.get().getModContainerById(MOD_ID)
                         .map(container -> container.getModInfo().getVersion().toString())
@@ -36,9 +36,11 @@ public final class RecruitsUseBoomsticks {
                 dependencyVersion("geckolib"),
                 dependencyVersion("magistuarmoryaddon"),
                 dependencyVersion("artillery_addon"),
+                dependencyVersion("thirtyyearswar"),
                 CompatConfig.ENABLED.get(),
                 CompatConfig.MEDIEVAL_BOOMSTICKS_ENABLED.get(),
-                CompatConfig.ARTILLERY_ADDON_ENABLED.get());
+                CompatConfig.ARTILLERY_ADDON_ENABLED.get(),
+                CompatConfig.THIRTY_YEARS_WAR_ENABLED.get());
     }
 
     private static String dependencyVersion(final String modId) {

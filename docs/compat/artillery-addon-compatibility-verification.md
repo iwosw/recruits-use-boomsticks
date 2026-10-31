@@ -1,5 +1,33 @@
 # Artillery Addon compatibility verification
 
+## Handheld coverage / release 2.2.1 (2026-09-26)
+
+The 1.16.2 handheld firearm allowlist is now 26 IDs. Wheellock Hand Mortar supports
+clay and iron hand grenades with the native 45-tick fuse; recruit-owned blasts protect
+the shooter and allies. Fire Lance supports the powder-only fire burst and the optional
+iron-bits burst with its native nine-flame cadence. The new reload chains use physical
+components and native staged NBT. Four Forge GameTests exercise both mortar grenades and
+both Fire Lance branches, including explosion damage and allied protection.
+
+Rechecked 2026-09-28 with Java 17 / Gradle 8.8: 169 unit tests passed. All 147 required
+Forge GameTests passed on unpatched Artillery 1.16.2, Artillery 1.15.2, and without
+Artillery. These checks used `test`, `runGameTestServer`,
+`runGameTestServer -Partillery=1.15.2`, and `runGameTestServer -Partillery=none`.
+An ordinary development dedicated server with Artillery 1.16.2 also reached `Done`.
+`clean build` succeeded. The reobfuscated artifact is
+`build/libs/recruits_use_boomsticks-2.2.1.jar` (377,630 bytes), SHA-256
+`cf36e8dc0abce951c22f1eb250ebd673068f3c4259662a1eb4caf57308ee5578`.
+The JAR contains the mortar and Fire Lance event classes and does not bundle Artillery
+classes. A separate Forge 47.4.22 server installation then loaded this exact JAR
+(matching SHA-256) with Recruits 1.15.2, Artillery 1.16.2, Epic Knights, Architectury,
+Cloth Config, Medieval Boomsticks and GeckoLib. It reached `Done` and stopped cleanly
+both with and without Epic Knights: Addon. Without that addon, Artillery's upstream
+Steel Francisca and Fire Lance recipes report missing ingredients and do not load;
+the mod and server still start. With the addon, those two recipe errors disappear.
+The separate-server smoke test ran locally; no external host was checked.
+The wider historical Artillery and dependency matrix was not rerun for 2.2.1.
+Emplaced wallguns and additional ammunition branches remain outside the verified scope.
+
 ## Artillery 1.16.2 / release 2.2.0 (2026-09-08)
 
 The current default is the original, unpatched Artillery 1.16.2 artifact `8812944`, SHA-1

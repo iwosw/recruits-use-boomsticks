@@ -235,7 +235,9 @@ public final class ArtilleryNativeState {
         } else {
             tag.remove(STAGE_KEY);
         }
-        if (profile.usesNativeAmmoCode()) {
+        if (SupportedArtillery.FIRE_LANCE_ID.equals(profile.registryId())) {
+            tag.putDouble(AMMO_KEY, 0.0D);
+        } else if (profile.usesNativeAmmoCode()) {
             putNativeAmmoCode(tag, profile, false);
         } else {
             tag.remove(AMMO_KEY);
@@ -248,6 +250,12 @@ public final class ArtilleryNativeState {
     }
 
     private static boolean hasExpectedAmmoMarker(CompoundTag tag, ArtilleryWeaponProfile profile) {
+        if (SupportedArtillery.FIRE_LANCE_ID.equals(profile.registryId())
+                && !profile.usesNativeAmmoCode()) {
+            return !tag.contains(AMMO_KEY)
+                    || (tag.getTagType(AMMO_KEY) == Tag.TAG_DOUBLE
+                    && tag.getDouble(AMMO_KEY) == 0);
+        }
         if (!profile.usesNativeAmmoCode()) {
             // Arquebus does not write this field in its native player procedure, but an
             // optional compatibility marker is valid when it uses the profile's confirmed

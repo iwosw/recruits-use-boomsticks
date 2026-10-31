@@ -21,6 +21,7 @@ group = mod_group_id
 version = mod_version
 
 def stressProfile = (project.findProperty('stress') ?: 'baseline').toString()
+def blissClient = (project.findProperty('blissClient') ?: 'false').toString().toBoolean()
 def stressProfiles = ['baseline', 'musket', 'combat', 'optimization', 'all']
 if (!stressProfiles.contains(stressProfile)) {
     throw new GradleException("Unknown stress profile '${stressProfile}'. Expected one of ${stressProfiles}")
@@ -52,6 +53,10 @@ def recruitsVersion = (project.findProperty('recruitsVersion') ?: '1.15.2').toSt
 def medievalBoomsticksFile = (project.findProperty('medievalBoomsticksFile') ?: '5832925').toString()
 def includeMedievalBoomsticks = (project.findProperty('includeMedievalBoomsticks') ?: 'true')
         .toString().toBoolean()
+
+def includeThirtyYearsWar = (project.findProperty('includeThirtyYearsWar') ?: 'true')
+        .toString().toBoolean()
+def thirtyYearsWarArtifact = 'curse.maven:epic-knights-thirty-years-war-1752267:9307196'
 def geckolibFile = (project.findProperty('geckolibFile') ?: '8285794').toString()
 def epicKnightsVersion = (project.findProperty('epicKnightsVersion') ?: '2kK9qUpx').toString()
 def architecturyVersion = (project.findProperty('architecturyVersion') ?: '9.2.14+forge').toString()
@@ -94,7 +99,9 @@ minecraft {
         }
 
         client {
-            if (stressProfile != 'baseline') {
+            if (blissClient) {
+                workingDirectory project.file('run-client-bliss')
+            } else if (stressProfile != 'baseline') {
                 workingDirectory project.file("run-client-${stressProfile}")
             }
         }
@@ -114,6 +121,7 @@ minecraft {
         gameTestServer {
             workingDirectory project.file(gameTestDirectory)
             property 'forge.enabledGameTestNamespaces', mod_id
+            property 'recruits_use_boomsticks.expectThirtyYearsWar', includeThirtyYearsWar.toString()
         }
 
         data {
@@ -144,7 +152,7 @@ repositories {
 }
 
 // Artillery Addon runtime artifact. -Partillery=none proves the optional-dependency path.
-// 8812944 (1.16.2) is the dedicated-server release baseline and registers all twenty-four
+// 8812944 (1.16.2) is the dedicated-server release baseline and registers all twenty-six
 // supported firearm profiles. 8325660 (1.14.0) still fails dedicated-server loading upstream and may run
 // GameTests only through the dev-only patch configured above. 8252195 (1.13.4) remains available for
 // the older supported range.
@@ -157,9 +165,18 @@ dependencies {
     // -PincludeMedievalBoomsticks=false exercises the Artillery-only installation.
     compileOnly fg.deobf("curse.maven:medieval-boomsticks-1123016:${medievalBoomsticksFile}")
     compileOnly fg.deobf("curse.maven:geckolib-388172:${geckolibFile}")
+    compileOnly fg.deobf(thirtyYearsWarArtifact)
+    if (includeThirtyYearsWar) {
+        runtimeOnly fg.deobf(thirtyYearsWarArtifact)
+    }
     if (includeMedievalBoomsticks) {
         runtimeOnly fg.deobf("curse.maven:medieval-boomsticks-1123016:${medievalBoomsticksFile}")
         runtimeOnly fg.deobf("curse.maven:geckolib-388172:${geckolibFile}")
+    }
+    if (blissClient) {
+        // Client-only shader support for the isolated -PblissClient=true development run.
+        runtimeOnly fg.deobf('maven.modrinth:oculus:iQ1SwGc3')
+        runtimeOnly fg.deobf('maven.modrinth:embeddium:UTbfe5d1')
     }
     if (artilleryFile != null) {
         runtimeOnly fg.deobf("curse.maven:epic-knights-artillery-addon-1307540:${artilleryFile}")
@@ -214,7 +231,7 @@ tasks.matching { it.name == 'runGameTestServer' }.configureEach {
             throw new GradleException('GameTest log was not created')
         }
         def output = gameTestLog.getText('UTF-8')
-        def requiredTests = 143
+        def requiredTests = 158
         if (output.contains('Failed to load datapacks')
                 || !output.contains("${requiredTests} tests are now running")
                 || !output.contains("All ${requiredTests} required tests passed")) {
@@ -243,7 +260,8 @@ tasks.named('processResources', ProcessResources).configure {
             epic_knights_version_range: epicKnightsVersionRange,
             architectury_version_range: architecturyVersionRange,
             cloth_config_version_range: clothConfigVersionRange,
-            artillery_version_range: artilleryVersionRange
+            artillery_version_range: artilleryVersionRange,
+            thirty_years_war_version_range: '[1.2]'
     ]
 
     inputs.properties replaceProperties

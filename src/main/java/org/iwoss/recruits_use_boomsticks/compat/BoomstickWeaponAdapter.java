@@ -102,6 +102,11 @@ public interface BoomstickWeaponAdapter {
         return maxRange;
     }
 
+    /** Whether the shot resolves during fire(), leaving no projectile in flight to reserve. */
+    default boolean isInstantShot() {
+        return false;
+    }
+
     /**
      * Shows the tool the native shot is taken with, if this weapon has one.
      *

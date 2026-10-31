@@ -40,8 +40,8 @@ public final class RecruitWeaponAdapters {
     }
 
     /**
-     * Builds the runtime adapter list without resolving optional Medieval Boomsticks classes when
-     * that mod is absent. The concrete adapters retain their native typed boundary when installed;
+     * Builds the runtime adapter list without resolving optional mod classes when their mod is
+     * absent. The concrete adapters retain their native typed boundary when installed;
      * only this discovery edge is reflective.
      */
     private static List<BoomstickWeaponAdapter> productionAdapters() {
@@ -49,6 +49,10 @@ public final class RecruitWeaponAdapters {
         if (classPresent(MEDIEVAL_BOOMSTICKS_SENTINEL)) {
             addOptionalAdapter(adapters, MEDIEVAL_FIREARM_ADAPTER);
             addOptionalAdapter(adapters, MEDIEVAL_THROWABLE_ADAPTER);
+        }
+        if (classPresent("com.magistuarmory.thirtyyearswar.item.GunItem")) {
+            addOptionalAdapter(adapters,
+                    "org.iwoss.recruits_use_boomsticks.compat.ThirtyYearsWarAdapter");
         }
         adapters.add(ArtilleryAddonAdapter.INSTANCE);
         adapters.add(ArtilleryThrowableAdapter.INSTANCE);
@@ -84,7 +88,7 @@ public final class RecruitWeaponAdapters {
             // An incompatible optional installation must disable only its own integration rather
             // than preventing the Artillery-only core from loading.
             RecruitsUseBoomsticks.LOGGER.warn(
-                    "Optional Medieval Boomsticks adapter {} could not be loaded; disabling it",
+                    "Optional weapon adapter {} could not be loaded; disabling it",
                     adapterClassName,
                     exception);
         }

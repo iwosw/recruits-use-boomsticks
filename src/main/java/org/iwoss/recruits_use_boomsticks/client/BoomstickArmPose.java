@@ -54,7 +54,8 @@ public final class BoomstickArmPose {
                         ? HumanoidModel.ArmPose.THROW_SPEAR
                         : HumanoidModel.ArmPose.ITEM);
             }
-            if (selected.integration() == RecruitWeaponIntegration.MEDIEVAL_BOOMSTICKS) {
+            if (selected.integration() == RecruitWeaponIntegration.MEDIEVAL_BOOMSTICKS
+                    || selected.integration() == RecruitWeaponIntegration.THIRTY_YEARS_WAR) {
                 if (selected.isReloading(held)) {
                     // Boomsticks guns extend CrossbowItem, so the vanilla charge animation reads
                     // their use ticks and charge duration directly and pulls both arms in on time.
