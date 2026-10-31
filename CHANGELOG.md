@@ -9,6 +9,12 @@ All notable changes to Recruits Use Boomsticks are documented here.
 - Musket reloads require real Flint and Steel and wear it once. Interrupted NPC reloads spend nothing; completed native `Charged` payloads survive save/load. Instant shots release formation reservations immediately.
 - Added runtime coverage for both firearms, blocked shots, armor penetration, ammo/tool accounting, recovery, friendly fire, kill switches, repeated combat and optional mod presence.
 
+### Fixed
+
+- Recruits' own crossbow goal no longer treats the native guns as crossbows. It used to "charge" an unloaded gun through `CrossbowItem.setCharged` with an arrow, or for free, after which the recruit fired a native bullet without spending a Paper Cartridge.
+- The Wheellock Pistol engages at 37 blocks instead of its full 40. Near that edge the recruit could aim forever without firing, because the AI measures from the feet and the native ray from the eye.
+- A recruit holds fire while an ally, its owner or its own mount blocks the native ray. Previously a rear-rank recruit spent its cartridge into the back of the front rank with no effect. Bullets also no longer hurt the recruit's mount.
+
 ## 2.2.1 — 2026-09-26
 
 ### Added

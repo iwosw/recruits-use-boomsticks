@@ -52,8 +52,25 @@ A native effect failure cannot restore a cartridge after damage may already have
 Out-of-range, nonfinite, unloaded, disabled and client-side requests are rejected before spending.
 
 `ThirtyYearsWarShotEvents` cancels recruit bullet attacks against the owner, same-owner
-recruits and other entities the shooter cannot attack. A friendly entity blocks the native
-ray without taking damage. Only recruit-origin native bullet damage gets the global
+recruits, anything riding with the shooter (its own mount included) and other entities the
+shooter cannot attack. Before spending, `fire()` repeats the native ray without its spread;
+if that ray's first entity is protected, the shot is refused as `INVALID_TARGET` and the
+charge is kept, so a rear rank holds fire until the front rank clears. Spread can still clip
+an ally; that friendly entity then blocks the native ray without taking damage.
+
+Combat engages at `range - 3` blocks feet to feet (`SupportedThirtyYearsWar.engagementRange`):
+the AI measures from the feet, while the native ray and the out-of-range refusal measure from
+the eye to the target's lower third. Engaging at the full native range left a target near the
+edge in an endless aim-and-refuse loop. The 40-block pistol therefore engages at 37 blocks.
+
+Thirty Years War guns extend `CrossbowItem`. Recruits' `RecruitRangedCrossbowAttackGoal`
+recognizes crossbows by `instanceof` and loads them through `CrossbowItem.setCharged`, which
+writes the same native `Charged` boolean. A mixin makes its `isCrossbow` reject enabled
+native guns, so that goal can neither charge one nor pull one from storage. Otherwise a
+recruit without cartridges would charge the gun with an arrow (or for free when Recruits does
+not require arrows) and the boomstick goal would fire a free native bullet.
+
+Only recruit-origin native bullet damage gets the global
 damage multiplier/floor and `damage.thirtyYearsWarDamageMultiplier`; player shots and
 other damage types remain native. The native armor modifier is still removed after each hit.
 `damage.projectilesIgnoreHurtCooldown` also applies to these instant recruit bullets,
@@ -104,3 +121,13 @@ is not claimed. With Epic Knights 10.11 the upstream addon logs nonfatal cloak
 recipe/advancement errors for missing `magistuarmory:baroque_cloak_decoration`;
 both firearms still register and execute. The existing Artillery guide-book
 parse warning is also nonfatal.
+
+### Bug-fix pass (2026-10-31)
+
+The crossbow-goal, engagement-range and line-of-fire fixes above added three required
+GameTests and one unit test. `gradlew test runGameTestServer` then passed 172 unit tests
+and all 161 required GameTests in the default profile, `-PincludeThirtyYearsWar=false
+-Pmatrix=tyw-absent` and `-Partillery=none -Pmatrix=tyw-no-artillery`. `gradlew build`
+rebuilt `build/libs/recruits_use_boomsticks-2.2.1.jar`: 400,690 bytes, SHA-256
+`b1f92b732507cf6f65403ab947c7ff1d84ec8b4397df1543f6cf19f8b941a156`, still with no
+upstream classes. The earlier artifact figures above are superseded.

@@ -1,6 +1,7 @@
 package org.iwoss.recruits_use_boomsticks.gametest;
 
 import com.talhanation.recruits.entities.CrossBowmanEntity;
+import com.talhanation.recruits.entities.ai.RecruitRangedCrossbowAttackGoal;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
@@ -35,6 +36,7 @@ import org.iwoss.recruits_use_boomsticks.compat.SupportedThirtyYearsWar;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import org.iwoss.recruits_use_boomsticks.event.ThirtyYearsWarShotEvents;
 
+import java.lang.reflect.Method;
 import java.util.Optional;
 
 /** No upstream type references: the same class also verifies installations without the addon. */
@@ -227,8 +229,75 @@ public final class ThirtyYearsWarGameTests {
         BoomstickWeaponAdapter adapter = adapter(weapon);
         adapter.setLoaded(weapon, true);
         float before = ally.getHealth();
-        helper.assertTrue(adapter.fire(recruit, weapon, ally.getBoundingBox().getCenter()).fired(), "ray must fire");
-        helper.assertTrue(ally.getHealth() == before, "actual native ray must not injure allied recruit");
+        helper.assertTrue(adapter.fire(recruit, weapon, ally.getBoundingBox().getCenter()).outcome()
+                == BoomstickWeaponAdapter.ShotOutcome.INVALID_TARGET, "an ally in the ray must hold fire");
+        helper.assertTrue(ally.getHealth() == before && adapter.isLoaded(weapon) && weapon.getDamageValue() == 0,
+                "held fire must neither injure the ally nor spend the charge or durability");
+        LivingEntity horse = helper.spawnWithNoFreeWill(EntityType.HORSE, 1, 2, 3);
+        helper.assertTrue(recruit.startRiding(horse, true), "test recruit must mount");
+        LivingAttackEvent mountHit = new LivingAttackEvent(horse, source, 18);
+        ThirtyYearsWarShotEvents.onAttack(mountHit);
+        helper.assertTrue(mountHit.isCanceled(), "the recruit's own mount must be protected");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void allyInFrontRankHoldsFireUntilTheRayClears(GameTestHelper helper) {
+        if (absent(helper)) return;
+        CrossBowmanEntity recruit = recruit(helper, 1);
+        CrossBowmanEntity frontRank = recruit(helper, 3);
+        Player owner = helper.makeMockPlayer();
+        recruit.setOwnerUUID(Optional.of(owner.getUUID()));
+        frontRank.setOwnerUUID(Optional.of(owner.getUUID()));
+        LivingEntity enemy = target(helper, 5);
+        ItemStack weapon = stack(SupportedThirtyYearsWar.MATCHLOCK_MUSKET_ID);
+        recruit.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+        BoomstickWeaponAdapter adapter = adapter(weapon);
+        adapter.setLoaded(weapon, true);
+        Vec3 aim = new Vec3(enemy.getX(), enemy.getY(1.0D / 3.0D), enemy.getZ());
+        helper.assertTrue(adapter.fire(recruit, weapon, aim).outcome()
+                == BoomstickWeaponAdapter.ShotOutcome.INVALID_TARGET, "rear rank must not shoot into the front rank");
+        helper.assertTrue(adapter.isLoaded(weapon) && enemy.getHealth() == 100,
+                "a blocked rank keeps its cartridge for a clear shot");
+        frontRank.setPos(frontRank.getX(), frontRank.getY(), frontRank.getZ() + 3);
+        helper.assertTrue(adapter.fire(recruit, weapon, aim).fired() && enemy.getHealth() < 100,
+                "once the ray is clear the same charge must hit the enemy");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void recruitsCrossbowGoalCannotChargeNativeGuns(GameTestHelper helper) {
+        if (absent(helper)) return;
+        boolean enabled = CompatConfig.THIRTY_YEARS_WAR_ENABLED.get();
+        try {
+            Method isCrossbow = RecruitRangedCrossbowAttackGoal.class.getDeclaredMethod("isCrossbow", ItemStack.class);
+            isCrossbow.setAccessible(true);
+            helper.assertTrue((boolean) isCrossbow.invoke(null, new ItemStack(Items.CROSSBOW)),
+                    "a vanilla crossbow must stay Recruits' own weapon");
+            for (String id : SupportedThirtyYearsWar.WEAPON_IDS) {
+                helper.assertFalse((boolean) isCrossbow.invoke(null, stack(id)),
+                        "Recruits must not charge a native gun through CrossbowItem.setCharged");
+            }
+            CompatConfig.THIRTY_YEARS_WAR_ENABLED.set(false);
+            helper.assertTrue((boolean) isCrossbow.invoke(null, stack(SupportedThirtyYearsWar.WHEELLOCK_PISTOL_ID)),
+                    "a disabled integration must leave Recruits' handling untouched");
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException(exception);
+        } finally {
+            CompatConfig.THIRTY_YEARS_WAR_ENABLED.set(enabled);
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void combatEngagesInsideTheNativeEyeRay(GameTestHelper helper) {
+        if (absent(helper)) return;
+        ItemStack pistol = stack(SupportedThirtyYearsWar.WHEELLOCK_PISTOL_ID);
+        BoomstickWeaponAdapter adapter = adapter(pistol);
+        helper.assertTrue(adapter.effectiveRange(pistol, 45.0D) == 37.0D,
+                "40-block pistol must engage only where its eye ray reaches the aimed point");
+        helper.assertTrue(adapter.effectiveRange(stack(SupportedThirtyYearsWar.MATCHLOCK_MUSKET_ID), 45.0D) == 45.0D,
+                "80-block musket stays capped by the shared combat range");
         helper.succeed();
     }
 

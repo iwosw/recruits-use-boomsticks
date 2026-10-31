@@ -185,7 +185,7 @@ Forge creates `config/recruits_use_boomsticks-common.toml` after the first launc
 
 ## Verification
 
-The release gate uses focused unit tests, real Forge dedicated-server GameTests, optional-dependency runs, dependency-range matrix runs, and a release-JAR content check. The current harness contains 171 unit tests and 158 required GameTests. The [Thirty Years War report](docs/compat/thirty-years-war-1.2.md) records its current runtime profiles separately from historical dependency matrices.
+The release gate uses focused unit tests, real Forge dedicated-server GameTests, optional-dependency runs, dependency-range matrix runs, and a release-JAR content check. The current harness contains 172 unit tests and 161 required GameTests. The [Thirty Years War report](docs/compat/thirty-years-war-1.2.md) records its current runtime profiles separately from historical dependency matrices.
 
 Detailed Artillery evidence and exact runtime boundaries are recorded in [the compatibility verification report](docs/compat/artillery-addon-compatibility-verification.md).
 

@@ -5,6 +5,7 @@ import com.talhanation.recruits.entities.ai.RecruitRangedCrossbowAttackGoal;
 import net.minecraft.world.item.ItemStack;
 import org.iwoss.recruits_use_boomsticks.ai.BoomstickCombatPolicy;
 import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponAdapters;
+import org.iwoss.recruits_use_boomsticks.compat.RecruitWeaponIntegration;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -33,6 +34,26 @@ public abstract class RecruitRangedCrossbowAttackGoalMixin {
             CallbackInfoReturnable<Boolean> callbackInfo
     ) {
         if (shouldYieldToBoomstick()) {
+            callbackInfo.setReturnValue(false);
+        }
+    }
+
+    /**
+     * Thirty Years War guns extend {@code CrossbowItem}, and this goal's weapon test is a plain
+     * {@code instanceof}. Without this, a recruit holding an unloaded gun and no paper cartridge
+     * would be "loaded" here through vanilla {@code CrossbowItem.setCharged} — the very boolean the
+     * native gun fires from — and the boomstick goal would then fire a free native bullet. The same
+     * method is the predicate this goal swaps weapons with, so it also stops it pulling such a gun
+     * out of storage. A disabled integration leaves Recruits' own handling untouched.
+     */
+    @Inject(method = "isCrossbow", at = @At("HEAD"), cancellable = true, remap = false)
+    private static void recruitsUseBoomsticks$rejectNativeGuns(
+            ItemStack stack,
+            CallbackInfoReturnable<Boolean> callbackInfo
+    ) {
+        if (RECRUIT_WEAPON_ADAPTERS.findEnabled(stack)
+                .filter(adapter -> adapter.integration() == RecruitWeaponIntegration.THIRTY_YEARS_WAR)
+                .isPresent()) {
             callbackInfo.setReturnValue(false);
         }
     }

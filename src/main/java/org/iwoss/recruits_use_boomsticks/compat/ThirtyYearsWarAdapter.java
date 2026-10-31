@@ -6,11 +6,16 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.iwoss.recruits_use_boomsticks.RecruitsUseBoomsticks;
 import org.iwoss.recruits_use_boomsticks.config.CompatConfig;
+import org.iwoss.recruits_use_boomsticks.event.ThirtyYearsWarShotEvents;
 
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -75,7 +80,10 @@ public final class ThirtyYearsWarAdapter implements BoomstickWeaponAdapter {
     @Override
     public double effectiveRange(ItemStack weapon, double maxRange) {
         GunItem gun = gun(weapon);
-        return gun == null || profile(weapon).isEmpty() ? 0 : Math.min(maxRange, gun.config.range);
+        // fire() rejects an aim point beyond the native ray. Engaging at the full native range
+        // would leave a target near that edge in an endless aim-and-refuse loop.
+        return gun == null || profile(weapon).isEmpty() ? 0
+                : Math.min(maxRange, SupportedThirtyYearsWar.engagementRange(gun.config.range));
     }
 
     @Override
@@ -177,6 +185,11 @@ public final class ThirtyYearsWarAdapter implements BoomstickWeaponAdapter {
         if (direction.lengthSqr() < 1.0E-8D || direction.lengthSqr() > gun.config.range * gun.config.range) {
             return new ShotResult(ShotOutcome.INVALID_TARGET, 0);
         }
+        if (friendlyInLineOfFire(recruit, direction.normalize(), gun.config.range)) {
+            // The native ray stops at the first entity and the shot handler then cancels the hit,
+            // so firing would only burn a cartridge into an ally's back.
+            return new ShotResult(ShotOutcome.INVALID_TARGET, 0);
+        }
         float yaw = recruit.getYRot();
         float pitch = recruit.getXRot();
         recruit.setYRot((float) (Mth.atan2(direction.z, direction.x) * Mth.RAD_TO_DEG) - 90.0F);
@@ -197,6 +210,19 @@ public final class ThirtyYearsWarAdapter implements BoomstickWeaponAdapter {
             recruit.setYRot(yaw);
             recruit.setXRot(pitch);
         }
+    }
+
+    /** The native ray of {@code GunItem.performShooting} without its spread. */
+    private static boolean friendlyInLineOfFire(CrossBowmanEntity recruit, Vec3 direction, double range) {
+        Vec3 start = recruit.getEyePosition();
+        Vec3 end = recruit.level().clip(new ClipContext(start, start.add(direction.scale(range)),
+                ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, recruit)).getLocation();
+        EntityHitResult hit = ProjectileUtil.getEntityHitResult(recruit, start, end,
+                recruit.getBoundingBox().expandTowards(direction.scale(range)).inflate(1),
+                entity -> !entity.isSpectator() && entity.isPickable() && entity != recruit,
+                start.distanceToSqr(end));
+        return hit != null && hit.getEntity() instanceof LivingEntity target
+                && ThirtyYearsWarShotEvents.isProtected(recruit, target);
     }
 
     private void setFlag(ItemStack weapon, String key, boolean value) {

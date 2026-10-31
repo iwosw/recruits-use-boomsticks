@@ -22,4 +22,17 @@ class SupportedThirtyYearsWarTest {
         assertFalse(SupportedThirtyYearsWar.isAmmoId("minecraft:arrow"));
         assertFalse(SupportedThirtyYearsWar.isAmmoId(null));
     }
+
+    @Test
+    void engagementStaysInsideTheNativeEyeRay() {
+        // A mounted recruit's eye sits up to ~2.4 blocks above a target's lower third.
+        double feet = SupportedThirtyYearsWar.engagementRange(40.0D);
+        assertEquals(37.0D, feet);
+        assertTrue(Math.hypot(feet, 2.4D) <= 40.0D);
+        assertTrue(feet + 2.4D <= 40.0D);
+        assertEquals(77.0D, SupportedThirtyYearsWar.engagementRange(80.0D));
+        assertEquals(2.0D, SupportedThirtyYearsWar.engagementRange(4.0D));
+        assertEquals(0.0D, SupportedThirtyYearsWar.engagementRange(0.0D));
+        assertEquals(0.0D, SupportedThirtyYearsWar.engagementRange(Double.NaN));
+    }
 }

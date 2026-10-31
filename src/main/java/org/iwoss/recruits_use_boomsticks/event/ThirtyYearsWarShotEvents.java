@@ -34,10 +34,7 @@ public final class ThirtyYearsWarShotEvents {
             return;
         }
         LivingEntity target = event.getEntity();
-        if (shooter == target || shooter.isAlliedTo(target) || !shooter.canAttack(target)
-                || target.getUUID().equals(shooter.getOwnerUUID())
-                || target instanceof AbstractRecruitEntity recruit && shooter.getOwnerUUID() != null
-                && shooter.getOwnerUUID().equals(recruit.getOwnerUUID())) {
+        if (isProtected(shooter, target)) {
             event.setCanceled(true);
             return;
         }
@@ -53,6 +50,15 @@ public final class ThirtyYearsWarShotEvents {
             event.setAmount(BoomstickDamagePolicy.configuredDamage(
                     event.getAmount(), RecruitWeaponIntegration.THIRTY_YEARS_WAR));
         }
+    }
+
+    /** Owner, same-owner recruits, allies, and anything the recruit rides with never take its bullets. */
+    public static boolean isProtected(CrossBowmanEntity shooter, LivingEntity target) {
+        return shooter == target || shooter.isAlliedTo(target) || !shooter.canAttack(target)
+                || target.getRootVehicle() == shooter.getRootVehicle()
+                || target.getUUID().equals(shooter.getOwnerUUID())
+                || target instanceof AbstractRecruitEntity recruit && shooter.getOwnerUUID() != null
+                && shooter.getOwnerUUID().equals(recruit.getOwnerUUID());
     }
 
     private static CrossBowmanEntity shooter(DamageSource source) {
